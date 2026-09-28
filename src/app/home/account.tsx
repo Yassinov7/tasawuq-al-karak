@@ -1,6 +1,7 @@
-import { useRouter } from "expo-router";
-import { useState } from "react";
+import { Href, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,10 +13,16 @@ import {
 } from "react-native";
 
 import { AppHeader } from "@/components/navigation/AppHeader";
+import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
+import { WorkspaceCard } from "@/components/workspace/WorkspaceUI";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
+import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
+import { supabase } from "@/lib/supabase";
+import { useWorkspace } from "@/context/WorkspaceContext";
+import { normalizePhoneNumber } from "@/utils/phone";
 
 type AccountItem = {
   title: string;
@@ -26,10 +33,16 @@ type AccountItem = {
     | "location-outline"
     | "heart-outline"
     | "notifications-outline"
+    | "storefront-outline"
     | "settings-outline";
 };
 
 const items: AccountItem[] = [
+  {
+    title: "البيع عبر تسوق",
+    subtitle: "قدّم طلب فتح متجر على حسابك الحالي",
+    icon: "storefront-outline",
+  },
   {
     title: "طلباتي",
     subtitle: "متابعة الطلبات الحالية والسابقة",
@@ -66,6 +79,8 @@ export default function AccountTab() {
   const router = useRouter();
   const { colors } = useTheme();
   const { itemCount } = useCart();
+  const { user, signOut } = useAuth();
+  const workspace = useWorkspace();
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
@@ -74,8 +89,32 @@ export default function AccountTab() {
 
   const [savedName, setSavedName] = useState("");
   const [savedPhone, setSavedPhone] = useState("");
+  const [profileLoaded, setProfileLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    void supabase
+      .from("profiles")
+      .select("phone")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (active) {
+          setSavedPhone(data?.phone ?? "");
+          setProfileLoaded(true);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [user]);
 
   const handleItemPress = (item: AccountItem) => {
+    if (item.title === "البيع عبر تسوق") {
+      router.push("/merchant-application");
+      return;
+    }
     if (item.title === "طلباتي") {
       router.push("/orders");
       return;
@@ -107,26 +146,66 @@ export default function AccountTab() {
   };
 
   const handleStartEditing = () => {
-    setName(savedName);
-    setPhone(savedPhone);
+    const metadataName = user?.user_metadata.display_name;
+    setName(
+      savedName || (typeof metadataName === "string" ? metadataName : ""),
+    );
+    const metadataPhone = typeof user?.user_metadata.phone === "string" ? user.user_metadata.phone : "";
+    setPhone(profileLoaded ? savedPhone : metadataPhone);
     setIsEditingProfile(true);
   };
 
   const handleCancelEditing = () => {
     setName(savedName);
-    setPhone(savedPhone);
+    const metadataPhone = typeof user?.user_metadata.phone === "string" ? user.user_metadata.phone : "";
+    setPhone(profileLoaded ? savedPhone : metadataPhone);
     setIsEditingProfile(false);
   };
 
-  const handleSaveProfile = () => {
-    setSavedName(name.trim());
-    setSavedPhone(phone.trim());
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    const nextName = name.trim();
+    const normalizedPhone = phone.trim() ? normalizePhoneNumber(phone) : "";
+    if (nextName.length < 2) {
+      Alert.alert("الاسم غير صالح", "أدخل اسماً من حرفين على الأقل");
+      return;
+    }
+    if (phone.trim() && !normalizedPhone) {
+      Alert.alert("رقم الهاتف غير صالح", "أدخل الرقم مع مفتاح الدولة، مثل +963");
+      return;
+    }
+    const nextPhone = normalizedPhone ?? "";
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ display_name: nextName, phone: nextPhone || null })
+      .eq("id", user.id);
+    if (error) {
+      Alert.alert("تعذر حفظ الاسم", "تحقق من اتصالك وحاول مرة أخرى");
+      return;
+    }
+
+    setSavedName(nextName);
+    setSavedPhone(nextPhone);
     setIsEditingProfile(false);
   };
 
-  const displayName = savedName || "أهلاً بك في تسوق";
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch {
+      Alert.alert("تعذر تسجيل الخروج", "تحقق من اتصالك وحاول مرة أخرى");
+    }
+  };
 
-  const displayPhone = savedPhone || "أضف رقم هاتفك لإدارة حسابك";
+  const metadataName = user?.user_metadata.display_name;
+  const displayName =
+    savedName ||
+    (typeof metadataName === "string" ? metadataName : "") ||
+    "أهلاً بك في تسوق";
+
+  const metadataPhone = typeof user?.user_metadata.phone === "string" ? user.user_metadata.phone : "";
+  const displayPhone = (profileLoaded ? savedPhone : metadataPhone) || "أضف رقم هاتفك لإدارة حسابك";
 
   return (
     <View
@@ -370,8 +449,8 @@ export default function AccountTab() {
 
                 <TextInput
                   value={phone}
-                  onChangeText={setPhone}
-                  placeholder="مثلاً: 09xxxxxxxx"
+                  editable
+                  placeholder="رقم الهاتف للتواصل"
                   placeholderTextColor={colors.textMuted}
                   style={[
                     styles.input,
@@ -383,6 +462,9 @@ export default function AccountTab() {
                   keyboardType="phone-pad"
                 />
               </View>
+              <Text style={[styles.profileSubtitle, { color: colors.textMuted, marginTop: Spacing.one }]}>
+                رقم الهاتف للتواصل، أما تسجيل الدخول وتأكيد الحساب فبالبريد الإلكتروني.
+              </Text>
 
               <View style={styles.formActions}>
                 <Pressable
@@ -552,6 +634,17 @@ export default function AccountTab() {
               </Pressable>
             ))}
           </View>
+
+          {workspace.merchantApproval === "approved" ? (
+            <WorkspaceCard title="لوحة التاجر" detail="العودة إلى إدارة المتاجر والطلبات" icon="storefront-outline" onPress={() => router.push("/merchant" as Href)} />
+          ) : null}
+
+          <AppButton
+            title="تسجيل الخروج"
+            icon="log-out-outline"
+            variant="outline"
+            onPress={() => void handleSignOut()}
+          />
 
           <View
             style={[

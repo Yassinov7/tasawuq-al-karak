@@ -15,6 +15,9 @@ import {
 import { BrandMark } from "@/components/brand/BrandMark";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
+import { supabase } from "@/lib/supabase";
+import { authErrorMessage } from "@/utils/authError";
+import { normalizePhoneNumber } from "@/utils/phone";
 
 export default function SignupScreen() {
   const router = useRouter();
@@ -22,8 +25,8 @@ export default function SignupScreen() {
   const { colors } = useTheme();
 
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -42,14 +45,12 @@ export default function SignupScreen() {
     }, 150);
   };
 
-  const handleSignup = () => {
+  const handleSignup = async () => {
     setError("");
 
     const cleanName = name.trim();
-    const cleanPhone = phone.trim();
-    const cleanEmail = email.trim();
-    const cleanPassword = password.trim();
-    const cleanConfirmPassword = confirmPassword.trim();
+    const cleanEmail = email.trim().toLowerCase();
+    const normalizedPhone = normalizePhoneNumber(phone);
 
     if (!cleanName) {
       setError("يرجى إدخال الاسم");
@@ -61,47 +62,61 @@ export default function SignupScreen() {
       return;
     }
 
-    if (!cleanPhone) {
-      setError("يرجى إدخال رقم الهاتف");
-      return;
-    }
-
-    if (cleanPhone.length < 8) {
-      setError("يرجى إدخال رقم هاتف صحيح");
-      return;
-    }
-
-    if (cleanEmail && !cleanEmail.includes("@")) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
       setError("يرجى إدخال بريد إلكتروني صحيح");
       return;
     }
 
-    if (!cleanPassword) {
+    if (!normalizedPhone) {
+      setError("يرجى إدخال رقم هاتف بصيغته الدولية مع مفتاح الدولة (+)");
+      return;
+    }
+
+    if (!password) {
       setError("يرجى إدخال كلمة المرور");
       return;
     }
 
-    if (cleanPassword.length < 6) {
+    if (password.length < 6) {
       setError("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
       return;
     }
 
-    if (!cleanConfirmPassword) {
+    if (!confirmPassword) {
       setError("يرجى تأكيد كلمة المرور");
       return;
     }
 
-    if (cleanPassword !== cleanConfirmPassword) {
+    if (password !== confirmPassword) {
       setError("كلمتا المرور غير متطابقتين");
       return;
     }
 
     setIsLoading(true);
+    try {
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password,
+        options: { data: { display_name: cleanName, phone: normalizedPhone } },
+      });
 
-    setTimeout(() => {
+      if (signUpError) throw signUpError;
+
+      if (data.session) {
+        router.replace("/home" as Href);
+      } else if (data.user) {
+        router.replace({
+          pathname: "/verify-email",
+          params: { email: cleanEmail },
+        } as unknown as Href);
+      } else {
+        setError("تعذر إنشاء الحساب. حاول مرة أخرى");
+      }
+    } catch (signUpError) {
+      setError(authErrorMessage(signUpError));
+    } finally {
       setIsLoading(false);
-      router.replace("/home" as Href);
-    }, 800);
+    }
   };
 
   return (
@@ -186,6 +201,27 @@ export default function SignupScreen() {
             </View>
 
             <View style={styles.field}>
+              <Text style={[styles.label, { color: colors.text }]}>البريد الإلكتروني</Text>
+              <TextInput
+                value={email}
+                onChangeText={(value) => { setEmail(value); setError(""); }}
+                placeholder="example@email.com"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                textContentType="emailAddress"
+                style={[styles.input, { borderColor: colors.border, backgroundColor: colors.surface, color: colors.text }]}
+                textAlign="left"
+                returnKeyType="next"
+                editable={!isLoading}
+                onFocus={() => scrollToInput(180)}
+                accessibilityLabel="البريد الإلكتروني"
+              />
+              <Text style={[styles.helperText, { color: colors.textMuted }]}>سيُستخدم لتأكيد الحساب وتسجيل الدخول</Text>
+            </View>
+
+            <View style={styles.field}>
               <Text
                 style={[
                   styles.label,
@@ -203,7 +239,7 @@ export default function SignupScreen() {
                   setPhone(value);
                   setError("");
                 }}
-                placeholder="أدخل رقم الهاتف"
+                placeholder="أدخل الرقم مع مفتاح الدولة (+)"
                 placeholderTextColor={colors.textMuted}
                 keyboardType="phone-pad"
                 style={[
@@ -220,56 +256,7 @@ export default function SignupScreen() {
                 onFocus={() => scrollToInput(180)}
                 accessibilityLabel="رقم الهاتف"
               />
-            </View>
-
-            <View style={styles.field}>
-              <Text
-                style={[
-                  styles.label,
-                  {
-                    color: colors.text,
-                  },
-                ]}
-              >
-                البريد الإلكتروني
-                <Text
-                  style={[
-                    styles.optional,
-                    {
-                      color: colors.textMuted,
-                    },
-                  ]}
-                >
-                  {" "}
-                  اختياري
-                </Text>
-              </Text>
-
-              <TextInput
-                value={email}
-                onChangeText={(value) => {
-                  setEmail(value);
-                  setError("");
-                }}
-                placeholder="example@email.com"
-                placeholderTextColor={colors.textMuted}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={[
-                  styles.input,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.surface,
-                    color: colors.text,
-                  },
-                ]}
-                textAlign="right"
-                returnKeyType="next"
-                editable={!isLoading}
-                onFocus={() => scrollToInput(260)}
-                accessibilityLabel="البريد الإلكتروني"
-              />
+              <Text style={[styles.helperText, { color: colors.textMuted }]}>للتواصل معك فقط، ولا يحتاج إلى رمز SMS</Text>
             </View>
 
             <View style={styles.field}>
@@ -550,6 +537,13 @@ const styles = StyleSheet.create({
   optional: {
     fontFamily: Fonts.regular,
     fontSize: FontSizes.xs,
+  },
+
+  helperText: {
+    marginTop: Spacing.one,
+    fontFamily: Fonts.regular,
+    fontSize: FontSizes.xs,
+    textAlign: "right",
   },
 
   input: {

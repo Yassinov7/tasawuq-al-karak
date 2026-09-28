@@ -5,9 +5,10 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { AppModal } from "@/components/ui/AppModal";
-import { products, stores } from "@/constants/catalog";
+import type { Product, Store } from "@/constants/catalog";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
+import { useCatalog } from "@/context/CatalogContext";
 import { useTheme } from "@/context/ThemeContext";
 
 const PLATFORM_DELIVERY_ENABLED = false;
@@ -26,11 +27,13 @@ type DeleteModal =
 export default function CartScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { products } = useCatalog();
 
   const {
     items,
     itemCount,
     subtotal,
+    currency,
     increaseItem,
     decreaseItem,
     removeItem,
@@ -59,7 +62,7 @@ export default function CartScreen() {
         value,
       ): value is {
         item: (typeof items)[number];
-        product: (typeof products)[number];
+        product: Product;
       } => Boolean(value),
     );
 
@@ -165,7 +168,7 @@ export default function CartScreen() {
                   },
                 ]}
               >
-                {itemCount} قطعة • {storeCount}{" "}
+                {itemCount} منتج • {storeCount}{" "}
                 {storeCount === 1 ? "متجر" : "متاجر"}
               </Text>
             </View>
@@ -244,7 +247,7 @@ export default function CartScreen() {
 
             <SummaryRow
               label="المجموع الفرعي"
-              value={`${subtotal.toLocaleString("en-US")} ل.س`}
+              value={`${subtotal.toLocaleString("en-US")} ${currency === "USD" ? "$" : "ل.س"}`}
             />
 
             <SummaryRow label="التوصيل" value={deliveryLabel} />
@@ -279,7 +282,7 @@ export default function CartScreen() {
                     },
                   ]}
                 >
-                  {total.toLocaleString("en-US")}
+                {total.toLocaleString("en-US")}
                 </Text>
 
                 <Text
@@ -290,7 +293,7 @@ export default function CartScreen() {
                     },
                   ]}
                 >
-                  ل.س
+                  {currency === "USD" ? "$" : "ل.س"}
                 </Text>
               </View>
             </View>
@@ -515,10 +518,11 @@ type SharedCartStoresProps = {
 
 function SharedCartStores({ storeIds }: SharedCartStoresProps) {
   const { colors } = useTheme();
+  const { stores } = useCatalog();
 
   const sharedStores = storeIds
     .map((storeId) => stores.find((store) => store.id === storeId))
-    .filter((store): store is (typeof stores)[number] => Boolean(store));
+    .filter((store): store is Store => Boolean(store));
 
   return (
     <View
@@ -590,7 +594,7 @@ function SharedCartStores({ storeIds }: SharedCartStoresProps) {
 
             <View style={styles.sharedStoreMeta}>
               <AppIcon
-                name="time-outline"
+                name="location-outline"
                 size={13}
                 color={colors.textSecondary}
               />
@@ -603,7 +607,7 @@ function SharedCartStores({ storeIds }: SharedCartStoresProps) {
                   },
                 ]}
               >
-                {store.deliveryTime}
+                {store.location}
               </Text>
             </View>
           </View>
@@ -614,7 +618,7 @@ function SharedCartStores({ storeIds }: SharedCartStoresProps) {
 }
 
 type CartItemCardProps = {
-  product: (typeof products)[number];
+  product: Product;
   quantity: number;
   isSharedCart: boolean;
   onIncrease: () => void;
@@ -631,6 +635,7 @@ function CartItemCard({
   onRemove,
 }: CartItemCardProps) {
   const { colors } = useTheme();
+  const { stores } = useCatalog();
 
   const store = stores.find((item) => item.id === product.storeId);
 
@@ -802,7 +807,7 @@ function CartItemCard({
               },
             ]}
           >
-            ل.س
+            {product.currency === "USD" ? "$" : "ل.س"}
           </Text>
         </View>
       </View>

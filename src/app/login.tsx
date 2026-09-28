@@ -15,13 +15,16 @@ import {
 import { BrandMark } from "@/components/brand/BrandMark";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
+import { getDashboardPath } from "@/context/WorkspaceContext";
+import { supabase } from "@/lib/supabase";
+import { authErrorMessage } from "@/utils/authError";
 
 export default function LoginScreen() {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
   const { colors } = useTheme();
 
-  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -36,38 +39,39 @@ export default function LoginScreen() {
     }, 150);
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     setError("");
 
-    const cleanPhone = phone.trim();
-    const cleanPassword = password.trim();
+    const cleanEmail = email.trim().toLowerCase();
 
-    if (!cleanPhone) {
-      setError("يرجى إدخال رقم الهاتف");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setError("يرجى إدخال بريد إلكتروني صحيح");
       return;
     }
 
-    if (cleanPhone.length < 8) {
-      setError("يرجى إدخال رقم هاتف صحيح");
-      return;
-    }
-
-    if (!cleanPassword) {
+    if (!password) {
       setError("يرجى إدخال كلمة المرور");
       return;
     }
 
-    if (cleanPassword.length < 6) {
+    if (password.length < 6) {
       setError("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
       return;
     }
 
     setIsLoading(true);
-
-    setTimeout(() => {
+    try {
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
+      });
+      if (signInError) throw signInError;
+      if (data.user) router.replace((await getDashboardPath(data.user.id)) as Href);
+    } catch (signInError) {
+      setError(authErrorMessage(signInError));
+    } finally {
       setIsLoading(false);
-      router.replace("/home" as Href);
-    }, 800);
+    }
   };
 
   return (
@@ -124,18 +128,21 @@ export default function LoginScreen() {
                   },
                 ]}
               >
-                رقم الهاتف
+                البريد الإلكتروني
               </Text>
 
               <TextInput
-                value={phone}
+                value={email}
                 onChangeText={(value) => {
-                  setPhone(value);
+                  setEmail(value);
                   setError("");
                 }}
-                placeholder="أدخل رقم الهاتف"
+                placeholder="example@email.com"
                 placeholderTextColor={colors.textMuted}
-                keyboardType="phone-pad"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                textContentType="emailAddress"
                 style={[
                   styles.input,
                   {
@@ -144,11 +151,11 @@ export default function LoginScreen() {
                     color: colors.text,
                   },
                 ]}
-                textAlign="right"
+                textAlign="left"
                 returnKeyType="next"
                 editable={!isLoading}
                 onFocus={() => scrollToInput(150)}
-                accessibilityLabel="رقم الهاتف"
+                accessibilityLabel="البريد الإلكتروني"
               />
             </View>
 

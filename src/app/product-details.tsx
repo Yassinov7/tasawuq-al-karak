@@ -1,13 +1,13 @@
 import { Href, useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { ProductCard } from "@/components/marketplace/ProductCard";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { categories, products, stores } from "@/constants/catalog";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
+import { useCatalog } from "@/context/CatalogContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -15,7 +15,8 @@ export default function ProductDetailsScreen() {
   const router = useRouter();
   const { colors } = useTheme();
 
-  const { itemCount, addItem, getQuantity } = useCart();
+  const { itemCount, addItem, getQuantity, isLoading: cartLoading } = useCart();
+  const { categories, products, stores, isLoading } = useCatalog();
 
   const { isFavorite, toggleFavorite } = useFavorites();
 
@@ -23,18 +24,19 @@ export default function ProductDetailsScreen() {
     id?: string;
   }>();
 
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState<number | null>(null);
 
-  const product = useMemo(() => products.find((item) => item.id === id), [id]);
+  const product = useMemo(() => products.find((item) => item.id === id), [id, products]);
+  const selectedQuantity = product ? quantity ?? product.minimumQuantity ?? 1 : 1;
 
   const category = useMemo(
     () => categories.find((item) => item.id === product?.categoryId),
-    [product?.categoryId],
+    [product?.categoryId, categories],
   );
 
   const store = useMemo(
     () => stores.find((item) => item.id === product?.storeId),
-    [product?.storeId],
+    [product?.storeId, stores],
   );
 
   const relatedProducts = useMemo(() => {
@@ -51,7 +53,7 @@ export default function ProductDetailsScreen() {
           item.available,
       )
       .slice(0, 4);
-  }, [product]);
+  }, [product, products]);
 
   const cartQuantity = product ? getQuantity(product.id) : 0;
 
@@ -89,7 +91,7 @@ export default function ProductDetailsScreen() {
               },
             ]}
           >
-            المنتج غير موجود
+              {isLoading ? "جارٍ تحميل المنتج" : "المنتج غير موجود"}
           </Text>
 
           <Text
@@ -131,22 +133,25 @@ export default function ProductDetailsScreen() {
     );
   }
 
-  const totalPrice = product.price * quantity;
+  const totalPrice = product.price * selectedQuantity;
 
   const handleIncrease = () => {
-    setQuantity((current) => current + 1);
+    setQuantity((current) => Number(((current ?? product.minimumQuantity ?? 1) + (product.quantityStep ?? 1)).toFixed(3)));
   };
 
   const handleDecrease = () => {
-    setQuantity((current) => (current > 1 ? current - 1 : 1));
+    setQuantity((current) => Math.max(product.minimumQuantity ?? 1, Number(((current ?? product.minimumQuantity ?? 1) - (product.quantityStep ?? 1)).toFixed(3))));
   };
 
   const handleAddToCart = () => {
+    if (cartLoading) return;
     if (!product.available) {
       return;
     }
 
-    addItem(product, quantity);
+    if (!addItem(product, selectedQuantity)) {
+      Alert.alert("تعذر إضافة المنتج", "لا يمكن جمع منتجات بعملات مختلفة في طلب واحد.");
+    }
   };
 
   const handleGoToCart = () => {
@@ -347,8 +352,9 @@ export default function ProductDetailsScreen() {
                   },
                 ]}
               >
-                ل.س
+                {product.currency === "USD" ? "$" : "ل.س"}
               </Text>
+              {product.originalPrice !== undefined ? <Text style={{ marginStart: 6, color: colors.textMuted, fontSize: 12, textDecorationLine: "line-through" }}>{product.originalPrice.toLocaleString("en-US")} {product.currency === "USD" ? "$" : "ل.س"}</Text> : null}
             </View>
 
             <Text
@@ -501,7 +507,7 @@ export default function ProductDetailsScreen() {
                     },
                   ]}
                 >
-                  {quantity}
+                  {selectedQuantity}
                 </Text>
 
                 <Pressable
@@ -546,7 +552,7 @@ export default function ProductDetailsScreen() {
                     },
                   ]}
                 >
-                  {quantity} × {product.price.toLocaleString("en-US")} ل.س
+                  {selectedQuantity} × {product.price.toLocaleString("en-US")} {product.currency === "USD" ? "$" : "ل.س"}
                 </Text>
               </View>
 
@@ -559,7 +565,7 @@ export default function ProductDetailsScreen() {
                     },
                   ]}
                 >
-                  {totalPrice.toLocaleString("en-US")}
+                  {totalPrice.toLocaleString("en-US")} {product.currency === "USD" ? "$" : "ل.س"}
                 </Text>
 
                 <Text
@@ -570,13 +576,14 @@ export default function ProductDetailsScreen() {
                     },
                   ]}
                 >
-                  ل.س
+                  {product.currency === "USD" ? "$" : "ل.س"}
                 </Text>
               </View>
             </View>
 
             <Pressable
               onPress={handleAddToCart}
+              disabled={cartLoading}
               accessibilityRole="button"
               accessibilityLabel="إضافة المنتج إلى السلة"
               style={({ pressed }) => [
@@ -586,6 +593,7 @@ export default function ProductDetailsScreen() {
                     cartQuantity > 0 ? colors.success : colors.primary,
                 },
                 pressed && styles.pressed,
+                cartLoading && styles.pressed,
               ]}
             >
               <AppIcon
@@ -604,7 +612,7 @@ export default function ProductDetailsScreen() {
                   },
                 ]}
               >
-                {cartQuantity > 0 ? "تمت الإضافة للسلة" : "إضافة إلى السلة"}
+                {cartLoading ? "جارٍ مزامنة السلة" : cartQuantity > 0 ? "تمت الإضافة للسلة" : "إضافة إلى السلة"}
               </Text>
             </Pressable>
 

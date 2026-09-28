@@ -2,7 +2,8 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { AppBadge } from "@/components/ui/AppBadge";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { categories, products, stores } from "@/constants/catalog";
+import { products } from "@/constants/catalog";
+import { useCatalog } from "@/context/CatalogContext";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -24,6 +25,7 @@ export function ProductCard({
   showOffer = false,
 }: ProductCardProps) {
   const { colors } = useTheme();
+  const { categories, stores } = useCatalog();
 
   const category = categories.find((item) => item.id === product.categoryId);
 
@@ -97,16 +99,7 @@ export function ProductCard({
       ) : null}
 
       <View style={styles.priceRow}>
-        <Text
-          style={[
-            styles.price,
-            {
-              color: colors.primary,
-            },
-          ]}
-        >
-          {product.price.toLocaleString("en-US")}
-        </Text>
+        <Text style={[styles.price, { color: colors.primary }]}>{product.price.toLocaleString("en-US")}</Text>
 
         <Text
           style={[
@@ -116,9 +109,10 @@ export function ProductCard({
             },
           ]}
         >
-          ل.س
+          {product.currency === "USD" ? "$" : "ل.س"}
         </Text>
       </View>
+      {product.originalPrice !== undefined ? <Text style={[styles.originalPrice, { color: colors.textMuted }]}>{product.originalPrice.toLocaleString("en-US")} {product.currency === "USD" ? "$" : "ل.س"}</Text> : null}
 
       <Text
         style={[
@@ -196,6 +190,8 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: FontSizes.md,
   },
+
+  originalPrice: { marginTop: 1, fontFamily: Fonts.regular, fontSize: 10, textAlign: "right", textDecorationLine: "line-through" },
 
   currency: {
     fontFamily: Fonts.medium,

@@ -1,6 +1,7 @@
 import { Href, useRouter } from "expo-router";
 import { useState } from "react";
 import {
+  ActivityIndicator,
   Keyboard,
   Pressable,
   ScrollView,
@@ -16,27 +17,24 @@ import { ProductCard } from "@/components/marketplace/ProductCard";
 import { StoreCard } from "@/components/marketplace/StoreCard";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { categories, products, stores } from "@/constants/catalog";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
+import { useCatalog } from "@/context/CatalogContext";
 import { useTheme } from "@/context/ThemeContext";
 
 export default function HomeTab() {
   const router = useRouter();
   const { colors } = useTheme();
   const { itemCount } = useCart();
+  const { categories, products, stores, isLoading, error, refresh } = useCatalog();
 
   const [searchText, setSearchText] = useState("");
 
-  const featuredStores = stores.filter((store) => store.featured).slice(0, 6);
+  const featuredStores = stores.slice(0, 6);
 
-  const popularProducts = products
-    .filter((product) => product.available && product.popular)
-    .slice(0, 8);
+  const popularProducts = products.filter((product) => product.available).slice(0, 8);
 
-  const offerProducts = products
-    .filter((product) => product.available && product.offer)
-    .slice(0, 8);
+  const offerProducts = products.filter((product) => product.available && product.offer).slice(0, 8);
 
   const visibleStores =
     featuredStores.length > 0 ? featuredStores : stores.slice(0, 6);
@@ -86,6 +84,13 @@ export default function HomeTab() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.content}
       >
+        {isLoading ? (
+          <ActivityIndicator color={colors.primary} style={styles.loading} />
+        ) : error ? (
+          <Pressable onPress={() => void refresh()} style={styles.loadError}>
+            <Text style={[styles.bottomNoteText, { color: colors.error }]}>{error} — اضغط لإعادة المحاولة</Text>
+          </Pressable>
+        ) : null}
         <View style={styles.topArea}>
           <View style={styles.greeting}>
             <Text
@@ -181,7 +186,7 @@ export default function HomeTab() {
             colors={colors}
           />
 
-          <ScrollView
+          {visibleStores.length ? <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.categories}
@@ -201,7 +206,7 @@ export default function HomeTab() {
                 }
               />
             ))}
-          </ScrollView>
+          </ScrollView> : <Text style={[styles.bottomNoteText, { color: colors.textSecondary, textAlign: "right" }]}>لا توجد متاجر معتمدة في منطقتك بعد.</Text>}
         </View>
 
         <Pressable
@@ -398,8 +403,7 @@ export default function HomeTab() {
               },
             ]}
           >
-            المنتجات والأسعار والعروض الحالية تجريبية ضمن بيانات التطبيق، وسيتم
-            ربطها لاحقاً ببيانات المتاجر الفعلية.
+            بيانات المتاجر والمنتجات والأسعار المعروضة تُحمّل الآن من قاعدة البيانات.
           </Text>
         </View>
       </ScrollView>
@@ -497,6 +501,9 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.four,
     paddingBottom: Spacing.ten,
   },
+
+  loading: { marginTop: Spacing.three },
+  loadError: { marginTop: Spacing.three, padding: Spacing.three, borderRadius: Radius.md, backgroundColor: "transparent" },
 
   topArea: {
     marginBottom: Spacing.two,

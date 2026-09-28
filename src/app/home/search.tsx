@@ -15,9 +15,9 @@ import { ProductCard } from "@/components/marketplace/ProductCard";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppEmptyState } from "@/components/ui/AppEmptyState";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { categories, products, stores } from "@/constants/catalog";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
+import { useCatalog } from "@/context/CatalogContext";
 import { useTheme } from "@/context/ThemeContext";
 
 function normalizeText(value: string) {
@@ -35,6 +35,7 @@ export default function SearchTab() {
   const router = useRouter();
   const { colors } = useTheme();
   const { itemCount } = useCart();
+  const { categories, products, stores } = useCatalog();
 
   const params = useLocalSearchParams<{
     q?: string;
@@ -167,7 +168,7 @@ export default function SearchTab() {
       products: productResults,
       categories: categoryResults,
     };
-  }, [query]);
+  }, [query, categories, products, stores]);
 
   const totalResults =
     results.stores.length + results.products.length + results.categories.length;
@@ -600,11 +601,7 @@ export default function SearchTab() {
 
                           <View style={styles.storeResultMeta}>
                             <View style={styles.storeMetaItem}>
-                              <AppIcon
-                                name="star"
-                                size={12}
-                                color={colors.accent}
-                              />
+                              <AppIcon name="storefront-outline" size={12} color={colors.primary} />
 
                               <Text
                                 style={[
@@ -614,16 +611,12 @@ export default function SearchTab() {
                                   },
                                 ]}
                               >
-                                {store.rating.toFixed(1)}
+                                {store.rating ? store.rating.toFixed(1) : "متجر معتمد"}
                               </Text>
                             </View>
 
                             <View style={styles.storeMetaItem}>
-                              <AppIcon
-                                name="time-outline"
-                                size={12}
-                                color={colors.textMuted}
-                              />
+                              <AppIcon name="location-outline" size={12} color={colors.textMuted} />
 
                               <Text
                                 style={[
@@ -633,7 +626,7 @@ export default function SearchTab() {
                                   },
                                 ]}
                               >
-                                {store.deliveryTime}
+                                {store.location}
                               </Text>
                             </View>
                           </View>

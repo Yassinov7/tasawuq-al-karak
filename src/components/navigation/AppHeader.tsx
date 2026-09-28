@@ -10,12 +10,14 @@ type AppHeaderProps = {
   title?: string;
   showBack?: boolean;
   cartCount?: number;
+  showMarketplaceActions?: boolean;
 };
 
 export function AppHeader({
   title = "تسوق",
   showBack = false,
   cartCount = 0,
+  showMarketplaceActions = true,
 }: AppHeaderProps) {
   const router = useRouter();
   const { unreadCount } = useNotifications();
@@ -92,7 +94,7 @@ export function AppHeader({
           </Text>
         </View>
 
-        <View style={styles.actions}>
+        {showMarketplaceActions ? <View style={styles.actions}>
           <Pressable
             onPress={handleNotificationsPress}
             style={({ pressed }) => [
@@ -185,7 +187,7 @@ export function AppHeader({
               </View>
             ) : null}
           </Pressable>
-        </View>
+        </View> : <View style={styles.actions} />}
       </View>
     </View>
   );

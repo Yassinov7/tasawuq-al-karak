@@ -1,22 +1,24 @@
-import { useRouter } from "expo-router";
+import { Href, useRouter } from "expo-router";
 import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 
 import { BrandMark } from "@/components/brand/BrandMark";
 import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
+import { getDashboardPath } from "@/context/WorkspaceContext";
 
 export default function SplashScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { session, isLoading } = useAuth();
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      router.replace("/login");
-    }, 1800);
-
-    return () => clearTimeout(timer);
-  }, [router]);
+    if (!isLoading) {
+      if (!session) router.replace("/login");
+      else void getDashboardPath(session.user.id).then((path) => router.replace(path as Href));
+    }
+  }, [isLoading, router, session]);
 
   return (
     <View

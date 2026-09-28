@@ -2,7 +2,8 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { AppBadge } from "@/components/ui/AppBadge";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { categories, products, stores } from "@/constants/catalog";
+import { stores } from "@/constants/catalog";
+import { useCatalog } from "@/context/CatalogContext";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -22,14 +23,13 @@ export function StoreCard({
   showFeatured = true,
 }: StoreCardProps) {
   const { colors } = useTheme();
+  const { categories } = useCatalog();
 
   const category = categories.find((item) =>
     store.categoryIds.includes(item.id),
   );
 
-  const productCount = products.filter(
-    (product) => product.storeId === store.id,
-  ).length;
+  const productCount = store.productCount ?? 0;
 
   return (
     <Pressable
@@ -93,7 +93,7 @@ export function StoreCard({
 
       <View style={styles.meta}>
         <View style={styles.metaItem}>
-          <AppIcon name="star" size={13} color={colors.accent} />
+          <AppIcon name="location-outline" size={13} color={colors.textSecondary} />
 
           <Text
             style={[
@@ -103,24 +103,10 @@ export function StoreCard({
               },
             ]}
           >
-            {store.rating.toFixed(1)}
+            {store.location || "منطقتك"}
           </Text>
         </View>
 
-        <View style={styles.metaItem}>
-          <AppIcon name="time-outline" size={13} color={colors.textSecondary} />
-
-          <Text
-            style={[
-              styles.metaText,
-              {
-                color: colors.textSecondary,
-              },
-            ]}
-          >
-            {store.deliveryTime}
-          </Text>
-        </View>
       </View>
 
       <View
@@ -150,7 +136,7 @@ export function StoreCard({
             },
           ]}
         >
-          {store.deliveryFee}
+          {store.deliveryFee || "أجرة التوصيل حسب المنطقة"}
         </Text>
       </View>
     </Pressable>

@@ -1,6 +1,8 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,26 +20,56 @@ import {
   Spacing,
 } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
+import { useAddresses } from "@/context/AddressContext";
+import { useCatalog } from "@/context/CatalogContext";
 import { useTheme } from "@/context/ThemeContext";
+import { supabase } from "@/lib/supabase";
 
 export default function CheckoutScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { itemCount, subtotal } = useCart();
+  const { itemCount, subtotal, currency, items, clearCart } = useCart();
+  const { addresses, isLoading: addressesLoading } = useAddresses();
+  const { products, stores } = useCatalog();
 
   const [confirmModalVisible, setConfirmModalVisible] =
     useState(false);
+  const [selectedAddressId, setSelectedAddressId] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const deliveryFee = itemCount > 0 ? 15000 : 0;
+  const selectedAddress = addresses.find((address) => address.id === selectedAddressId) ?? addresses.find((address) => address.isDefault) ?? addresses[0];
+  const storeIds = [...new Set(items.map((item) => products.find((product) => product.id === item.productId)?.storeId).filter((id): id is string => Boolean(id)))];
+  const deliveryStore = storeIds.length === 1 ? stores.find((store) => store.id === storeIds[0]) : undefined;
+  const usesStoreDelivery = storeIds.length === 1 && deliveryStore?.deliveryMode === "store";
+  const deliveryFee = itemCount > 0 ? usesStoreDelivery ? deliveryStore?.storeDeliveryFee ?? 0 : selectedAddress?.zone?.fixedFee ?? 0 : 0;
+  const deliveryCurrency = usesStoreDelivery ? deliveryStore?.currency ?? currency : selectedAddress?.zone?.currency ?? currency;
+  const currencyValid = deliveryFee === 0 || deliveryCurrency === currency;
   const total = subtotal + deliveryFee;
 
   const handleConfirmOrder = () => {
+    if (!items.length) { Alert.alert("السلة فارغة", "أضف منتجات قبل تأكيد الطلب."); return; }
+    if (!selectedAddress) { Alert.alert("عنوان التوصيل مطلوب", "أضف عنواناً واختر منطقة توصيل أولاً."); return; }
+    if (!currencyValid) { Alert.alert("تعذر احتساب التوصيل", "عملة رسوم التوصيل لا تطابق عملة المنتجات في السلة."); return; }
     setConfirmModalVisible(true);
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
+    if (!selectedAddress) return;
     setConfirmModalVisible(false);
-    router.push("/orders");
+    setIsSubmitting(true);
+    try {
+      const { data, error } = await supabase.rpc("place_order_from_cart", {
+        target_address: selectedAddress.id,
+        requested_method: "cash",
+        note: null,
+      });
+      if (error) throw error;
+      clearCart();
+      router.replace({ pathname: "/order-details", params: { id: String(data) } });
+    } catch (submitError) {
+      const message = submitError instanceof Error ? submitError.message : "تعذر إنشاء الطلب. تحقق من توفر المنتجات والعنوان وحاول مرة أخرى.";
+      Alert.alert("تعذر تأكيد الطلب", message.includes("currency") ? "تأكد أن عملة رسوم المنطقة توافق عملة المنتجات." : "قد تكون المنتجات غير متاحة أو تغيرت بيانات السلة. حدّث السلة وحاول مرة أخرى.");
+    } finally { setIsSubmitting(false); }
   };
 
   const handleCancel = () => {
@@ -64,62 +96,19 @@ export default function CheckoutScreen() {
         contentContainerStyle={styles.content}
       >
         <Section title="عنوان التوصيل">
-          <Pressable
-            style={[
-              styles.optionCard,
-              {
-                borderColor: colors.border,
-                backgroundColor: colors.surface,
-              },
-            ]}
-          >
-            <View
-              style={[
-                styles.optionIcon,
-                {
-                  backgroundColor:
-                    colors.primaryLight,
-                },
-              ]}
-            >
-              <AppIcon
-                name="home-outline"
-                size={21}
-                color={colors.primary}
-              />
-            </View>
-
+          {addressesLoading ? <ActivityIndicator color={colors.primary} /> : addresses.map((address) => <Pressable key={address.id} onPress={() => setSelectedAddressId(address.id)} style={[styles.optionCard, { borderColor: selectedAddress?.id === address.id ? colors.primary : colors.border, backgroundColor: colors.surface }]}>
+            <View style={[styles.optionIcon, { backgroundColor: colors.primaryLight }]}><AppIcon name="location-outline" size={21} color={colors.primary} /></View>
             <View style={styles.optionInfo}>
-              <Text
-                style={[
-                  styles.optionTitle,
-                  {
-                    color: colors.text,
-                  },
-                ]}
-              >
-                المنزل
-              </Text>
-
-              <Text
-                style={[
-                  styles.optionText,
-                  {
-                    color:
-                      colors.textSecondary,
-                  },
-                ]}
-              >
-                الكرك الشرقي
-              </Text>
+              <Text style={[styles.optionTitle, { color: colors.text }]}>{address.label} — {address.recipientName}</Text>
+              <Text style={[styles.optionText, { color: colors.textSecondary }]}>{address.address}</Text>
+              <Text style={[styles.optionText, { color: colors.textMuted }]}>{address.zone ? `${address.zone.regionName} — ${address.zone.name}` : "منطقة التوصيل غير متاحة"}</Text>
             </View>
-
-            <AppIcon
-              name="checkmark-circle"
-              size={22}
-              color={colors.primary}
-            />
-          </Pressable>
+            <AppIcon name={selectedAddress?.id === address.id ? "checkmark-circle" : "ellipse-outline"} size={22} color={selectedAddress?.id === address.id ? colors.primary : colors.textMuted} />
+          </Pressable>)}
+          {!addressesLoading && addresses.length === 0 ? <Pressable onPress={() => router.push("/addresses")} style={[styles.optionCard, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+            <AppIcon name="add-circle-outline" size={22} color={colors.primary} />
+            <Text style={[styles.optionTitle, { color: colors.primary }]}>أضف عنوان توصيل</Text>
+          </Pressable> : null}
         </Section>
 
         <Section title="طريقة الدفع">
@@ -194,21 +183,19 @@ export default function CheckoutScreen() {
           >
             <SummaryRow
               label="عدد المنتجات"
-              value={`${itemCount} قطعة`}
+              value={`${itemCount} منتج`}
             />
 
             <SummaryRow
               label="المجموع الفرعي"
               value={`${subtotal.toLocaleString(
                 "en-US",
-              )} ل.س`}
+              )} ${currency === "USD" ? "$" : "ل.س"}`}
             />
 
             <SummaryRow
               label="التوصيل"
-              value={`${deliveryFee.toLocaleString(
-                "en-US",
-              )} ل.س`}
+              value={selectedAddress ? `${deliveryFee.toLocaleString("en-US")} ${deliveryCurrency === "USD" ? "$" : "ل.س"}` : "حدد العنوان أولاً"}
             />
 
             <View
@@ -254,7 +241,7 @@ export default function CheckoutScreen() {
                     },
                   ]}
                 >
-                  ل.س
+                  {currency === "USD" ? "$" : "ل.س"}
                 </Text>
               </View>
             </View>
@@ -299,8 +286,10 @@ export default function CheckoutScreen() {
               backgroundColor:
                 colors.primary,
             },
+            (!items.length || !selectedAddress || !currencyValid || isSubmitting) && styles.disabled,
             pressed && styles.pressed,
           ]}
+          disabled={!items.length || !selectedAddress || !currencyValid || isSubmitting}
           accessibilityRole="button"
           accessibilityLabel="تأكيد الطلب"
         >
@@ -312,7 +301,7 @@ export default function CheckoutScreen() {
               },
             ]}
           >
-            تأكيد الطلب
+            {isSubmitting ? "جارٍ إرسال الطلب…" : "تأكيد الطلب"}
           </Text>
 
           <AppIcon
@@ -338,9 +327,7 @@ export default function CheckoutScreen() {
       <AppModal
         visible={confirmModalVisible}
         title="تأكيد الطلب"
-        message={`هل تريد تأكيد طلبك بقيمة ${total.toLocaleString(
-          "en-US",
-        )} ل.س والدفع عند الاستلام؟`}
+        message={`هل تريد تأكيد طلبك بقيمة ${total.toLocaleString("en-US")} ${currency === "USD" ? "$" : "ل.س"} والدفع عند الاستلام؟`}
         icon="checkmark-circle-outline"
         confirmText="تأكيد الطلب"
         cancelText="مراجعة الطلب"
@@ -573,4 +560,5 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.72,
   },
+  disabled: { opacity: 0.5 },
 });

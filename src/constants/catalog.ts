@@ -5,6 +5,7 @@ export type IconName = ComponentProps<typeof Ionicons>["name"];
 
 export type Category = {
   id: string;
+  slug?: string;
   name: string;
   icon: IconName;
   description: string;
@@ -19,6 +20,11 @@ export type Store = {
   rating: number;
   deliveryTime: string;
   deliveryFee: string;
+  productCount?: number;
+  categoryIcon?: IconName;
+  currency?: "SYP" | "USD";
+  deliveryMode?: "store" | "platform";
+  storeDeliveryFee?: number;
   featured?: boolean;
 };
 
@@ -29,6 +35,12 @@ export type Product = {
   name: string;
   description: string;
   price: number;
+  originalPrice?: number;
+  currency?: "SYP" | "USD";
+  storeProductId?: string;
+  minimumQuantity?: number;
+  quantityStep?: number;
+  imageUrl?: string | null;
   unit: string;
   available: boolean;
   popular?: boolean;

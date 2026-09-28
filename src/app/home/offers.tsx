@@ -7,21 +7,22 @@ import { OfferCard } from "@/components/marketplace/OfferCard";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppEmptyState } from "@/components/ui/AppEmptyState";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { categories, products } from "@/constants/catalog";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
+import { useCatalog } from "@/context/CatalogContext";
 import { useTheme } from "@/context/ThemeContext";
 
 export default function OffersTab() {
   const router = useRouter();
   const { colors } = useTheme();
   const { itemCount } = useCart();
+  const { categories, products } = useCatalog();
 
   const [selectedCategory, setSelectedCategory] = useState("all");
 
   const offerProducts = useMemo(
     () => products.filter((product) => product.available && product.offer),
-    [],
+    [products],
   );
 
   const filteredOffers = useMemo(() => {
@@ -40,7 +41,7 @@ export default function OffersTab() {
     );
 
     return categories.filter((category) => categoryIds.has(category.id));
-  }, [offerProducts]);
+  }, [offerProducts, categories]);
 
   const featuredOffers = filteredOffers.slice(0, 4);
 

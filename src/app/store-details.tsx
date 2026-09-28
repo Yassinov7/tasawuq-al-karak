@@ -14,9 +14,10 @@ import { OfferCard } from "@/components/marketplace/OfferCard";
 import { ProductCard } from "@/components/marketplace/ProductCard";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { categories, products, stores } from "@/constants/catalog";
+import type { Product } from "@/constants/catalog";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
+import { useCatalog } from "@/context/CatalogContext";
 import { useTheme } from "@/context/ThemeContext";
 
 export default function StoreDetailsScreen() {
@@ -27,15 +28,16 @@ export default function StoreDetailsScreen() {
 
   const { colors } = useTheme();
   const { itemCount } = useCart();
+  const { categories, products, stores } = useCatalog();
 
   const [searchText, setSearchText] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
 
-  const store = useMemo(() => stores.find((item) => item.id === id), [id]);
+  const store = useMemo(() => stores.find((item) => item.id === id), [id, stores]);
 
   const storeProducts = useMemo(
     () => products.filter((product) => product.storeId === store?.id),
-    [store?.id],
+    [store?.id, products],
   );
 
   const storeCategories = useMemo(() => {
@@ -44,7 +46,7 @@ export default function StoreDetailsScreen() {
     );
 
     return categories.filter((category) => categoryIds.has(category.id));
-  }, [storeProducts]);
+  }, [storeProducts, categories]);
 
   const filteredProducts = useMemo(() => {
     const query = searchText.trim().toLocaleLowerCase("ar");
@@ -84,7 +86,7 @@ export default function StoreDetailsScreen() {
       store
         ? categories.find((category) => store.categoryIds.includes(category.id))
         : undefined,
-    [store],
+    [store, categories],
   );
 
   const handleProductPress = (productId: string) => {
@@ -302,10 +304,10 @@ export default function StoreDetailsScreen() {
           ]}
         >
           <StoreStat
-            icon="star"
-            label="التقييم"
-            value={store.rating.toFixed(1)}
-            iconColor={colors.accent}
+            icon="grid-outline"
+            label="التصنيفات"
+            value={String(storeCategories.length)}
+            iconColor={colors.primary}
           />
 
           <View
@@ -318,9 +320,9 @@ export default function StoreDetailsScreen() {
           />
 
           <StoreStat
-            icon="time-outline"
-            label="التوصيل"
-            value={store.deliveryTime}
+            icon="location-outline"
+            label="العنوان"
+            value={store.location}
             iconColor={colors.primary}
           />
 
@@ -380,7 +382,7 @@ export default function StoreDetailsScreen() {
                 },
               ]}
             >
-              {store.deliveryTime} • {store.deliveryFee}
+              رسوم التوصيل تُحدد حسب عنوانك ومنطقة التوصيل.
             </Text>
           </View>
 
@@ -635,7 +637,7 @@ type ProductSectionProps = {
   title: string;
   subtitle: string;
   icon: React.ComponentProps<typeof AppIcon>["name"];
-  products: (typeof products)[number][];
+  products: Product[];
   onProductPress: (productId: string) => void;
 };
 
@@ -707,7 +709,7 @@ function ProductSection({
 }
 
 type OfferSectionProps = {
-  products: (typeof products)[number][];
+  products: Product[];
   onProductPress: (productId: string) => void;
 };
 

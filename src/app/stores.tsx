@@ -7,15 +7,16 @@ import { StoreCard } from "@/components/marketplace/StoreCard";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppEmptyState } from "@/components/ui/AppEmptyState";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { categories, stores } from "@/constants/catalog";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
+import { useCatalog } from "@/context/CatalogContext";
 import { useTheme } from "@/context/ThemeContext";
 
 export default function StoresScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { itemCount } = useCart();
+  const { categories, stores, isLoading, error, refresh } = useCatalog();
 
   const [searchText, setSearchText] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -55,7 +56,7 @@ export default function StoresScreen() {
 
       return searchableText.includes(query);
     });
-  }, [searchText, selectedCategory]);
+  }, [searchText, selectedCategory, stores, categories]);
 
   const featuredStores = useMemo(
     () => filteredStores.filter((store) => store.featured),
@@ -125,10 +126,7 @@ export default function StoresScreen() {
           ) : null}
 
           <Pressable
-            onPress={() => {
-              // Text input will be added here when the
-              // search field becomes interactive.
-            }}
+            onPress={() => void refresh()}
             style={({ pressed }) => [
               styles.searchButton,
               {
@@ -289,11 +287,12 @@ export default function StoresScreen() {
                   },
                 ]}
               >
-                {filteredStores.length} متجر متاح
+              {isLoading ? "جارٍ تحميل المتاجر" : `${filteredStores.length} متجر متاح`}
               </Text>
             </View>
           </View>
 
+          {error ? <Pressable onPress={() => void refresh()}><Text style={{ color: colors.error, textAlign: "right" }}>{error}</Text></Pressable> : null}
           {filteredStores.length > 0 ? (
             <View style={styles.grid}>
               {filteredStores.map((store) => (
@@ -312,7 +311,7 @@ export default function StoresScreen() {
               description={
                 searchText
                   ? "جرّب كلمة بحث مختلفة أو غيّر التصنيف."
-                  : "لا توجد متاجر ضمن هذا التصنيف حالياً."
+                  : "لا توجد متاجر معتمدة ضمن هذا التصنيف حالياً."
               }
               buttonText="إظهار جميع المتاجر"
               onButtonPress={clearFilters}
@@ -343,8 +342,7 @@ export default function StoresScreen() {
               },
             ]}
           >
-            المتاجر والبيانات المعروضة حالياً تجريبية، وسيتم ربطها لاحقاً
-            ببيانات المتاجر الفعلية.
+            تظهر هنا المتاجر التي وافقت عليها الإدارة.
           </Text>
         </View>
       </ScrollView>

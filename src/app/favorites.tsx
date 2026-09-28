@@ -10,9 +10,9 @@ import {
 
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { categories, products, stores } from "@/constants/catalog";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
+import { useCatalog } from "@/context/CatalogContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -20,6 +20,7 @@ export default function FavoritesScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { itemCount } = useCart();
+  const { categories, products, stores } = useCatalog();
 
   const { favoriteIds, removeFavorite, clearFavorites } = useFavorites();
 

@@ -2,7 +2,8 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { AppBadge } from "@/components/ui/AppBadge";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { categories, products, stores } from "@/constants/catalog";
+import { products } from "@/constants/catalog";
+import { useCatalog } from "@/context/CatalogContext";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -20,6 +21,7 @@ export function OfferCard({
   featured = false,
 }: OfferCardProps) {
   const { colors } = useTheme();
+  const { categories, stores } = useCatalog();
 
   const category = categories.find((item) => item.id === product.categoryId);
 
@@ -106,7 +108,7 @@ export function OfferCard({
             },
           ]}
         >
-          ل.س
+            {product.currency === "USD" ? "$" : "ل.س"}
         </Text>
       </View>
 

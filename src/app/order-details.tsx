@@ -111,7 +111,7 @@ export default function OrderDetailsScreen() {
         },
       ]}
     >
-      <AppHeader title="تفاصيل الطلب" showBack cartCount={itemCount} />
+      <AppHeader title="تفاصيل الطلب" showBack cartCount={itemCount} mode="customer" />
 
       <ScrollView
         showsVerticalScrollIndicator={false}

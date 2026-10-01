@@ -157,7 +157,7 @@ export default function AddressesScreen() {
         },
       ]}
     >
-      <AppHeader title="العناوين" showBack cartCount={0} />
+      <AppHeader title="العناوين" showBack cartCount={0} mode="customer" />
 
       <KeyboardAvoidingView
         style={styles.keyboardContainer}

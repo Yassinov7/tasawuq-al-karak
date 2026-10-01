@@ -57,6 +57,7 @@ export default function CheckoutScreen() {
         title="إتمام الطلب"
         showBack
         cartCount={itemCount}
+        mode="customer"
       />
 
       <ScrollView

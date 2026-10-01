@@ -1,501 +1,637 @@
-import { Href, Link, useRouter } from "expo-router";
-import { useRef, useState } from "react";
+import { Link, useRouter, type Href } from "expo-router";
+
+import { useCallback, useRef, useState } from "react";
+
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 
 import { BrandMark } from "@/components/brand/BrandMark";
-import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
+import { AppButton } from "@/components/ui/AppButton";
+import { AppIcon } from "@/components/ui/AppIcon";
+import { AppTextField } from "@/components/ui/AppTextField";
+import { Fonts, FontSizes, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
+import { getAccountRoute } from "@/lib/account-routing";
+import { supabase } from "@/lib/supabase";
+
+type SignupRole = "customer" | "merchant" | "driver";
+
+const roles: {
+  value: SignupRole;
+  title: string;
+  detail: string;
+  icon: "cart-outline" | "storefront-outline" | "bicycle-outline";
+}[] = [
+  {
+    value: "customer",
+    title: "زبون",
+    detail: "اكتشف المتاجر واطلب احتياجاتك",
+    icon: "cart-outline",
+  },
+  {
+    value: "merchant",
+    title: "تاجر أو صاحب متجر",
+    detail: "قدّم متجرك واختر خطة الاشتراك",
+    icon: "storefront-outline",
+  },
+  {
+    value: "driver",
+    title: "سائق",
+    detail: "قدّم طلب انتساب للعمل مع المنصة",
+    icon: "bicycle-outline",
+  },
+];
 
 export default function SignupScreen() {
   const router = useRouter();
-  const scrollViewRef = useRef<ScrollView>(null);
   const { colors } = useTheme();
+  const { height } = useWindowDimensions();
 
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const scrollRef = useRef<ScrollView>(null);
+
+  const pageHeight = Math.max(600, height - 16);
+
+  const pageRef = useRef(0);
+  const pageOffsetsRef = useRef([0, pageHeight, pageHeight * 2]);
+
+  const [page, setPage] = useState(0);
+  const [pageOffsets, setPageOffsets] = useState([
+    0,
+    pageHeight,
+    pageHeight * 2,
+  ]);
+
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
+  const [role, setRole] = useState<SignupRole | null>(null);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  const scrollToInput = (y: number) => {
-    setTimeout(() => {
-      scrollViewRef.current?.scrollTo({
-        y,
+  const goToPage = useCallback(
+    (nextPage: number) => {
+      pageRef.current = nextPage;
+      setPage(nextPage);
+
+      scrollRef.current?.scrollTo({
+        y: pageOffsetsRef.current[nextPage] ?? nextPage * pageHeight,
         animated: true,
       });
-    }, 150);
+    },
+    [pageHeight],
+  );
+
+  const recordPageLayout = (index: number, offset: number) => {
+    const nextOffsets = [...pageOffsetsRef.current];
+
+    if (Math.abs(nextOffsets[index] - offset) < 1) {
+      return;
+    }
+
+    nextOffsets[index] = offset;
+    pageOffsetsRef.current = nextOffsets;
+    setPageOffsets(nextOffsets);
   };
 
-  const handleSignup = () => {
+  const continueToRole = () => {
     setError("");
 
-    const cleanName = name.trim();
-    const cleanPhone = phone.trim();
-    const cleanEmail = email.trim();
-    const cleanPassword = password.trim();
-    const cleanConfirmPassword = confirmPassword.trim();
+    if (fullName.trim().length < 2) {
+      return setError("أدخل اسمك الكامل.");
+    }
 
-    if (!cleanName) {
-      setError("يرجى إدخال الاسم");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return setError("أدخل بريدًا إلكترونيًا صحيحًا.");
+    }
+
+    if (password.length < 8) {
+      return setError("كلمة المرور يجب ألا تقل عن 8 أحرف.");
+    }
+
+    if (password !== passwordConfirmation) {
+      return setError("كلمتا المرور غير متطابقتين.");
+    }
+
+    goToPage(2);
+  };
+
+  const createAccount = async () => {
+    setError("");
+
+    if (!role) {
+      return setError("اختر دورًا واحدًا للمتابعة.");
+    }
+
+    if (!acceptedTerms) {
+      return setError(
+        "يجب الموافقة على شروط الاستخدام وسياسة الخصوصية قبل إنشاء الحساب.",
+      );
+    }
+
+    setBusy(true);
+
+    let data;
+    let signupError;
+
+    try {
+      const response = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+        options: {
+          data: {
+            full_name: fullName.trim(),
+            signup_role: role,
+          },
+        },
+      });
+
+      data = response.data;
+      signupError = response.error;
+    } catch {
+      setBusy(false);
+      setError("تعذر الاتصال بالخدمة. تحقق من الإنترنت ثم حاول مجددًا.");
       return;
     }
 
-    if (cleanName.length < 2) {
-      setError("يرجى إدخال اسم صحيح");
+    if (signupError) {
+      setBusy(false);
+
+      setError(
+        signupError.message.includes("already registered")
+          ? "هذا البريد مسجل مسبقًا. سجّل الدخول بدل إنشاء حساب جديد."
+          : "تعذر إنشاء الحساب. تحقق من الاتصال وإعداد البريد ثم أعد المحاولة.",
+      );
+
       return;
     }
 
-    if (!cleanPhone) {
-      setError("يرجى إدخال رقم الهاتف");
+    if (!data.session || !data.user) {
+      setBusy(false);
+
+      router.replace({
+        pathname: "/verify-email",
+        params: {
+          email: email.trim().toLowerCase(),
+          role,
+        },
+      } as unknown as Href);
+
       return;
     }
 
-    if (cleanPhone.length < 8) {
-      setError("يرجى إدخال رقم هاتف صحيح");
-      return;
+    try {
+      const destination = await getAccountRoute(data.user.id);
+      router.replace(destination as Href);
+    } catch {
+      setError(
+        "تم إنشاء الحساب، لكن تعذر تحميل دوره الآن. سجّل الدخول بعد قليل.",
+      );
+    } finally {
+      setBusy(false);
     }
-
-    if (cleanEmail && !cleanEmail.includes("@")) {
-      setError("يرجى إدخال بريد إلكتروني صحيح");
-      return;
-    }
-
-    if (!cleanPassword) {
-      setError("يرجى إدخال كلمة المرور");
-      return;
-    }
-
-    if (cleanPassword.length < 6) {
-      setError("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
-      return;
-    }
-
-    if (!cleanConfirmPassword) {
-      setError("يرجى تأكيد كلمة المرور");
-      return;
-    }
-
-    if (cleanPassword !== cleanConfirmPassword) {
-      setError("كلمتا المرور غير متطابقتين");
-      return;
-    }
-
-    setIsLoading(true);
-
-    setTimeout(() => {
-      setIsLoading(false);
-      router.replace("/home" as Href);
-    }, 800);
   };
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: colors.background,
-        },
-      ]}
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <KeyboardAvoidingView
-        style={styles.keyboardContainer}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-      >
-        <ScrollView
-          ref={scrollViewRef}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={styles.content}
-        >
-          <BrandMark size="small" showSubtitle={false} />
+      <ScrollView
+        ref={scrollRef}
+        snapToOffsets={pageOffsets}
+        snapToStart
+        snapToEnd
+        disableIntervalMomentum
+        decelerationRate="fast"
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.scrollContent}
+        onMomentumScrollEnd={(event) => {
+          const offsetY = event.nativeEvent.contentOffset.y;
 
-          <View style={styles.form}>
+          const next = pageOffsetsRef.current.reduce(
+            (closest, currentOffset, index, offsets) =>
+              Math.abs(currentOffset - offsetY) <
+              Math.abs(offsets[closest] - offsetY)
+                ? index
+                : closest,
+            0,
+          );
+
+          pageRef.current = next;
+          setPage(next);
+
+          if (next !== 2) {
+            setError("");
+          }
+        }}
+      >
+        {/* الصفحة الأولى */}
+        <View
+          onLayout={(event) => recordPageLayout(0, event.nativeEvent.layout.y)}
+          style={[styles.page, { minHeight: pageHeight }]}
+        >
+          <View style={styles.welcomeContent}>
+            <BrandMark size="medium" />
+
+            <Text style={[styles.eyebrow, { color: colors.accent }]}>
+              أهلاً بك في
+            </Text>
+
+            <Text style={[styles.title, { color: colors.text }]}>تسوق</Text>
+
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              متاجر الكرك الشرقي، أقرب إليك. أنشئ حسابك وتابع طلباتك أو قدّم
+              متجرك أو طلب انتسابك للسائقين.
+            </Text>
+
+            <Text style={[styles.hint, { color: colors.textMuted }]}>
+              تعرّف على خطوات الانضمام، أو ابدأ الآن
+            </Text>
+
+            <AppButton
+              title="ابدأ الآن"
+              onPress={() => goToPage(1)}
+              variant="secondary"
+            />
+          </View>
+        </View>
+
+        {/* الصفحة الثانية */}
+        <View
+          onLayout={(event) => recordPageLayout(1, event.nativeEvent.layout.y)}
+          style={[styles.page, { minHeight: pageHeight }]}
+        >
+          <View style={styles.formPage}>
             <Text
               style={[
                 styles.title,
-                {
-                  color: colors.text,
-                },
+                styles.sectionTitle,
+                { color: colors.text },
               ]}
             >
-              إنشاء حساب
+              بيانات حسابك
             </Text>
 
-            <Text
-              style={[
-                styles.subtitle,
-                {
-                  color: colors.textSecondary,
-                },
-              ]}
-            >
-              أنشئ حسابك وابدأ التسوق من منطقتك
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              أدخل بياناتك الأساسية للمتابعة.
             </Text>
 
-            <View style={styles.field}>
-              <Text
-                style={[
-                  styles.label,
-                  {
-                    color: colors.text,
-                  },
-                ]}
-              >
-                الاسم
-              </Text>
-
-              <TextInput
-                value={name}
-                onChangeText={(value) => {
-                  setName(value);
-                  setError("");
-                }}
-                placeholder="أدخل اسمك"
-                placeholderTextColor={colors.textMuted}
-                style={[
-                  styles.input,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.surface,
-                    color: colors.text,
-                  },
-                ]}
-                textAlign="right"
+            <View style={styles.fields}>
+              <AppTextField
+                label="الاسم الكامل"
+                value={fullName}
+                onChangeText={setFullName}
+                autoCapitalize="words"
+                autoComplete="name"
+                placeholder="الاسم كما تحب أن يظهر"
                 returnKeyType="next"
-                editable={!isLoading}
-                onFocus={() => scrollToInput(100)}
-                accessibilityLabel="الاسم"
               />
-            </View>
 
-            <View style={styles.field}>
-              <Text
-                style={[
-                  styles.label,
-                  {
-                    color: colors.text,
-                  },
-                ]}
-              >
-                رقم الهاتف
-              </Text>
-
-              <TextInput
-                value={phone}
-                onChangeText={(value) => {
-                  setPhone(value);
-                  setError("");
-                }}
-                placeholder="أدخل رقم الهاتف"
-                placeholderTextColor={colors.textMuted}
-                keyboardType="phone-pad"
-                style={[
-                  styles.input,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.surface,
-                    color: colors.text,
-                  },
-                ]}
-                textAlign="right"
-                returnKeyType="next"
-                editable={!isLoading}
-                onFocus={() => scrollToInput(180)}
-                accessibilityLabel="رقم الهاتف"
-              />
-            </View>
-
-            <View style={styles.field}>
-              <Text
-                style={[
-                  styles.label,
-                  {
-                    color: colors.text,
-                  },
-                ]}
-              >
-                البريد الإلكتروني
-                <Text
-                  style={[
-                    styles.optional,
-                    {
-                      color: colors.textMuted,
-                    },
-                  ]}
-                >
-                  {" "}
-                  اختياري
-                </Text>
-              </Text>
-
-              <TextInput
+              <AppTextField
+                label="البريد الإلكتروني"
                 value={email}
-                onChangeText={(value) => {
-                  setEmail(value);
-                  setError("");
-                }}
-                placeholder="example@email.com"
-                placeholderTextColor={colors.textMuted}
+                onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
-                style={[
-                  styles.input,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.surface,
-                    color: colors.text,
-                  },
-                ]}
-                textAlign="right"
+                autoComplete="email"
+                placeholder="name@example.com"
                 returnKeyType="next"
-                editable={!isLoading}
-                onFocus={() => scrollToInput(260)}
-                accessibilityLabel="البريد الإلكتروني"
+              />
+
+              <AppTextField
+                label="كلمة المرور"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoComplete="new-password"
+                placeholder="٨ أحرف على الأقل"
+                returnKeyType="next"
+              />
+
+              <AppTextField
+                label="تأكيد كلمة المرور"
+                value={passwordConfirmation}
+                onChangeText={setPasswordConfirmation}
+                secureTextEntry
+                autoComplete="new-password"
+                placeholder="أعد كتابة كلمة المرور"
+                returnKeyType="done"
+                onSubmitEditing={continueToRole}
               />
             </View>
 
-            <View style={styles.field}>
-              <Text
-                style={[
-                  styles.label,
-                  {
-                    color: colors.text,
-                  },
-                ]}
-              >
-                كلمة المرور
-              </Text>
-
-              <View
-                style={[
-                  styles.passwordContainer,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.surface,
-                  },
-                ]}
-              >
-                <TextInput
-                  value={password}
-                  onChangeText={(value) => {
-                    setPassword(value);
-                    setError("");
-                  }}
-                  placeholder="أدخل كلمة المرور"
-                  placeholderTextColor={colors.textMuted}
-                  secureTextEntry={!showPassword}
-                  style={[
-                    styles.passwordInput,
-                    {
-                      color: colors.text,
-                    },
-                  ]}
-                  textAlign="right"
-                  returnKeyType="next"
-                  editable={!isLoading}
-                  onFocus={() => scrollToInput(350)}
-                  accessibilityLabel="كلمة المرور"
-                />
-
-                <Pressable
-                  onPress={() => setShowPassword((value) => !value)}
-                  hitSlop={10}
-                  disabled={isLoading}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.passwordToggle,
-                      {
-                        color: colors.primary,
-                      },
-                    ]}
-                  >
-                    {showPassword ? "إخفاء" : "إظهار"}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-
-            <View style={styles.field}>
-              <Text
-                style={[
-                  styles.label,
-                  {
-                    color: colors.text,
-                  },
-                ]}
-              >
-                تأكيد كلمة المرور
-              </Text>
-
-              <View
-                style={[
-                  styles.passwordContainer,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.surface,
-                  },
-                ]}
-              >
-                <TextInput
-                  value={confirmPassword}
-                  onChangeText={(value) => {
-                    setConfirmPassword(value);
-                    setError("");
-                  }}
-                  placeholder="أعد إدخال كلمة المرور"
-                  placeholderTextColor={colors.textMuted}
-                  secureTextEntry={!showConfirmPassword}
-                  style={[
-                    styles.passwordInput,
-                    {
-                      color: colors.text,
-                    },
-                  ]}
-                  textAlign="right"
-                  returnKeyType="done"
-                  editable={!isLoading}
-                  onFocus={() => scrollToInput(440)}
-                  onSubmitEditing={handleSignup}
-                  accessibilityLabel="تأكيد كلمة المرور"
-                />
-
-                <Pressable
-                  onPress={() => setShowConfirmPassword((value) => !value)}
-                  hitSlop={10}
-                  disabled={isLoading}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    showConfirmPassword
-                      ? "إخفاء تأكيد كلمة المرور"
-                      : "إظهار تأكيد كلمة المرور"
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.passwordToggle,
-                      {
-                        color: colors.primary,
-                      },
-                    ]}
-                  >
-                    {showConfirmPassword ? "إخفاء" : "إظهار"}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-
             {error ? (
-              <View
+              <Text
                 style={[
-                  styles.errorBox,
+                  styles.error,
                   {
+                    color: colors.error,
                     backgroundColor: colors.primaryLight,
-                    borderColor: colors.error,
                   },
                 ]}
               >
-                <Text
-                  style={[
-                    styles.errorText,
-                    {
-                      color: colors.error,
-                    },
-                  ]}
-                >
-                  {error}
-                </Text>
-              </View>
+                {error}
+              </Text>
             ) : null}
 
-            <Pressable
-              style={({ pressed }) => [
-                styles.signupButton,
-                {
-                  backgroundColor: colors.primary,
-                },
-                isLoading && styles.signupButtonDisabled,
-                pressed && styles.pressed,
-              ]}
-              onPress={handleSignup}
-              disabled={isLoading}
-              accessibilityRole="button"
-              accessibilityLabel="إنشاء الحساب"
-            >
-              {isLoading ? (
-                <ActivityIndicator size="small" color={colors.surface} />
-              ) : (
-                <Text
-                  style={[
-                    styles.signupButtonText,
-                    {
-                      color: colors.surface,
-                    },
-                  ]}
-                >
-                  إنشاء الحساب
-                </Text>
-              )}
-            </Pressable>
+            <AppButton title="التالي: اختيار الدور" onPress={continueToRole} />
 
             <View style={styles.loginRow}>
-              <Text
-                style={[
-                  styles.loginText,
-                  {
-                    color: colors.textSecondary,
-                  },
-                ]}
-              >
-                لديك حساب بالفعل؟
+              <Text style={[styles.loginText, { color: colors.textSecondary }]}>
+                لديك حساب؟
               </Text>
 
               <Link href="/login" asChild>
-                <Pressable
-                  hitSlop={8}
-                  disabled={isLoading}
-                  accessibilityRole="link"
-                  accessibilityLabel="تسجيل الدخول"
-                >
-                  <Text
-                    style={[
-                      styles.loginLink,
-                      {
-                        color: colors.primary,
-                      },
-                    ]}
-                  >
+                <Pressable accessibilityRole="button" hitSlop={8}>
+                  <Text style={[styles.loginLink, { color: colors.primary }]}>
                     تسجيل الدخول
                   </Text>
                 </Pressable>
               </Link>
             </View>
+
+            <Text style={[styles.swipeHint, { color: colors.textMuted }]}>
+              أكمل البيانات ثم تابع، أو اسحب للأعلى
+            </Text>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </View>
+        </View>
+
+        {/* الصفحة الثالثة */}
+        <View
+          onLayout={(event) => recordPageLayout(2, event.nativeEvent.layout.y)}
+          style={[styles.page, { minHeight: pageHeight }]}
+        >
+          <View style={styles.formPage}>
+            <Text style={[styles.title, { color: colors.text }]}>
+              كيف ستستخدم تسوق؟
+            </Text>
+
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              اختر دورًا واحدًا لهذا الحساب. لا يمكن للحساب امتلاك أكثر من دور.
+            </Text>
+
+            <View style={styles.roles}>
+              {roles.map((item) => {
+                const selected = role === item.value;
+
+                return (
+                  <Pressable
+                    key={item.value}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    onPress={() => {
+                      setRole(item.value);
+                      setError("");
+                    }}
+                    style={[
+                      styles.roleCard,
+                      {
+                        borderColor: selected ? colors.primary : colors.border,
+                        backgroundColor: selected
+                          ? colors.primaryLight
+                          : colors.surface,
+                      },
+                    ]}
+                  >
+                    <AppIcon
+                      name={item.icon}
+                      size={23}
+                      color={selected ? colors.primary : colors.textSecondary}
+                    />
+
+                    <View style={styles.roleCopy}>
+                      <Text
+                        style={[
+                          styles.roleTitle,
+                          {
+                            color: selected ? colors.primary : colors.text,
+                          },
+                        ]}
+                      >
+                        {item.title}
+                      </Text>
+
+                      <Text
+                        style={[
+                          styles.roleDetail,
+                          { color: colors.textSecondary },
+                        ]}
+                      >
+                        {item.detail}
+                      </Text>
+                    </View>
+
+                    <AppIcon
+                      name={selected ? "radio-button-on" : "radio-button-off"}
+                      size={21}
+                      color={selected ? colors.primary : colors.textMuted}
+                    />
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* الموافقة */}
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{
+                checked: acceptedTerms,
+              }}
+              onPress={() => {
+                setAcceptedTerms((current) => !current);
+
+                if (error) {
+                  setError("");
+                }
+              }}
+              style={styles.agreementRow}
+            >
+              <View style={styles.agreementCopy}>
+                <Text
+                  style={[
+                    styles.agreementText,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  أوافق على
+                </Text>
+
+                <Link href="/terms" asChild>
+                  <Pressable
+                    onPress={(event) => event.stopPropagation()}
+                    hitSlop={6}
+                  >
+                    <Text
+                      style={[styles.agreementLink, { color: colors.primary }]}
+                    >
+                      شروط الاستخدام
+                    </Text>
+                  </Pressable>
+                </Link>
+
+                <Text
+                  style={[
+                    styles.agreementText,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  و
+                </Text>
+
+                <Link href="/privacy" asChild>
+                  <Pressable
+                    onPress={(event) => event.stopPropagation()}
+                    hitSlop={6}
+                  >
+                    <Text
+                      style={[styles.agreementLink, { color: colors.primary }]}
+                    >
+                      سياسة الخصوصية
+                    </Text>
+                  </Pressable>
+                </Link>
+              </View>
+
+              <View
+                style={[
+                  styles.checkbox,
+                  {
+                    borderColor: acceptedTerms ? colors.primary : colors.border,
+                    backgroundColor: acceptedTerms
+                      ? colors.primary
+                      : colors.surface,
+                  },
+                ]}
+              >
+                {acceptedTerms ? (
+                  <AppIcon
+                    name="checkmark"
+                    size={16}
+                    color={colors.primary}
+                  />
+                ) : null}
+              </View>
+            </Pressable>
+
+            {error ? (
+              <Text
+                style={[
+                  styles.error,
+                  {
+                    color: colors.error,
+                    backgroundColor: colors.primaryLight,
+                  },
+                ]}
+              >
+                {error}
+              </Text>
+            ) : null}
+
+            <View style={styles.actions}>
+              <AppButton
+                title="رجوع للبيانات"
+                variant="outline"
+                onPress={() => goToPage(1)}
+                disabled={busy}
+              />
+
+              <AppButton
+                title={busy ? "جارٍ إنشاء الحساب…" : "إنشاء الحساب والمتابعة"}
+                onPress={() => void createAccount()}
+                loading={busy}
+                disabled={!role || !acceptedTerms}
+              />
+            </View>
+
+            {/* الروابط الإضافية */}
+            <View style={styles.infoLinks}>
+              <Link href="/terms" asChild>
+                <Pressable hitSlop={6}>
+                  <Text style={[styles.infoLink, { color: colors.primary }]}>
+                    شروط الاستخدام
+                  </Text>
+                </Pressable>
+              </Link>
+
+              <View
+                style={[
+                  styles.linkSeparator,
+                  { backgroundColor: colors.border },
+                ]}
+              />
+
+              <Link href="/privacy" asChild>
+                <Pressable hitSlop={6}>
+                  <Text style={[styles.infoLink, { color: colors.primary }]}>
+                    سياسة الخصوصية
+                  </Text>
+                </Pressable>
+              </Link>
+
+              <View
+                style={[
+                  styles.linkSeparator,
+                  { backgroundColor: colors.border },
+                ]}
+              />
+
+              <Link href="/about" asChild>
+                <Pressable hitSlop={6}>
+                  <Text style={[styles.infoLink, { color: colors.primary }]}>
+                    معلومات البرنامج وإصداره
+                  </Text>
+                </Pressable>
+              </Link>
+            </View>
+
+            <Text style={[styles.swipeHint, { color: colors.textMuted }]}>
+              يمكنك قراءة الشروط وسياسة الخصوصية قبل إنشاء الحساب.
+            </Text>
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* شريط التقدم الثابت */}
+      {page > 0 ? (
+        <View
+          pointerEvents="none"
+          style={[styles.fixedProgress, { backgroundColor: colors.background }]}
+        >
+          <View style={styles.progressInner}>
+            <Text style={[styles.stepText, { color: colors.textMuted }]}>
+              {page === 1 ? "الخطوة ١ من ٢" : "الخطوة ٢ من ٢"}
+            </Text>
+
+            <View
+              style={[styles.stepTrack, { backgroundColor: colors.border }]}
+            >
+              <View
+                style={[
+                  styles.stepFill,
+                  {
+                    backgroundColor:
+                      page === 1 ? colors.primary : colors.accent,
+                    width: page === 1 ? "50%" : "100%",
+                  },
+                ]}
+              />
+            </View>
+          </View>
+        </View>
+      ) : null}
+    </KeyboardAvoidingView>
   );
 }
 
@@ -504,136 +640,240 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  keyboardContainer: {
-    flex: 1,
+  scrollContent: {
+    paddingBottom: Spacing.nine,
   },
 
-  content: {
-    flexGrow: 1,
-    paddingHorizontal: Spacing.six,
+  page: {
+    paddingHorizontal: Spacing.five,
     paddingTop: Spacing.four,
-    paddingBottom: 180,
+    paddingBottom: 150,
   },
 
-  form: {
+  welcomeContent: {
+    flex: 1,
+    justifyContent: "center",
     width: "100%",
-    maxWidth: 520,
+    maxWidth: 500,
     alignSelf: "center",
+    alignItems: "center",
+    padding: Spacing.five,
+  },
+
+  eyebrow: {
     marginTop: Spacing.five,
+    fontFamily: Fonts.semiBold,
+    fontSize: FontSizes.md,
   },
 
   title: {
     textAlign: "center",
     fontFamily: Fonts.bold,
-    fontSize: FontSizes.xxl,
+    fontSize: FontSizes.xl,
+  },
+
+  sectionTitle: {
+    marginTop: Spacing.six,
   },
 
   subtitle: {
     marginTop: Spacing.two,
     textAlign: "center",
     fontFamily: Fonts.regular,
-    fontSize: FontSizes.md,
-    lineHeight: 24,
+    fontSize: FontSizes.sm,
+    lineHeight: 23,
   },
 
-  field: {
-    marginTop: Spacing.four,
-  },
-
-  label: {
-    marginBottom: Spacing.two,
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.md,
-    textAlign: "right",
-  },
-
-  optional: {
+  hint: {
+    marginTop: Spacing.two,
+    marginBottom: Spacing.four,
+    textAlign: "center",
     fontFamily: Fonts.regular,
+    fontSize: FontSizes.xs,
+    lineHeight: 20,
+  },
+
+  formPage: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingTop: Spacing.five,
+    paddingBottom: Spacing.four,
+  },
+
+  fields: {
+    gap: Spacing.three,
+    marginTop: Spacing.five,
+  },
+
+  roles: {
+    gap: Spacing.three,
+    marginTop: Spacing.five,
+  },
+
+  stepText: {
+    fontFamily: Fonts.medium,
     fontSize: FontSizes.xs,
   },
 
-  input: {
-    minHeight: 54,
-    paddingHorizontal: Spacing.four,
-    borderWidth: 1,
-    borderRadius: Radius.md,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.md,
-  },
-
-  passwordContainer: {
-    minHeight: 54,
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    paddingHorizontal: Spacing.four,
-    borderWidth: 1,
-    borderRadius: Radius.md,
-  },
-
-  passwordInput: {
+  stepTrack: {
     flex: 1,
-    minHeight: 52,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.md,
+    height: 5,
+    overflow: "hidden",
+    borderRadius: Radius.full,
   },
 
-  passwordToggle: {
-    marginLeft: Spacing.two,
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.sm,
+  stepFill: {
+    height: "100%",
+    borderRadius: Radius.full,
   },
 
-  errorBox: {
+  error: {
     marginTop: Spacing.three,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    borderWidth: 1,
+    padding: Spacing.three,
     borderRadius: Radius.md,
-  },
-
-  errorText: {
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.sm,
-    lineHeight: 21,
     textAlign: "right",
-  },
-
-  signupButton: {
-    minHeight: 56,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: Spacing.five,
-    borderRadius: Radius.md,
-  },
-
-  signupButtonDisabled: {
-    opacity: 0.7,
-  },
-
-  signupButtonText: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.md,
+    fontFamily: Fonts.medium,
+    lineHeight: 22,
   },
 
   loginRow: {
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     justifyContent: "center",
-    alignItems: "center",
+    alignItems: "baseline",
     gap: Spacing.one,
-    marginTop: Spacing.five,
+    marginTop: Spacing.four,
   },
 
   loginText: {
     fontFamily: Fonts.regular,
     fontSize: FontSizes.sm,
+    lineHeight: 22,
   },
 
   loginLink: {
-    fontFamily: Fonts.semiBold,
+    fontFamily: Fonts.bold,
     fontSize: FontSizes.sm,
+    lineHeight: 22,
   },
 
-  pressed: {
-    opacity: 0.7,
+  swipeHint: {
+    marginTop: Spacing.four,
+    textAlign: "center",
+    fontFamily: Fonts.regular,
+    fontSize: FontSizes.xs,
+    lineHeight: 20,
+  },
+
+  roleCard: {
+    minHeight: 78,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: Spacing.three,
+    padding: Spacing.three,
+    borderWidth: 1,
+    borderRadius: Radius.lg,
+  },
+
+  roleCopy: {
+    flex: 1,
+    alignItems: "flex-end",
+    gap: 3,
+  },
+
+  roleTitle: {
+    textAlign: "right",
+    fontFamily: Fonts.bold,
+    fontSize: FontSizes.md,
+  },
+
+  roleDetail: {
+    textAlign: "right",
+    fontFamily: Fonts.regular,
+    fontSize: FontSizes.xs,
+  },
+
+  agreementRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    gap: Spacing.three,
+    marginTop: Spacing.five,
+  },
+
+  agreementCopy: {
+    flex: 1,
+    flexDirection: "row-reverse",
+    flexWrap: "wrap",
+    alignItems: "baseline",
+    justifyContent: "flex-end",
+    gap: Spacing.one,
+  },
+
+  agreementText: {
+    fontFamily: Fonts.regular,
+    fontSize: FontSizes.xs,
+    lineHeight: 21,
+  },
+
+  agreementLink: {
+    fontFamily: Fonts.bold,
+    fontSize: FontSizes.xs,
+    lineHeight: 21,
+  },
+
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderWidth: 1.5,
+    borderRadius: Radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  actions: {
+    flexDirection: "column",
+    gap: Spacing.two,
+    marginTop: Spacing.five,
+  },
+
+  infoLinks: {
+    flexDirection: "row-reverse",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.two,
+    marginTop: Spacing.five,
+  },
+
+  infoLink: {
+    fontFamily: Fonts.medium,
+    fontSize: FontSizes.xs,
+    lineHeight: 20,
+  },
+
+  linkSeparator: {
+    width: 3,
+    height: 3,
+    borderRadius: Radius.full,
+  },
+
+  fixedProgress: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: Spacing.five,
+    paddingTop: Spacing.three,
+    paddingBottom: Spacing.four,
+  },
+
+  progressInner: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: Spacing.three,
   },
 });

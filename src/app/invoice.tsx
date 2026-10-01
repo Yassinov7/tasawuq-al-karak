@@ -78,7 +78,7 @@ export default function InvoiceScreen() {
         },
       ]}
     >
-      <AppHeader title="الفاتورة" showBack cartCount={itemCount} />
+      <AppHeader title="الفاتورة" showBack cartCount={itemCount} mode="customer" />
 
       <ScrollView
         showsVerticalScrollIndicator={false}

@@ -50,7 +50,7 @@ export default function FavoritesScreen() {
         },
       ]}
     >
-      <AppHeader title="المفضلة" showBack cartCount={itemCount} />
+      <AppHeader title="المفضلة" showBack cartCount={itemCount} mode="customer" />
 
       {favoriteProducts.length === 0 ? (
         <EmptyFavorites onContinue={() => router.push("/home")} />

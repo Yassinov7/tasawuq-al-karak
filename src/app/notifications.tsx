@@ -107,7 +107,7 @@ export default function NotificationsScreen() {
         },
       ]}
     >
-      <AppHeader title="الإشعارات" showBack cartCount={itemCount} />
+      <AppHeader title="الإشعارات" showBack cartCount={itemCount} mode="shared" />
 
       <FlatList
         data={notifications}

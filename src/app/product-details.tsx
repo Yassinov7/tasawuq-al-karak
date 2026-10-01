@@ -175,7 +175,12 @@ export default function ProductDetailsScreen() {
         },
       ]}
     >
-      <AppHeader title="تفاصيل المنتج" showBack cartCount={itemCount} />
+      <AppHeader
+        title="تفاصيل المنتج"
+        showBack
+        mode="shared"
+        cartCount={itemCount}
+      />
 
       <ScrollView
         showsVerticalScrollIndicator={false}

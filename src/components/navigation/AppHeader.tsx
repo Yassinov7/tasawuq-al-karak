@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { AppIcon } from "@/components/ui/AppIcon";
@@ -10,16 +10,42 @@ type AppHeaderProps = {
   title?: string;
   showBack?: boolean;
   cartCount?: number;
+  mode?: "customer" | "business" | "shared";
 };
+
+type HeaderMode = "customer" | "merchant" | "driver" | "shared";
+
+function getHeaderMode(pathname: string): HeaderMode {
+  if (pathname.startsWith("/merchant")) {
+    return "merchant";
+  }
+
+  if (pathname.startsWith("/driver")) {
+    return "driver";
+  }
+
+  return "shared";
+}
 
 export function AppHeader({
   title = "تسوق",
   showBack = false,
   cartCount = 0,
+  mode,
 }: AppHeaderProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { unreadCount } = useNotifications();
   const { colors, isDark } = useTheme();
+
+  const detectedMode = getHeaderMode(pathname);
+  const headerMode = mode ?? detectedMode;
+
+  const isCustomerMode = headerMode === "customer";
+  const isBusinessMode =
+    headerMode === "business" ||
+    headerMode === "merchant" ||
+    headerMode === "driver";
 
   const logoSource = isDark
     ? require("../../../assets/images/branding/taswoq-logo-dark.png")
@@ -92,7 +118,12 @@ export function AppHeader({
           </Text>
         </View>
 
-        <View style={styles.actions}>
+        <View
+          style={[
+            styles.actions,
+            (isBusinessMode || !isCustomerMode) && styles.businessActions,
+          ]}
+        >
           <Pressable
             onPress={handleNotificationsPress}
             style={({ pressed }) => [
@@ -134,57 +165,61 @@ export function AppHeader({
             ) : null}
           </Pressable>
 
-          <Pressable
-            onPress={handleOrdersPress}
-            style={({ pressed }) => [
-              styles.iconButton,
-              pressed && {
-                backgroundColor: colors.primaryLight,
-              },
-            ]}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="طلباتي"
-          >
-            <AppIcon name="receipt-outline" size={22} color={colors.text} />
-          </Pressable>
-
-          <Pressable
-            onPress={handleCartPress}
-            style={({ pressed }) => [
-              styles.iconButton,
-              pressed && {
-                backgroundColor: colors.primaryLight,
-              },
-            ]}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="السلة"
-          >
-            <AppIcon name="cart-outline" size={23} color={colors.text} />
-
-            {cartCount > 0 ? (
-              <View
-                style={[
-                  styles.badge,
-                  {
-                    backgroundColor: colors.error,
+          {isCustomerMode ? (
+            <>
+              <Pressable
+                onPress={handleOrdersPress}
+                style={({ pressed }) => [
+                  styles.iconButton,
+                  pressed && {
+                    backgroundColor: colors.primaryLight,
                   },
                 ]}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="طلباتي"
               >
-                <Text
-                  style={[
-                    styles.badgeText,
-                    {
-                      color: colors.surface,
-                    },
-                  ]}
-                >
-                  {cartCount > 9 ? "9+" : cartCount}
-                </Text>
-              </View>
-            ) : null}
-          </Pressable>
+                <AppIcon name="receipt-outline" size={22} color={colors.text} />
+              </Pressable>
+
+              <Pressable
+                onPress={handleCartPress}
+                style={({ pressed }) => [
+                  styles.iconButton,
+                  pressed && {
+                    backgroundColor: colors.primaryLight,
+                  },
+                ]}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="السلة"
+              >
+                <AppIcon name="cart-outline" size={23} color={colors.text} />
+
+                {cartCount > 0 ? (
+                  <View
+                    style={[
+                      styles.badge,
+                      {
+                        backgroundColor: colors.error,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.badgeText,
+                        {
+                          color: colors.surface,
+                        },
+                      ]}
+                    >
+                      {cartCount > 9 ? "9+" : cartCount}
+                    </Text>
+                  </View>
+                ) : null}
+              </Pressable>
+            </>
+          ) : null}
         </View>
       </View>
     </View>
@@ -247,6 +282,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-end",
     gap: 2,
+  },
+
+  businessActions: {
+    width: 48,
   },
 
   iconButton: {

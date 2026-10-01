@@ -135,7 +135,7 @@ export default function CartScreen() {
         },
       ]}
     >
-      <AppHeader title="السلة" showBack cartCount={itemCount} />
+      <AppHeader title="السلة" showBack cartCount={itemCount} mode="customer" />
 
       {cartProducts.length === 0 ? (
         <EmptyCart onContinue={() => router.replace("/home")} />

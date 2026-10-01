@@ -5,14 +5,16 @@ import { AppIcon } from "@/components/ui/AppIcon";
 import { FontSizes, Fonts, Radius, Shadows, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 
+type AppIconName = React.ComponentProps<typeof AppIcon>["name"];
+
 type NavItem = {
   label: string;
-  icon: React.ComponentProps<typeof AppIcon>["name"];
-  activeIcon: React.ComponentProps<typeof AppIcon>["name"];
+  icon: AppIconName;
+  activeIcon: AppIconName;
   route: Href;
 };
 
-const navItems: NavItem[] = [
+const customerNavItems: NavItem[] = [
   {
     label: "الرئيسية",
     icon: "home-outline",
@@ -39,13 +41,96 @@ const navItems: NavItem[] = [
   },
 ];
 
+const merchantNavItems: NavItem[] = [
+  {
+    label: "الرئيسية",
+    icon: "home-outline",
+    activeIcon: "home",
+    route: "/merchant",
+  },
+  {
+    label: "الكتالوج",
+    icon: "pricetags-outline",
+    activeIcon: "pricetags",
+    route: "/merchant/catalog",
+  },
+  {
+    label: "الطلبات",
+    icon: "receipt-outline",
+    activeIcon: "receipt",
+    route: "/merchant/orders",
+  },
+  {
+    label: "حسابي",
+    icon: "person-outline",
+    activeIcon: "person",
+    route: "/merchant/account",
+  },
+];
+
+const driverNavItems: NavItem[] = [
+  {
+    label: "الرئيسية",
+    icon: "home-outline",
+    activeIcon: "home",
+    route: "./driver",
+  },
+  {
+    label: "الطلبات",
+    icon: "receipt-outline",
+    activeIcon: "receipt",
+    route: "./driver/orders",
+  },
+  {
+    label: "المحفظة",
+    icon: "wallet-outline",
+    activeIcon: "wallet",
+    route: "/wallet",
+  },
+  {
+    label: "حسابي",
+    icon: "person-outline",
+    activeIcon: "person",
+    route: "./driver/account",
+  },
+];
+
+function getNavigationMode(pathname: string) {
+  if (pathname.startsWith("/merchant")) {
+    return "merchant";
+  }
+
+  if (pathname.startsWith("/driver")) {
+    return "driver";
+  }
+
+  return "customer";
+}
+
 export function AppBottomNav() {
   const router = useRouter();
   const pathname = usePathname();
   const { colors } = useTheme();
 
+  const mode = getNavigationMode(pathname);
+
+  const visibleItems =
+    mode === "merchant"
+      ? merchantNavItems
+      : mode === "driver"
+        ? driverNavItems
+        : customerNavItems;
+
   const isActive = (route: Href) => {
     if (typeof route === "string") {
+      if (route === "/merchant") {
+        return pathname === "/merchant";
+      }
+
+      if (route === "./driver") {
+        return pathname === "/driver";
+      }
+
       return pathname === route;
     }
 
@@ -64,7 +149,7 @@ export function AppBottomNav() {
           Shadows.card,
         ]}
       >
-        {navItems.map((item) => {
+        {visibleItems.map((item) => {
           const active = isActive(item.route);
 
           return (

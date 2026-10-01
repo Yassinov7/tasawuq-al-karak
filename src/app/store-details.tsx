@@ -190,8 +190,7 @@ export default function StoreDetailsScreen() {
         },
       ]}
     >
-      <AppHeader title={store.name} showBack cartCount={itemCount} />
-
+      <AppHeader title={store.name} cartCount={itemCount} mode="shared" />
       <ScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"

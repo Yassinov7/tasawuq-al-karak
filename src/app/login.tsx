@@ -1,334 +1,301 @@
-import { Href, Link, useRouter } from "expo-router";
-import { useRef, useState } from "react";
+import { Link, useRouter, type Href } from "expo-router";
+import { useState } from "react";
+
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 
 import { BrandMark } from "@/components/brand/BrandMark";
-import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
+import { AppButton } from "@/components/ui/AppButton";
+import { AppIcon } from "@/components/ui/AppIcon";
+import { AppModal } from "@/components/ui/AppModal";
+import { AppTextField } from "@/components/ui/AppTextField";
+import { Fonts, FontSizes, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
+import { getAccountRoute } from "@/lib/account-routing";
+import { supabase } from "@/lib/supabase";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const scrollViewRef = useRef<ScrollView>(null);
   const { colors } = useTheme();
 
-  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+
   const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  const scrollToInput = (y: number) => {
-    setTimeout(() => {
-      scrollViewRef.current?.scrollTo({
-        y,
-        animated: true,
-      });
-    }, 150);
-  };
+  const [resetVisible, setResetVisible] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetMessage, setResetMessage] = useState("");
 
-  const handleLogin = () => {
+  const isValidEmail = (value: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
+  const login = async () => {
     setError("");
 
-    const cleanPhone = phone.trim();
-    const cleanPassword = password.trim();
+    const cleanEmail = email.trim().toLowerCase();
 
-    if (!cleanPhone) {
-      setError("يرجى إدخال رقم الهاتف");
+    if (!isValidEmail(cleanEmail)) {
+      setError("أدخل بريدًا إلكترونيًا صحيحًا.");
       return;
     }
 
-    if (cleanPhone.length < 8) {
-      setError("يرجى إدخال رقم هاتف صحيح");
+    if (!password) {
+      setError("أدخل كلمة المرور.");
       return;
     }
 
-    if (!cleanPassword) {
-      setError("يرجى إدخال كلمة المرور");
+    setBusy(true);
+
+    try {
+      const { data, error: loginError } =
+        await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password,
+        });
+
+      if (loginError || !data.user) {
+        setError(
+          loginError?.message.includes("Email not confirmed")
+            ? "أكد بريدك الإلكتروني من الرسالة التي وصلتك، ثم سجّل الدخول."
+            : "تعذر تسجيل الدخول. تحقق من البريد وكلمة المرور.",
+        );
+        return;
+      }
+
+      try {
+        const destination = await getAccountRoute(data.user.id);
+
+        router.replace(destination as Href);
+      } catch {
+        setError(
+          "تعذر قراءة دور الحساب. تأكد من تطبيق ترحيل الحسابات ثم حاول مجددًا.",
+        );
+
+        await supabase.auth.signOut();
+      }
+    } catch {
+      setError("تعذر الاتصال بالخدمة. تحقق من الإنترنت ثم حاول مجددًا.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openResetModal = () => {
+    setResetMessage("");
+    setResetVisible(true);
+  };
+
+  const sendReset = async () => {
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!isValidEmail(cleanEmail)) {
+      setResetMessage("أدخل بريدًا إلكترونيًا صحيحًا في صفحة الدخول أولًا.");
       return;
     }
 
-    if (cleanPassword.length < 6) {
-      setError("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
-      return;
+    setResetBusy(true);
+
+    try {
+      const { error: resetError } =
+        await supabase.auth.resetPasswordForEmail(cleanEmail);
+
+      setResetMessage(
+        resetError
+          ? "تعذر إرسال الرسالة الآن. تحقق من إعداد البريد في Supabase."
+          : "إذا كان البريد مسجلًا، ستصلك رسالة لإعادة تعيين كلمة المرور.",
+      );
+    } catch {
+      setResetMessage("تعذر الاتصال بالخدمة الآن. حاول مجددًا بعد قليل.");
+    } finally {
+      setResetBusy(false);
     }
-
-    setIsLoading(true);
-
-    setTimeout(() => {
-      setIsLoading(false);
-      router.replace("/home" as Href);
-    }, 800);
   };
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: colors.background,
-        },
-      ]}
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <KeyboardAvoidingView
-        style={styles.keyboardContainer}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView
-          ref={scrollViewRef}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={styles.content}
-        >
+        <View style={styles.page}>
           <BrandMark size="large" />
 
           <View style={styles.form}>
-            <Text
-              style={[
-                styles.title,
-                {
-                  color: colors.text,
-                },
-              ]}
-            >
+            <Text style={[styles.title, { color: colors.text }]}>
               تسجيل الدخول
             </Text>
 
-            <Text
-              style={[
-                styles.subtitle,
-                {
-                  color: colors.textSecondary,
-                },
-              ]}
-            >
-              سجّل دخولك للمتابعة إلى تسوق
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              أهلًا بعودتك إلى تسوق
             </Text>
 
-            <View style={styles.field}>
-              <Text
-                style={[
-                  styles.label,
-                  {
-                    color: colors.text,
-                  },
-                ]}
-              >
-                رقم الهاتف
-              </Text>
-
-              <TextInput
-                value={phone}
+            <View style={styles.fields}>
+              <AppTextField
+                label="البريد الإلكتروني"
+                value={email}
                 onChangeText={(value) => {
-                  setPhone(value);
+                  setEmail(value);
                   setError("");
                 }}
-                placeholder="أدخل رقم الهاتف"
-                placeholderTextColor={colors.textMuted}
-                keyboardType="phone-pad"
-                style={[
-                  styles.input,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.surface,
-                    color: colors.text,
-                  },
-                ]}
-                textAlign="right"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+                placeholder="name@example.com"
                 returnKeyType="next"
-                editable={!isLoading}
-                onFocus={() => scrollToInput(150)}
-                accessibilityLabel="رقم الهاتف"
+              />
+
+              <AppTextField
+                label="كلمة المرور"
+                value={password}
+                onChangeText={(value) => {
+                  setPassword(value);
+                  setError("");
+                }}
+                secureTextEntry
+                autoComplete="current-password"
+                placeholder="أدخل كلمة المرور"
+                returnKeyType="done"
+                onSubmitEditing={() => void login()}
               />
             </View>
 
-            <View style={styles.field}>
-              <Text
-                style={[
-                  styles.label,
-                  {
-                    color: colors.text,
-                  },
-                ]}
+            <View style={styles.forgotRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="نسيت كلمة المرور"
+                onPress={openResetModal}
+                hitSlop={8}
+                style={styles.forgotButton}
               >
-                كلمة المرور
-              </Text>
-
-              <View
-                style={[
-                  styles.passwordContainer,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.surface,
-                  },
-                ]}
-              >
-                <TextInput
-                  value={password}
-                  onChangeText={(value) => {
-                    setPassword(value);
-                    setError("");
-                  }}
-                  placeholder="أدخل كلمة المرور"
-                  placeholderTextColor={colors.textMuted}
-                  secureTextEntry={!showPassword}
-                  style={[
-                    styles.passwordInput,
-                    {
-                      color: colors.text,
-                    },
-                  ]}
-                  textAlign="right"
-                  returnKeyType="done"
-                  editable={!isLoading}
-                  onFocus={() => scrollToInput(250)}
-                  onSubmitEditing={handleLogin}
-                  accessibilityLabel="كلمة المرور"
+                <AppIcon
+                  name="help-circle-outline"
+                  size={17}
+                  color={colors.primary}
                 />
 
-                <Pressable
-                  onPress={() => setShowPassword((value) => !value)}
-                  hitSlop={10}
-                  disabled={isLoading}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.passwordToggle,
-                      {
-                        color: colors.primary,
-                      },
-                    ]}
-                  >
-                    {showPassword ? "إخفاء" : "إظهار"}
-                  </Text>
-                </Pressable>
-              </View>
+                <Text style={[styles.forgotText, { color: colors.primary }]}>
+                  نسيت كلمة المرور؟
+                </Text>
+              </Pressable>
             </View>
 
             {error ? (
-              <View
-                style={[
-                  styles.errorBox,
-                  {
-                    backgroundColor: colors.primaryLight,
-                    borderColor: colors.error,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.errorText,
-                    {
-                      color: colors.error,
-                    },
-                  ]}
-                >
-                  {error}
-                </Text>
-              </View>
-            ) : null}
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.loginButton,
-                {
-                  backgroundColor: colors.primary,
-                },
-                isLoading && styles.loginButtonDisabled,
-                pressed && styles.pressed,
-              ]}
-              onPress={handleLogin}
-              disabled={isLoading}
-              accessibilityRole="button"
-              accessibilityLabel="تسجيل الدخول"
-            >
-              {isLoading ? (
-                <ActivityIndicator size="small" color={colors.surface} />
-              ) : (
-                <Text
-                  style={[
-                    styles.loginButtonText,
-                    {
-                      color: colors.surface,
-                    },
-                  ]}
-                >
-                  تسجيل الدخول
-                </Text>
-              )}
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.forgotButton,
-                pressed && styles.pressed,
-              ]}
-              disabled={isLoading}
-              accessibilityRole="button"
-              accessibilityLabel="نسيت كلمة المرور"
-            >
               <Text
                 style={[
-                  styles.forgotText,
+                  styles.error,
                   {
-                    color: colors.primary,
+                    color: colors.error,
+                    backgroundColor: colors.primaryLight,
                   },
                 ]}
               >
-                نسيت كلمة المرور؟
+                {error}
               </Text>
-            </Pressable>
+            ) : null}
+
+            <AppButton
+              title={busy ? "جارٍ تسجيل الدخول…" : "تسجيل الدخول"}
+              onPress={() => void login()}
+              loading={busy}
+              disabled={busy}
+            />
 
             <View style={styles.signupRow}>
               <Text
-                style={[
-                  styles.signupText,
-                  {
-                    color: colors.textSecondary,
-                  },
-                ]}
+                style={[styles.signupText, { color: colors.textSecondary }]}
               >
                 ليس لديك حساب؟
               </Text>
 
               <Link href="/signup" asChild>
-                <Pressable
-                  hitSlop={8}
-                  disabled={isLoading}
-                  accessibilityRole="link"
-                  accessibilityLabel="إنشاء حساب"
-                >
-                  <Text
-                    style={[
-                      styles.signupLink,
-                      {
-                        color: colors.primary,
-                      },
-                    ]}
-                  >
+                <Pressable accessibilityRole="button" hitSlop={8}>
+                  <Text style={[styles.signupLink, { color: colors.primary }]}>
                     إنشاء حساب
                   </Text>
                 </Pressable>
               </Link>
             </View>
+
+            <View style={styles.infoLinks}>
+              <Link href="/terms" asChild>
+                <Pressable hitSlop={6}>
+                  <Text style={[styles.infoLink, { color: colors.primary }]}>
+                    شروط الاستخدام
+                  </Text>
+                </Pressable>
+              </Link>
+
+              <View
+                style={[
+                  styles.linkSeparator,
+                  { backgroundColor: colors.border },
+                ]}
+              />
+
+              <Link href="/privacy" asChild>
+                <Pressable hitSlop={6}>
+                  <Text style={[styles.infoLink, { color: colors.primary }]}>
+                    سياسة الخصوصية
+                  </Text>
+                </Pressable>
+              </Link>
+
+              <View
+                style={[
+                  styles.linkSeparator,
+                  { backgroundColor: colors.border },
+                ]}
+              />
+
+              <Link href="/about" asChild>
+                <Pressable hitSlop={6}>
+                  <Text style={[styles.infoLink, { color: colors.primary }]}>
+                    معلومات البرنامج وإصداره
+                  </Text>
+                </Pressable>
+              </Link>
+            </View>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </View>
+        </View>
+      </ScrollView>
+
+      <AppModal
+        visible={resetVisible}
+        title="إعادة تعيين كلمة المرور"
+        message={
+          resetMessage ||
+          "سنرسل رابط إعادة التعيين إلى البريد المكتوب في صفحة الدخول."
+        }
+        icon="mail-outline"
+        confirmText={
+          resetBusy ? "جارٍ الإرسال…" : resetMessage ? "إغلاق" : "إرسال الرابط"
+        }
+        cancelText="رجوع"
+        busy={resetBusy}
+        onCancel={() => {
+          if (!resetBusy) {
+            setResetVisible(false);
+          }
+        }}
+        onConfirm={
+          resetMessage ? () => setResetVisible(false) : () => void sendReset()
+        }
+      />
+    </KeyboardAvoidingView>
   );
 }
 
@@ -337,126 +304,78 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  keyboardContainer: {
-    flex: 1,
-  },
-
   content: {
     flexGrow: 1,
+    paddingHorizontal: Spacing.five,
+    paddingVertical: Spacing.six,
+  },
+
+  page: {
+    flex: 1,
     justifyContent: "center",
-    paddingHorizontal: Spacing.six,
-    paddingVertical: Spacing.eight,
-    paddingBottom: 180,
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingVertical: Spacing.five,
   },
 
   form: {
     width: "100%",
-    maxWidth: 520,
-    alignSelf: "center",
-    marginTop: Spacing.five,
+    marginTop: Spacing.six,
   },
 
   title: {
     textAlign: "center",
     fontFamily: Fonts.bold,
-    fontSize: FontSizes.xxl,
+    fontSize: FontSizes.xl,
   },
 
   subtitle: {
     marginTop: Spacing.two,
     textAlign: "center",
     fontFamily: Fonts.regular,
-    fontSize: FontSizes.md,
+    fontSize: FontSizes.sm,
+    lineHeight: 22,
   },
 
-  field: {
+  fields: {
+    gap: Spacing.three,
     marginTop: Spacing.five,
   },
 
-  label: {
-    marginBottom: Spacing.two,
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.md,
-    textAlign: "right",
-  },
-
-  input: {
-    minHeight: 54,
-    paddingHorizontal: Spacing.four,
-    borderWidth: 1,
-    borderRadius: Radius.md,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.md,
-  },
-
-  passwordContainer: {
-    minHeight: 54,
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    paddingHorizontal: Spacing.four,
-    borderWidth: 1,
-    borderRadius: Radius.md,
-  },
-
-  passwordInput: {
-    flex: 1,
-    minHeight: 52,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.md,
-  },
-
-  passwordToggle: {
-    marginLeft: Spacing.two,
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.sm,
-  },
-
-  errorBox: {
-    marginTop: Spacing.three,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    borderWidth: 1,
-    borderRadius: Radius.md,
-  },
-
-  errorText: {
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.sm,
-    textAlign: "right",
-  },
-
-  loginButton: {
-    minHeight: 56,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: Spacing.five,
-    borderRadius: Radius.md,
-  },
-
-  loginButtonDisabled: {
-    opacity: 0.7,
-  },
-
-  loginButtonText: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.md,
+  forgotRow: {
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    marginTop: Spacing.two,
   },
 
   forgotButton: {
-    alignSelf: "flex-start",
-    marginTop: Spacing.three,
-    paddingVertical: Spacing.one,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: Spacing.one,
+    paddingVertical: Spacing.two,
   },
 
   forgotText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: FontSizes.sm,
+    lineHeight: 21,
+  },
+
+  error: {
+    marginTop: Spacing.three,
+    padding: Spacing.three,
+    borderRadius: Radius.md,
+    textAlign: "right",
     fontFamily: Fonts.medium,
     fontSize: FontSizes.sm,
+    lineHeight: 22,
   },
 
   signupRow: {
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     justifyContent: "center",
-    alignItems: "center",
+    alignItems: "baseline",
     gap: Spacing.one,
     marginTop: Spacing.five,
   },
@@ -464,14 +383,33 @@ const styles = StyleSheet.create({
   signupText: {
     fontFamily: Fonts.regular,
     fontSize: FontSizes.sm,
+    lineHeight: 22,
   },
 
   signupLink: {
-    fontFamily: Fonts.semiBold,
+    fontFamily: Fonts.bold,
     fontSize: FontSizes.sm,
+    lineHeight: 22,
   },
 
-  pressed: {
-    opacity: 0.7,
+  infoLinks: {
+    flexDirection: "row-reverse",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.two,
+    marginTop: Spacing.six,
+  },
+
+  infoLink: {
+    fontFamily: Fonts.medium,
+    fontSize: FontSizes.xs,
+    lineHeight: 20,
+  },
+
+  linkSeparator: {
+    width: 3,
+    height: 3,
+    borderRadius: Radius.full,
   },
 });

@@ -1,3 +1,4 @@
+import { useRouter } from "expo-router";
 import {
   Pressable,
   ScrollView,
@@ -197,6 +198,7 @@ function ThemeOption({
 }
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const {
     notificationsEnabled,
     themeMode,
@@ -216,8 +218,7 @@ export default function SettingsScreen() {
         },
       ]}
     >
-      <AppHeader title="الإعدادات" showBack cartCount={itemCount} />
-
+      <AppHeader title="الإعدادات" cartCount={itemCount} mode="shared" />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
@@ -423,7 +424,7 @@ export default function SettingsScreen() {
                 },
               ]}
             >
-              ثابتة
+              حاليًا
             </Text>
           </View>
         </View>
@@ -452,14 +453,14 @@ export default function SettingsScreen() {
             icon="lock-closed-outline"
             title="تغيير كلمة المرور"
             subtitle="تحديث كلمة مرور الحساب"
-            onPress={() => undefined}
+            onPress={() => router.push("/security")}
           />
 
           <SettingRow
             icon="shield-checkmark-outline"
             title="الخصوصية"
-            subtitle="إدارة إعدادات الخصوصية"
-            onPress={() => undefined}
+            subtitle="تعرف على كيفية حماية بياناتك"
+            onPress={() => router.push("/privacy")}
           />
         </View>
 
@@ -486,8 +487,8 @@ export default function SettingsScreen() {
           <SettingRow
             icon="information-circle-outline"
             title="عن تسوق"
-            subtitle="معلومات عن التطبيق"
-            onPress={() => undefined}
+            subtitle="معلومات عن التطبيق والمنصة"
+            onPress={() => router.push("/about")}
           />
         </View>
 

@@ -13,6 +13,7 @@ import { View } from "react-native";
 import { AppBottomNav } from "@/components/navigation/AppBottomNav";
 import { BottomNavHeight } from "@/constants/theme";
 import { CartProvider } from "@/context/CartContext";
+import { AuthProvider } from "@/context/AuthContext";
 import { FavoritesProvider } from "@/context/FavoritesContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { SettingsProvider } from "@/context/SettingsContext";
@@ -25,6 +26,10 @@ const MAIN_ROUTES = [
   "/home/search",
   "/home/offers",
   "/home/account",
+  "/merchant",
+  "/merchant/catalog",
+  "/merchant/orders",
+  "/merchant/account",
 ] as const;
 
 function AppContent() {
@@ -80,17 +85,19 @@ export default function RootLayout() {
   }
 
   return (
-    <SettingsProvider>
-      <ThemeProvider>
-        <NotificationProvider>
-          <FavoritesProvider>
-            <CartProvider>
-              <AppContent />
-            </CartProvider>
-          </FavoritesProvider>
-        </NotificationProvider>
-      </ThemeProvider>
-    </SettingsProvider>
+    <AuthProvider>
+      <SettingsProvider>
+        <ThemeProvider>
+          <NotificationProvider>
+            <FavoritesProvider>
+              <CartProvider>
+                <AppContent />
+              </CartProvider>
+            </FavoritesProvider>
+          </NotificationProvider>
+        </ThemeProvider>
+      </SettingsProvider>
+    </AuthProvider>
   );
 }
 

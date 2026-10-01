@@ -41,7 +41,14 @@
           }
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "يتيح التطبيق الوصول إلى صورك لاختيار صور المنتجات ومقاطع الفيديو للمتجر.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

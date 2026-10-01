@@ -13,6 +13,7 @@ type AppModalProps = {
   confirmText?: string;
   cancelText?: string;
   destructive?: boolean;
+  busy?: boolean;
   onConfirm?: () => void;
   onCancel: () => void;
   children?: ReactNode;
@@ -26,6 +27,7 @@ export function AppModal({
   confirmText = "حسنًا",
   cancelText,
   destructive = false,
+  busy = false,
   onConfirm,
   onCancel,
   children,
@@ -38,7 +40,7 @@ export function AppModal({
       transparent
       animationType="fade"
       statusBarTranslucent
-      onRequestClose={onCancel}
+        onRequestClose={() => { if (!busy) onCancel(); }}
     >
       <View
         style={[
@@ -48,7 +50,7 @@ export function AppModal({
           },
         ]}
       >
-        <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => { if (!busy) onCancel(); }} />
 
         <View
           style={[
@@ -100,6 +102,7 @@ export function AppModal({
             {cancelText ? (
               <Pressable
                 onPress={onCancel}
+                disabled={busy}
                 style={({ pressed }) => [
                   styles.button,
                   {
@@ -123,7 +126,8 @@ export function AppModal({
             ) : null}
 
             <Pressable
-              onPress={onConfirm ?? onCancel}
+              onPress={busy ? undefined : onConfirm ?? onCancel}
+              disabled={busy}
               style={({ pressed }) => [
                 styles.button,
                 {
@@ -140,7 +144,7 @@ export function AppModal({
                   },
                 ]}
               >
-                {confirmText}
+                {busy ? "جارٍ التنفيذ…" : confirmText}
               </Text>
             </Pressable>
           </View>
@@ -148,6 +152,14 @@ export function AppModal({
       </View>
     </Modal>
   );
+}
+
+export function AppConfirmModal(props: Omit<AppModalProps, "icon">) {
+  return <AppModal icon="help-circle-outline" {...props} />;
+}
+
+export function AppAlertModal(props: Omit<AppModalProps, "cancelText" | "onConfirm">) {
+  return <AppModal {...props} />;
 }
 
 const styles = StyleSheet.create({

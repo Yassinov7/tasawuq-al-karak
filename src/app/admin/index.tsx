@@ -49,7 +49,7 @@ export default function AdminScreen() {
     if (!selectedRequest || !user) return;
     setBusy(true);
     const rpc = selectedRequest.role === "merchant" ? "review_merchant_application" : "review_driver_application";
-    const { error: rpcError } = await supabase.rpc(rpc, { target_application: selectedRequest.row.id, decision: selectedRequest.decision, decision_note: reviewNote.trim() || null });
+    const { error: rpcError } = await supabase.rpc(rpc, { target_application: selectedRequest.row.id, decision: selectedRequest.decision, decision_note: reviewNote.trim() || undefined });
     setBusy(false);
     if (rpcError) { setError("تعذر حفظ قرار المراجعة. تأكد من أن حسابك مسؤول وأن الترحيل مطبق."); return; }
     setSelectedRequest(null); setReviewNote(""); setMessage(selectedRequest.decision === "accepted" ? "تمت الموافقة وإنشاء المحفظة المطلوبة." : "تم حفظ قرار المراجعة وملاحظته."); await refresh(false);
@@ -60,7 +60,7 @@ export default function AdminScreen() {
     const numericAmount = Number(amount.replace(",", "."));
     if (!Number.isFinite(numericAmount) || numericAmount <= 0 || Math.round(numericAmount * 100) !== numericAmount * 100) return setError("أدخل مبلغًا صحيحًا حتى منزلتين عشريتين.");
     setBusy(true);
-    const { error: rpcError } = await supabase.rpc("record_wallet_transaction", { target_user: walletTarget.profile.id, target_currency: walletTarget.currency, operation, operation_direction: direction, operation_amount: numericAmount, operation_note: note.trim() || null });
+    const { error: rpcError } = await supabase.rpc("record_wallet_transaction", { target_user: walletTarget.profile.id, target_currency: walletTarget.currency, operation, operation_direction: direction, operation_amount: numericAmount, operation_note: note.trim() || undefined });
     setBusy(false);
     if (rpcError) { setError(rpcError.message.includes("exceeds") ? "المبلغ أكبر من الرصيد المتاح للتسوية." : "تعذر حفظ العملية المالية."); return; }
     setWalletTarget(null); setAmount(""); setNote(""); setMessage("تم تسجيل العملية وتحديث الرصيد وسجل التدقيق."); await refresh(false);

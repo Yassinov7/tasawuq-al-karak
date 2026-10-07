@@ -172,7 +172,8 @@ export default function ApplicationStatusScreen() {
   );
 
   useEffect(() => {
-    void loadStatus();
+    const timer = setTimeout(() => void loadStatus(), 0);
+    return () => clearTimeout(timer);
   }, [loadStatus]);
 
   const handleLogout = async () => {

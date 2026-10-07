@@ -150,10 +150,10 @@ function getStoreStatusTone(status: string, colors: ThemeColors) {
 
 function getProductImagePath(
   productId: string,
-  mediaRows: Array<{
+  mediaRows: {
     product_id: string;
     storage_path: string;
-  }>,
+  }[],
 ) {
   return (
     mediaRows.find((item) => item.product_id === productId)?.storage_path ??
@@ -257,20 +257,20 @@ export default function MerchantHomeScreen() {
           throw notificationsResult.error;
         }
 
-        const productRows = (productsResult.data ?? []) as Array<{
+        const productRows = (productsResult.data ?? []) as {
           id: string;
           title: string;
           price: number;
           currency: "SYP" | "USD";
           selling_unit: string;
-        }>;
+        }[];
 
         const productIds = productRows.map((product) => product.id);
 
-        let mediaRows: Array<{
+        let mediaRows: {
           product_id: string;
           storage_path: string;
-        }> = [];
+        }[] = [];
 
         if (productIds.length > 0) {
           const { data: mediaData, error: mediaError } = await supabase
@@ -287,10 +287,10 @@ export default function MerchantHomeScreen() {
             throw mediaError;
           }
 
-          mediaRows = (mediaData ?? []) as Array<{
+          mediaRows = (mediaData ?? []) as {
             product_id: string;
             storage_path: string;
-          }>;
+          }[];
         }
 
         const recentProducts: HomeProduct[] = productRows.map((product) => ({

@@ -50,12 +50,12 @@ type OfferItem = {
   quantity: number;
 };
 
-const offerTypes: Array<{
+const offerTypes: {
   id: OfferType;
   title: string;
   description: string;
   icon: "pricetag-outline" | "cube-outline" | "gift-outline";
-}> = [
+}[] = [
   {
     id: "discount",
     title: "تخفيض",

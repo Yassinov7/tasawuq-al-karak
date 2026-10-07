@@ -82,7 +82,8 @@ export default function DriverApplicationScreen() {
   );
 
   useEffect(() => {
-    void checkApplication();
+    const timer = setTimeout(() => void checkApplication(), 0);
+    return () => clearTimeout(timer);
   }, [checkApplication]);
 
   const validateForm = () => {

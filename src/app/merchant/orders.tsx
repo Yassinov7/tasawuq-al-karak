@@ -211,7 +211,7 @@ export default function MerchantOrdersScreen() {
     const { error } = await supabase.rpc("update_store_order_status", {
       target_store_order: order.id,
       next_status: status,
-      reason: reason ?? null,
+      reason,
     });
 
     setBusyId(null);

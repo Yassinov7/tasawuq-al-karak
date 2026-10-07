@@ -130,7 +130,8 @@ export default function WalletScreen() {
   );
 
   useEffect(() => {
-    void loadWallet();
+    const timer = setTimeout(() => void loadWallet(), 0);
+    return () => clearTimeout(timer);
   }, [loadWallet]);
 
   if (loading) {

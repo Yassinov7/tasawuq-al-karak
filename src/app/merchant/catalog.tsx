@@ -1,5 +1,4 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { MerchantOffersPanel } from "@/app/merchant/offers";
@@ -11,11 +10,11 @@ import { useTheme } from "@/context/ThemeContext";
 
 type CatalogTab = "products" | "offers";
 
-const tabs: Array<{
+const tabs: {
   id: CatalogTab;
   label: string;
   icon: "pricetag-outline" | "pricetags-outline";
-}> = [
+}[] = [
   {
     id: "products",
     label: "المنتجات",
@@ -33,25 +32,10 @@ export default function MerchantCatalogScreen() {
   const router = useRouter();
   const { colors } = useTheme();
 
-  const initialTab: CatalogTab =
+  const activeTab: CatalogTab =
     params.tab === "offers" ? "offers" : "products";
 
-  const [activeTab, setActiveTab] = useState<CatalogTab>(initialTab);
-
-  useEffect(() => {
-    if (params.tab === "offers") {
-      setActiveTab("offers");
-      return;
-    }
-
-    if (params.tab === "products") {
-      setActiveTab("products");
-    }
-  }, [params.tab]);
-
   const changeTab = (tab: CatalogTab) => {
-    setActiveTab(tab);
-
     router.setParams({
       tab,
     });

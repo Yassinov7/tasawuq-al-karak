@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -1521,17 +1521,17 @@ export type Database = {
       }
       save_store_offer: {
         Args: {
-          input_bundle_price: number
+          input_bundle_price: number | null
           input_currency: Database["public"]["Enums"]["currency_code"]
           input_description: string
-          input_discount_method: Database["public"]["Enums"]["offer_discount_method"]
-          input_discount_value: number
-          input_ends_at: string
+          input_discount_method: Database["public"]["Enums"]["offer_discount_method"] | null
+          input_discount_value: number | null
+          input_ends_at: string | null
           input_is_active: boolean
           input_items: Json
           input_title: string
           input_type: Database["public"]["Enums"]["store_offer_type"]
-          selected_offer: string
+          selected_offer: string | null
         }
         Returns: string
       }

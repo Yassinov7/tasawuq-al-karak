@@ -3,20 +3,28 @@ import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { AppHeader } from "@/components/navigation/AppHeader";
+import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { AppModal } from "@/components/ui/AppModal";
-import { products, stores } from "@/constants/catalog";
+import { CustomerCatalogStatus } from "@/components/marketplace/CustomerCatalogStatus";
+import type { Product } from "@/constants/catalog";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
+import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { useTheme } from "@/context/ThemeContext";
-
-const PLATFORM_DELIVERY_ENABLED = false;
+import { calculateCustomerOffer, describeCustomerOffer } from "@/lib/customer-offers";
+import type { CustomerOffer } from "@/lib/customer-offers";
 
 type DeleteModal =
   | {
       type: "item";
       productId: string;
       productName: string;
+    }
+  | {
+      type: "offer";
+      offerId: string;
+      offerTitle: string;
     }
   | {
       type: "clear";
@@ -26,15 +34,23 @@ type DeleteModal =
 export default function CartScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { products, offers, loading: catalogLoading } = useCustomerCatalog();
 
   const {
     items,
+    selectedOfferIds,
     itemCount,
     subtotal,
+    currency,
+    hasMixedCurrencies,
+    loading,
+    syncError,
     increaseItem,
     decreaseItem,
     removeItem,
+    removeOffer,
     clearCart,
+    retrySync,
   } = useCart();
 
   const [deleteModal, setDeleteModal] = useState<DeleteModal>(null);
@@ -62,25 +78,35 @@ export default function CartScreen() {
         product: (typeof products)[number];
       } => Boolean(value),
     );
+  const unavailableItems = items.filter(
+    (item) => !products.some((product) => product.id === item.productId),
+  );
+  const cartOffers = selectedOfferIds.flatMap((offerId) => {
+    const offer = offers.find((candidate) => candidate.id === offerId);
+    return offer ? [offer] : [];
+  });
+  const unavailableOfferIds = selectedOfferIds.filter(
+    (offerId) => !offers.some((offer) => offer.id === offerId),
+  );
 
   const storeIds = Array.from(
-    new Set(cartProducts.map(({ product }) => product.storeId)),
+    new Set([
+      ...cartProducts.map(({ product }) => product.storeId),
+      ...cartOffers.map((offer) => offer.store_id),
+    ]),
   );
 
   const storeCount = storeIds.length;
   const isSharedCart = storeCount > 1;
 
-  const deliveryFee =
-    cartProducts.length > 0 && PLATFORM_DELIVERY_ENABLED ? 15000 : 0;
-
-  const total = subtotal + deliveryFee;
-
-  const deliveryLabel = PLATFORM_DELIVERY_ENABLED
-    ? `${deliveryFee.toLocaleString("en-US")} ل.س`
-    : "يحدد عند إتمام الطلب";
+  const total = subtotal;
+  const totalSavings = cartOffers.reduce((sum, offer) => {
+    const calculation = calculateCustomerOffer(offer);
+    return sum + calculation.originalTotal - calculation.finalTotal;
+  }, 0);
 
   const handleClearCart = () => {
-    if (cartProducts.length === 0) {
+    if (items.length === 0 && selectedOfferIds.length === 0) {
       return;
     }
 
@@ -104,8 +130,10 @@ export default function CartScreen() {
 
     if (deleteModal.type === "clear") {
       clearCart();
-    } else {
+    } else if (deleteModal.type === "item") {
       removeItem(deleteModal.productId);
+    } else {
+      removeOffer(deleteModal.offerId);
     }
 
     setDeleteModal(null);
@@ -115,16 +143,19 @@ export default function CartScreen() {
     setDeleteModal(null);
   };
 
-  const modalTitle =
-    deleteModal?.type === "clear" ? "تفريغ السلة" : "حذف المنتج";
+  const modalTitle = deleteModal?.type === "clear"
+    ? "تفريغ السلة"
+    : deleteModal?.type === "offer"
+      ? "حذف العرض"
+      : "حذف المنتج";
 
-  const modalMessage =
-    deleteModal?.type === "clear"
-      ? "هل تريد حذف جميع المنتجات من السلة؟"
+  const modalMessage = deleteModal?.type === "clear"
+    ? "هل تريد حذف جميع المنتجات والعروض من السلة؟"
+    : deleteModal?.type === "offer"
+      ? `هل تريد حذف «${deleteModal.offerTitle}» من السلة؟`
       : `هل تريد حذف ${deleteModal?.productName ?? "هذا المنتج"} من السلة؟`;
 
-  const modalConfirmText =
-    deleteModal?.type === "clear" ? "تفريغ السلة" : "حذف";
+  const modalConfirmText = deleteModal?.type === "clear" ? "تفريغ السلة" : "حذف";
 
   return (
     <View
@@ -136,8 +167,24 @@ export default function CartScreen() {
       ]}
     >
       <AppHeader title="السلة" showBack cartCount={itemCount} mode="customer" />
+      <CustomerCatalogStatus />
+      {syncError ? (
+        <View style={{ alignItems: "center", gap: Spacing.two, padding: Spacing.three }}>
+          <Text style={{ color: colors.error, fontFamily: Fonts.regular, fontSize: FontSizes.sm, textAlign: "center" }}>{syncError}</Text>
+          <AppButton title="إعادة تحميل السلة" variant="outline" onPress={() => void retrySync()} />
+        </View>
+      ) : loading ? (
+        <Text style={{ color: colors.textSecondary, fontFamily: Fonts.regular, fontSize: FontSizes.sm, textAlign: "center", padding: Spacing.three }}>
+          جارٍ تحميل سلتك...
+        </Text>
+      ) : null}
 
-      {cartProducts.length === 0 ? (
+      {loading || catalogLoading ? (
+        <Text style={{ color: colors.textSecondary, fontFamily: Fonts.regular, fontSize: FontSizes.sm, textAlign: "center", padding: Spacing.three }}>
+          جارٍ تحميل بيانات السلة...
+        </Text>
+      ) : cartProducts.length === 0 && unavailableItems.length === 0 &&
+        cartOffers.length === 0 && unavailableOfferIds.length === 0 ? (
         <EmptyCart onContinue={() => router.replace("/home")} />
       ) : (
         <ScrollView
@@ -165,7 +212,7 @@ export default function CartScreen() {
                   },
                 ]}
               >
-                {itemCount} قطعة • {storeCount}{" "}
+                {itemCount} عنصر • {storeCount}{" "}
                 {storeCount === 1 ? "متجر" : "متاجر"}
               </Text>
             </View>
@@ -197,12 +244,32 @@ export default function CartScreen() {
           <CartTypeCard
             isSharedCart={isSharedCart}
             storeCount={storeCount}
-            platformDeliveryEnabled={PLATFORM_DELIVERY_ENABLED}
           />
 
           {isSharedCart ? <SharedCartStores storeIds={storeIds} /> : null}
 
           <View style={styles.itemsList}>
+            {unavailableItems.map((item) => (
+              <View
+                key={item.productId}
+                style={{
+                  alignItems: "center",
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  borderRadius: Radius.md,
+                  borderWidth: 1,
+                  flexDirection: "row",
+                  gap: Spacing.three,
+                  justifyContent: "space-between",
+                  padding: Spacing.three,
+                }}
+              >
+                <Text style={{ color: colors.textSecondary, flex: 1, fontFamily: Fonts.regular, fontSize: FontSizes.sm, textAlign: "right" }}>
+                  منتج غير متاح حاليًا · الكمية {item.quantity}
+                </Text>
+                <AppButton title="حذف" variant="outline" onPress={() => void removeItem(item.productId)} />
+              </View>
+            ))}
             {cartProducts.map(({ item, product }) => (
               <CartItemCard
                 key={product.id}
@@ -214,12 +281,51 @@ export default function CartScreen() {
                 onRemove={() => handleRemoveItem(product.id, product.name)}
               />
             ))}
+            {cartOffers.map((offer) => (
+              <OfferCartCard
+                key={offer.id}
+                offer={offer}
+                onRemove={() => setDeleteModal({
+                  type: "offer",
+                  offerId: offer.id,
+                  offerTitle: offer.title,
+                })}
+              />
+            ))}
+            {unavailableOfferIds.map((offerId) => (
+              <View
+                key={offerId}
+                style={{
+                  alignItems: "center",
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  borderRadius: Radius.md,
+                  borderWidth: 1,
+                  flexDirection: "row",
+                  gap: Spacing.three,
+                  justifyContent: "space-between",
+                  padding: Spacing.three,
+                }}
+              >
+                <Text style={{ color: colors.textSecondary, flex: 1, fontFamily: Fonts.regular, fontSize: FontSizes.sm, textAlign: "right" }}>
+                  عرض لم يعد متاحًا؛ احذفه من السلة للمتابعة.
+                </Text>
+                <AppButton
+                  title="حذف العرض"
+                  variant="outline"
+                  onPress={() => setDeleteModal({ type: "offer", offerId, offerTitle: "هذا العرض" })}
+                />
+              </View>
+            ))}
           </View>
+          {unavailableItems.length > 0 ? (
+            <Text accessibilityRole="alert" style={{ color: colors.error, textAlign: "center" }}>
+              احذف المنتجات غير المتاحة قبل متابعة الطلب.
+            </Text>
+          ) : null}
 
           <DeliveryCard
             isSharedCart={isSharedCart}
-            platformDeliveryEnabled={PLATFORM_DELIVERY_ENABLED}
-            deliveryFee={deliveryFee}
           />
 
           <View
@@ -244,10 +350,18 @@ export default function CartScreen() {
 
             <SummaryRow
               label="المجموع الفرعي"
-              value={`${subtotal.toLocaleString("en-US")} ل.س`}
+              value={hasMixedCurrencies
+                ? "لا يمكن جمع عملات مختلفة"
+                : `${subtotal.toLocaleString("en-US")} ${currency === "USD" ? "$" : "ل.س"}`}
             />
 
-            <SummaryRow label="التوصيل" value={deliveryLabel} />
+            {totalSavings > 0 ? (
+              <SummaryRow
+                label="وفرت من العروض"
+                value={`${totalSavings.toLocaleString("en-US")} ${currency === "USD" ? "$" : "ل.س"}`}
+              />
+            ) : null}
+            <SummaryRow label="التوصيل" value="يُحسب حسب المنطقة في إتمام الطلب" />
 
             <View
               style={[
@@ -267,7 +381,7 @@ export default function CartScreen() {
                   },
                 ]}
               >
-                الإجمالي
+                الإجمالي قبل التوصيل
               </Text>
 
               <View style={styles.grandTotalPrice}>
@@ -279,7 +393,7 @@ export default function CartScreen() {
                     },
                   ]}
                 >
-                  {total.toLocaleString("en-US")}
+                  {hasMixedCurrencies ? "—" : total.toLocaleString("en-US")}
                 </Text>
 
                 <Text
@@ -290,13 +404,19 @@ export default function CartScreen() {
                     },
                   ]}
                 >
-                  ل.س
+                  {hasMixedCurrencies ? "" : currency === "USD" ? "$" : "ل.س"}
                 </Text>
               </View>
             </View>
           </View>
 
           <Pressable
+            disabled={
+              hasMixedCurrencies ||
+              loading ||
+              unavailableItems.length > 0 ||
+              unavailableOfferIds.length > 0
+            }
             onPress={() => router.push("/checkout")}
             style={({ pressed }) => [
               styles.checkoutButton,
@@ -307,6 +427,7 @@ export default function CartScreen() {
                 backgroundColor: colors.accent,
               },
               pressed && styles.pressed,
+              (hasMixedCurrencies || loading || unavailableItems.length > 0 || unavailableOfferIds.length > 0) && { opacity: 0.5 },
             ]}
             accessibilityRole="button"
             accessibilityLabel="متابعة لإتمام الطلب"
@@ -356,13 +477,11 @@ export default function CartScreen() {
 type CartTypeCardProps = {
   isSharedCart: boolean;
   storeCount: number;
-  platformDeliveryEnabled: boolean;
 };
 
 function CartTypeCard({
   isSharedCart,
   storeCount,
-  platformDeliveryEnabled,
 }: CartTypeCardProps) {
   const { colors } = useTheme();
 
@@ -441,9 +560,7 @@ function CartTypeCard({
               },
             ]}
           >
-            {platformDeliveryEnabled
-              ? "سيتم توصيلها عبر منصة تسوق."
-              : "عند تفعيل خدمة توصيل المنصة، يتم تجميع الطلبات من المتاجر وتوصيلها عبر تسوق."}
+            رسوم التوصيل تُحدد حسب المنطقة المختارة عند إتمام الطلب.
           </Text>
         </View>
       </View>
@@ -502,7 +619,7 @@ function CartTypeCard({
             },
           ]}
         >
-          التوصيل يكون حسب آلية المتجر، إلى أن تتوفر خدمة توصيل منصة تسوق.
+          رسوم التوصيل تُحدد حسب المنطقة المختارة عند إتمام الطلب.
         </Text>
       </View>
     </View>
@@ -515,6 +632,7 @@ type SharedCartStoresProps = {
 
 function SharedCartStores({ storeIds }: SharedCartStoresProps) {
   const { colors } = useTheme();
+  const { stores } = useCustomerCatalog();
 
   const sharedStores = storeIds
     .map((storeId) => stores.find((store) => store.id === storeId))
@@ -603,7 +721,7 @@ function SharedCartStores({ storeIds }: SharedCartStoresProps) {
                   },
                 ]}
               >
-                {store.deliveryTime}
+                {store.deliveryTime ?? "يحدد عند الطلب"}
               </Text>
             </View>
           </View>
@@ -614,7 +732,7 @@ function SharedCartStores({ storeIds }: SharedCartStoresProps) {
 }
 
 type CartItemCardProps = {
-  product: (typeof products)[number];
+  product: Product;
   quantity: number;
   isSharedCart: boolean;
   onIncrease: () => void;
@@ -631,6 +749,7 @@ function CartItemCard({
   onRemove,
 }: CartItemCardProps) {
   const { colors } = useTheme();
+  const { stores } = useCustomerCatalog();
 
   const store = stores.find((item) => item.id === product.storeId);
 
@@ -802,7 +921,7 @@ function CartItemCard({
               },
             ]}
           >
-            ل.س
+            {product.currency === "USD" ? "$" : "ل.س"}
           </Text>
         </View>
       </View>
@@ -810,30 +929,123 @@ function CartItemCard({
   );
 }
 
-type DeliveryCardProps = {
-  isSharedCart: boolean;
-  platformDeliveryEnabled: boolean;
-  deliveryFee: number;
+type OfferCartCardProps = {
+  offer: CustomerOffer;
+  onRemove: () => void;
 };
 
-function DeliveryCard({
-  isSharedCart,
-  platformDeliveryEnabled,
-  deliveryFee,
-}: DeliveryCardProps) {
+function OfferCartCard({ offer, onRemove }: OfferCartCardProps) {
+  const { colors } = useTheme();
+  const calculation = calculateCustomerOffer(offer);
+  const currencyLabel = offer.currency === "USD" ? "$" : "ل.س";
+
+  return (
+    <View
+      style={{
+        backgroundColor: colors.surface,
+        borderColor: colors.accent,
+        borderRadius: Radius.lg,
+        borderWidth: 1,
+        gap: Spacing.three,
+        padding: Spacing.three,
+      }}
+    >
+      <View style={{ alignItems: "flex-start", flexDirection: "row-reverse", gap: Spacing.two }}>
+        <View style={{ flex: 1, gap: Spacing.one }}>
+          <Text style={{ color: colors.text, fontFamily: Fonts.bold, fontSize: FontSizes.md, textAlign: "right" }}>
+            {offer.title}
+          </Text>
+          <Text style={{ color: colors.accent, fontFamily: Fonts.medium, fontSize: FontSizes.sm, textAlign: "right" }}>
+            {describeCustomerOffer(offer)}
+          </Text>
+        </View>
+        <AppIcon name="pricetag-outline" size={21} color={colors.accent} />
+      </View>
+
+      <View
+        style={{
+          backgroundColor: colors.surfaceSecondary,
+          borderRadius: Radius.md,
+          gap: Spacing.one,
+          padding: Spacing.three,
+        }}
+      >
+        <Text
+          style={{
+            color: colors.textMuted,
+            fontFamily: Fonts.medium,
+            fontSize: FontSizes.xs,
+            textAlign: "right",
+          }}
+        >
+          محتويات الباقة
+        </Text>
+        {calculation.items.map((item) => (
+          <View
+            key={item.id}
+            style={{
+              alignItems: "center",
+              flexDirection: "row-reverse",
+              gap: Spacing.two,
+            }}
+          >
+            <AppIcon
+              name={item.itemRole === "reward" ? "gift-outline" : "checkmark-circle-outline"}
+              size={16}
+              color={item.itemRole === "reward" ? colors.accent : colors.primary}
+            />
+            <Text
+              style={{
+                color: colors.text,
+                flex: 1,
+                fontFamily: Fonts.regular,
+                fontSize: FontSizes.sm,
+                textAlign: "right",
+              }}
+            >
+              {item.product.name} · {item.quantity} {item.product.unit}
+              {item.itemRole === "reward" ? " (هدية)" : ""}
+            </Text>
+          </View>
+        ))}
+      </View>
+
+      <View style={{ borderTopColor: colors.border, borderTopWidth: 1, gap: Spacing.one, paddingTop: Spacing.two }}>
+        <View style={{ alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between" }}>
+          <Text style={{ color: colors.text, fontFamily: Fonts.semiBold }}>سعر العرض كاملًا</Text>
+          <Text style={{ color: colors.primary, fontFamily: Fonts.bold, fontSize: FontSizes.md }}>
+            {calculation.finalTotal.toLocaleString("en-US")} {currencyLabel}
+          </Text>
+        </View>
+        {calculation.originalTotal > calculation.finalTotal ? (
+          <View style={{ alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between" }}>
+            <Text style={{ color: colors.textMuted, fontFamily: Fonts.regular, fontSize: FontSizes.xs }}>وفرت</Text>
+            <Text style={{ color: colors.success, fontFamily: Fonts.medium, fontSize: FontSizes.xs }}>
+              {(calculation.originalTotal - calculation.finalTotal).toLocaleString("en-US")} {currencyLabel}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+      <AppButton
+        title="إزالة العرض"
+        icon="trash-outline"
+        variant="outline"
+        onPress={onRemove}
+      />
+    </View>
+  );
+}
+
+type DeliveryCardProps = {
+  isSharedCart: boolean;
+};
+
+function DeliveryCard({ isSharedCart }: DeliveryCardProps) {
   const { colors } = useTheme();
 
   const title = isSharedCart ? "توصيل السلة المشتركة" : "توصيل الطلب";
 
-  const text = isSharedCart
-    ? platformDeliveryEnabled
-      ? "تتولى منصة تسوق تنسيق التوصيل بين المتاجر والعميل."
-      : "حالياً لم يتم تفعيل توصيل المنصة. عند تفعيله ستتولى تسوق تجميع الطلبات من المتاجر وتوصيلها للعميل."
-    : "سيتم تحديد آلية التوصيل حسب المتجر والعنوان عند إتمام الطلب.";
-
-  const amount = platformDeliveryEnabled
-    ? `${deliveryFee.toLocaleString("en-US")} ل.س`
-    : "يحدد لاحقاً";
+  const text = "تظهر رسوم التوصيل النهائية بعد اختيار عنوان ومنطقة التوصيل.";
 
   return (
     <View
@@ -902,7 +1114,7 @@ function DeliveryCard({
           },
         ]}
       >
-        {amount}
+        حسب المنطقة
       </Text>
     </View>
   );

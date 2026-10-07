@@ -1,20 +1,23 @@
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { AppHeader } from "@/components/navigation/AppHeader";
+import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
 import { useTheme } from "@/context/ThemeContext";
+import { formatCurrency, getCustomerOrders, type CustomerOrderView } from "@/lib/customer-orders";
+import { groupOrderItems } from "@/lib/order-item-groups";
 
-type OrderStatus = "preparing" | "ready" | "completed" | "cancelled";
+type OrderStatus = CustomerOrderView["status"];
 
 type OrderFilter = "all" | "active" | "completed" | "cancelled";
 
 type Order = {
   id: string;
-  storeCount: number;
+  displayId: string;
   storeNames: string;
   itemCount: number;
   total: string;
@@ -22,41 +25,23 @@ type Order = {
   status: OrderStatus;
 };
 
-const orders: Order[] = [
-  {
-    id: "TW-1001",
-    storeCount: 2,
-    storeNames: "متجرين",
-    itemCount: 5,
-    total: "125,000 ل.س",
-    date: "اليوم، 4:30 م",
-    status: "preparing",
-  },
-  {
-    id: "TW-0998",
-    storeCount: 1,
-    storeNames: "متجر واحد",
-    itemCount: 3,
-    total: "68,000 ل.س",
-    date: "أمس، 7:15 م",
-    status: "completed",
-  },
-];
-
-const statusIcons: Record<
-  OrderStatus,
-  React.ComponentProps<typeof AppIcon>["name"]
-> = {
-  preparing: "time-outline",
-  ready: "checkmark-circle-outline",
-  completed: "checkmark-done-outline",
+const statusIcons: Record<OrderStatus, React.ComponentProps<typeof AppIcon>["name"]> = {
+  submitted: "time-outline",
+  in_progress: "time-outline",
+  ready_for_delivery: "checkmark-circle-outline",
+  out_for_delivery: "bicycle-outline",
+  delivered: "checkmark-done-outline",
+  partially_cancelled: "alert-circle-outline",
   cancelled: "close-circle-outline",
 };
 
 const statusLabels: Record<OrderStatus, string> = {
-  preparing: "قيد التجهيز",
-  ready: "جاهز",
-  completed: "مكتمل",
+  submitted: "تم استلام الطلب",
+  in_progress: "قيد التجهيز",
+  ready_for_delivery: "جاهز للتوصيل",
+  out_for_delivery: "في الطريق",
+  delivered: "تم التسليم",
+  partially_cancelled: "ملغى جزئيًا",
   cancelled: "ملغى",
 };
 
@@ -65,7 +50,36 @@ export default function OrdersScreen() {
   const { colors } = useTheme();
   const { itemCount } = useCart();
 
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<OrderFilter>("all");
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const rows = await getCustomerOrders();
+      setOrders(rows.map((order) => ({
+        id: order.id,
+        displayId: `TW-${order.order_number}`,
+        storeNames: order.stores.map((store) => store.storeName).join("، "),
+        itemCount: order.stores.reduce((count, store) => count + groupOrderItems(store.items).length, 0),
+        total: order.totals.map((total) => formatCurrency(total.total, total.currency)).join(" + "),
+        date: new Date(order.created_at).toLocaleString("ar"),
+        status: order.status,
+      })));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تحميل طلباتك.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => void refresh(), 0);
+    return () => clearTimeout(timer);
+  }, [refresh]);
 
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
@@ -74,32 +88,35 @@ export default function OrdersScreen() {
       }
 
       if (activeFilter === "active") {
-        return order.status === "preparing" || order.status === "ready";
+        return !["delivered", "cancelled"].includes(order.status);
       }
 
       if (activeFilter === "completed") {
-        return order.status === "completed";
+        return order.status === "delivered";
       }
 
       return order.status === "cancelled";
     });
-  }, [activeFilter]);
+  }, [activeFilter, orders]);
 
   const getStatusColors = (status: OrderStatus) => {
     switch (status) {
-      case "preparing":
+      case "submitted":
+      case "in_progress":
+      case "out_for_delivery":
         return {
           color: colors.accent,
           background: colors.accentLight,
         };
 
-      case "ready":
-      case "completed":
+      case "ready_for_delivery":
+      case "delivered":
         return {
           color: colors.primary,
           background: colors.primaryLight,
         };
 
+      case "partially_cancelled":
       case "cancelled":
         return {
           color: colors.error,
@@ -173,7 +190,14 @@ export default function OrdersScreen() {
           />
         </View>
 
-        {filteredOrders.length > 0 ? (
+        {loading ? (
+          <ActivityIndicator color={colors.primary} style={{ marginTop: Spacing.six }} />
+        ) : error ? (
+          <View style={{ gap: Spacing.three, padding: Spacing.four, alignItems: "center" }}>
+            <Text style={{ color: colors.error, textAlign: "center" }}>{error}</Text>
+            <AppButton title="إعادة المحاولة" variant="outline" onPress={() => void refresh()} />
+          </View>
+        ) : filteredOrders.length > 0 ? (
           <View style={styles.orders}>
             {filteredOrders.map((order) => {
               const statusColors = getStatusColors(order.status);
@@ -210,7 +234,7 @@ export default function OrdersScreen() {
                           },
                         ]}
                       >
-                        {order.id}
+                        {order.displayId}
                       </Text>
 
                       <Text
@@ -296,7 +320,7 @@ export default function OrdersScreen() {
                           },
                         ]}
                       >
-                        {order.itemCount} منتجات
+                        {order.itemCount} عناصر
                       </Text>
                     </View>
                   </View>

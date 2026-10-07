@@ -1,21 +1,40 @@
 import { Href, useLocalSearchParams, useRouter } from "expo-router";
+import { Image } from "expo-image";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { ProductCard } from "@/components/marketplace/ProductCard";
+import { ProductMediaPreview } from "@/components/marketplace/ProductMediaPreview";
 import { AppHeader } from "@/components/navigation/AppHeader";
+import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { categories, products, stores } from "@/constants/catalog";
+import { CustomerCatalogStatus } from "@/components/marketplace/CustomerCatalogStatus";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
+import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useTheme } from "@/context/ThemeContext";
+import { calculateCustomerOffer, describeCustomerOffer } from "@/lib/customer-offers";
+import type { CustomerOffer } from "@/lib/customer-offers";
+import {
+  normalizeCatalogQuantity,
+  snapCatalogQuantity,
+} from "@/lib/catalog-quantity";
 
 export default function ProductDetailsScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { width: screenWidth } = useWindowDimensions();
+  const { categories, products, stores, offers } = useCustomerCatalog();
 
-  const { itemCount, addItem, getQuantity } = useCart();
+  const {
+    itemCount,
+    addItem,
+    addOffer,
+    getQuantity,
+    selectedOfferIds,
+    syncError,
+  } = useCart();
 
   const { isFavorite, toggleFavorite } = useFavorites();
 
@@ -24,17 +43,18 @@ export default function ProductDetailsScreen() {
   }>();
 
   const [quantity, setQuantity] = useState(1);
+  const [activeMediaIndex, setActiveMediaIndex] = useState(0);
 
-  const product = useMemo(() => products.find((item) => item.id === id), [id]);
+  const product = useMemo(() => products.find((item) => item.id === id), [id, products]);
 
   const category = useMemo(
     () => categories.find((item) => item.id === product?.categoryId),
-    [product?.categoryId],
+    [categories, product?.categoryId],
   );
 
   const store = useMemo(
     () => stores.find((item) => item.id === product?.storeId),
-    [product?.storeId],
+    [product?.storeId, stores],
   );
 
   const relatedProducts = useMemo(() => {
@@ -51,12 +71,16 @@ export default function ProductDetailsScreen() {
           item.available,
       )
       .slice(0, 4);
-  }, [product]);
+  }, [product, products]);
 
   const cartQuantity = product ? getQuantity(product.id) : 0;
+  const activeMedia = product?.media?.[activeMediaIndex];
+  const matchingOffers = product
+    ? offers.filter((offer) => offer.items.some((item) => item.product.id === product.id))
+    : [];
+  const mediaWidth = Math.max(260, screenWidth - Spacing.four * 2);
 
   const favorite = product ? isFavorite(product.id) : false;
-
   if (!product) {
     return (
       <View
@@ -68,6 +92,7 @@ export default function ProductDetailsScreen() {
         ]}
       >
         <AppHeader title="المنتج" showBack cartCount={itemCount} />
+        <CustomerCatalogStatus />
 
         <View style={styles.notFound}>
           <View
@@ -131,14 +156,24 @@ export default function ProductDetailsScreen() {
     );
   }
 
-  const totalPrice = product.price * quantity;
+  const minimumQuantity = product.minimumQuantity ?? 1;
+  const quantityStep = product.quantityStep ?? 1;
+  const selectedQuantity = snapCatalogQuantity(quantity, minimumQuantity, quantityStep);
+  const totalPrice = Math.round(product.price * selectedQuantity * 100) / 100;
 
   const handleIncrease = () => {
-    setQuantity((current) => current + 1);
+    setQuantity(snapCatalogQuantity(
+      selectedQuantity + quantityStep,
+      minimumQuantity,
+      quantityStep,
+    ));
   };
 
   const handleDecrease = () => {
-    setQuantity((current) => (current > 1 ? current - 1 : 1));
+    setQuantity(Math.max(
+      minimumQuantity,
+      normalizeCatalogQuantity(selectedQuantity - quantityStep),
+    ));
   };
 
   const handleAddToCart = () => {
@@ -146,7 +181,7 @@ export default function ProductDetailsScreen() {
       return;
     }
 
-    addItem(product, quantity);
+    void addItem(product, selectedQuantity);
   };
 
   const handleGoToCart = () => {
@@ -181,6 +216,12 @@ export default function ProductDetailsScreen() {
         mode="shared"
         cartCount={itemCount}
       />
+      <CustomerCatalogStatus />
+      {syncError ? (
+        <Text accessibilityRole="alert" style={{ color: colors.error, textAlign: "center", paddingHorizontal: Spacing.four }}>
+          {syncError}
+        </Text>
+      ) : null}
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -196,11 +237,23 @@ export default function ProductDetailsScreen() {
             },
           ]}
         >
-          <AppIcon
-            name={category?.icon ?? "cube-outline"}
-            size={78}
-            color={colors.primary}
-          />
+          {activeMedia ? (
+            <ProductMediaPreview
+              key={activeMedia.id}
+              media={activeMedia}
+              width={mediaWidth}
+              height={270}
+              fallbackIcon={category?.icon ?? "cube-outline"}
+              contentFit="contain"
+              interactive
+            />
+          ) : (
+            <AppIcon
+              name={category?.icon ?? "cube-outline"}
+              size={78}
+              color={colors.primary}
+            />
+          )}
 
           <Pressable
             onPress={handleToggleFavorite}
@@ -249,6 +302,49 @@ export default function ProductDetailsScreen() {
             </View>
           ) : null}
         </View>
+
+        {product.media && product.media.length > 1 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ flexDirection: "row-reverse", gap: Spacing.two, paddingTop: Spacing.two }}
+          >
+            {product.media.map((media, index) => {
+              const selected = index === activeMediaIndex;
+              return (
+                <Pressable
+                  key={media.id}
+                  onPress={() => setActiveMediaIndex(index)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={media.type === "video" ? "عرض فيديو المنتج" : `عرض صورة ${media.altText}`}
+                  style={{
+                    alignItems: "center",
+                    backgroundColor: colors.surface,
+                    borderColor: selected ? colors.primary : colors.border,
+                    borderRadius: Radius.md,
+                    borderWidth: selected ? 2 : 1,
+                    height: 64,
+                    justifyContent: "center",
+                    overflow: "hidden",
+                    width: 64,
+                  }}
+                >
+                  {media.type === "image" ? (
+                    <Image
+                      source={{ uri: media.uri }}
+                      contentFit="cover"
+                      style={{ height: "100%", width: "100%" }}
+                      accessibilityLabel={media.altText}
+                    />
+                  ) : (
+                    <AppIcon name="videocam-outline" size={25} color={colors.primary} />
+                  )}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : null}
 
         <View style={styles.productInfo}>
           <View style={styles.categoryRow}>
@@ -352,7 +448,7 @@ export default function ProductDetailsScreen() {
                   },
                 ]}
               >
-                ل.س
+                {product.currency === "USD" ? "$" : "ل.س"}
               </Text>
             </View>
 
@@ -367,6 +463,11 @@ export default function ProductDetailsScreen() {
               {product.unit}
             </Text>
           </View>
+          {matchingOffers.length > 0 ? (
+            <Text style={{ color: colors.textMuted, fontFamily: Fonts.regular, fontSize: FontSizes.xs, lineHeight: 20, textAlign: "right" }}>
+              اختر العرض الذي تريده لإضافته إلى السلة؛ لا تُطبّق العروض تلقائيًا.
+            </Text>
+          ) : null}
 
           {store ? (
             <Pressable
@@ -426,6 +527,22 @@ export default function ProductDetailsScreen() {
             </Pressable>
           ) : null}
         </View>
+
+        {matchingOffers.length > 0 ? (
+          <View style={{ gap: Spacing.three, marginTop: Spacing.four }}>
+            <Text style={{ color: colors.text, fontFamily: Fonts.bold, fontSize: FontSizes.lg, textAlign: "right" }}>
+              عروض هذا المنتج
+            </Text>
+            {matchingOffers.map((offer) => (
+              <CustomerOfferCard
+                key={offer.id}
+                offer={offer}
+                added={selectedOfferIds.includes(offer.id)}
+                onAdd={() => void addOffer(offer.id)}
+              />
+            ))}
+          </View>
+        ) : null}
 
         <View
           style={[
@@ -506,7 +623,7 @@ export default function ProductDetailsScreen() {
                     },
                   ]}
                 >
-                  {quantity}
+                  {selectedQuantity.toLocaleString("en-US", { maximumFractionDigits: 3 })}
                 </Text>
 
                 <Pressable
@@ -551,7 +668,7 @@ export default function ProductDetailsScreen() {
                     },
                   ]}
                 >
-                  {quantity} × {product.price.toLocaleString("en-US")} ل.س
+                  {selectedQuantity.toLocaleString("en-US", { maximumFractionDigits: 3 })} × {product.price.toLocaleString("en-US")} {product.currency === "USD" ? "$" : "ل.س"}
                 </Text>
               </View>
 
@@ -575,7 +692,7 @@ export default function ProductDetailsScreen() {
                     },
                   ]}
                 >
-                  ل.س
+                  {product.currency === "USD" ? "$" : "ل.س"}
                 </Text>
               </View>
             </View>
@@ -745,6 +862,115 @@ export default function ProductDetailsScreen() {
   );
 }
 
+type CustomerOfferCardProps = {
+  offer: CustomerOffer;
+  added: boolean;
+  onAdd: () => void;
+};
+
+function CustomerOfferCard({ offer, added, onAdd }: CustomerOfferCardProps) {
+  const { colors } = useTheme();
+  const calculation = calculateCustomerOffer(offer);
+  const currency = offer.currency === "USD" ? "$" : "ل.س";
+
+  return (
+    <View
+      style={{
+        backgroundColor: colors.surface,
+        borderColor: colors.accent,
+        borderRadius: Radius.lg,
+        borderWidth: 1,
+        gap: Spacing.three,
+        padding: Spacing.three,
+      }}
+    >
+      <View style={{ gap: Spacing.one }}>
+        <Text style={{ color: colors.text, fontFamily: Fonts.bold, fontSize: FontSizes.md, textAlign: "right" }}>
+          {offer.title}
+        </Text>
+        <Text style={{ color: colors.accent, fontFamily: Fonts.medium, fontSize: FontSizes.sm, textAlign: "right" }}>
+          {describeCustomerOffer(offer)}
+        </Text>
+        {offer.description ? (
+          <Text style={{ color: colors.textSecondary, fontFamily: Fonts.regular, fontSize: FontSizes.sm, lineHeight: 20, textAlign: "right" }}>
+            {offer.description}
+          </Text>
+        ) : null}
+      </View>
+      <View
+        style={{
+          backgroundColor: colors.surfaceSecondary,
+          borderRadius: Radius.md,
+          gap: Spacing.one,
+          padding: Spacing.three,
+        }}
+      >
+        <Text
+          style={{
+            color: colors.textMuted,
+            fontFamily: Fonts.medium,
+            fontSize: FontSizes.xs,
+            textAlign: "right",
+          }}
+        >
+          الباقة تتضمن
+        </Text>
+        {calculation.items.map((item) => (
+          <View
+            key={item.id}
+            style={{
+              alignItems: "center",
+              flexDirection: "row-reverse",
+              gap: Spacing.two,
+            }}
+          >
+            <AppIcon
+              name={item.itemRole === "reward" ? "gift-outline" : "checkmark-circle-outline"}
+              size={16}
+              color={item.itemRole === "reward" ? colors.accent : colors.primary}
+            />
+            <Text
+              style={{
+                color: colors.text,
+                flex: 1,
+                fontFamily: Fonts.regular,
+                fontSize: FontSizes.sm,
+                textAlign: "right",
+              }}
+            >
+              {item.product.name} · {item.quantity} {item.product.unit}
+              {item.itemRole === "reward" ? " (هدية)" : ""}
+            </Text>
+          </View>
+        ))}
+      </View>
+      <View style={{ borderTopColor: colors.border, borderTopWidth: 1, gap: Spacing.one, paddingTop: Spacing.two }}>
+        <View style={{ alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between" }}>
+          <Text style={{ color: colors.text, fontFamily: Fonts.semiBold }}>سعر الباقة كاملة</Text>
+          <Text style={{ color: colors.primary, fontFamily: Fonts.bold, fontSize: FontSizes.md }}>
+            {calculation.finalTotal.toLocaleString("en-US")} {currency}
+          </Text>
+        </View>
+        {calculation.originalTotal > calculation.finalTotal ? (
+          <View style={{ alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between" }}>
+            <Text style={{ color: colors.textMuted, fontFamily: Fonts.regular, fontSize: FontSizes.xs }}>التوفير على الباقة</Text>
+            <Text style={{ color: colors.success, fontFamily: Fonts.medium, fontSize: FontSizes.xs }}>
+              {(calculation.originalTotal - calculation.finalTotal).toLocaleString("en-US")} {currency}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+      <AppButton
+        title={added ? "العرض مضاف إلى السلة" : "أضف العرض إلى السلة"}
+        icon={added ? "checkmark-circle-outline" : "cart-outline"}
+        variant={added ? "secondary" : "primary"}
+        disabled={added}
+        onPress={onAdd}
+      />
+    </View>
+  );
+}
+
 type InfoRowProps = {
   icon: React.ComponentProps<typeof AppIcon>["name"];
   title: string;
@@ -809,6 +1035,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: Radius.xl,
+    overflow: "hidden",
     position: "relative",
   },
 

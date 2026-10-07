@@ -14,9 +14,11 @@ import { OfferCard } from "@/components/marketplace/OfferCard";
 import { ProductCard } from "@/components/marketplace/ProductCard";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { categories, products, stores } from "@/constants/catalog";
+import type { Product } from "@/constants/catalog";
+import { CustomerCatalogStatus } from "@/components/marketplace/CustomerCatalogStatus";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
+import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { useTheme } from "@/context/ThemeContext";
 
 export default function StoreDetailsScreen() {
@@ -26,16 +28,18 @@ export default function StoreDetailsScreen() {
   }>();
 
   const { colors } = useTheme();
-  const { itemCount } = useCart();
+  const { itemCount, selectedOfferIds } = useCart();
+  const { categories, offers, products, stores, storeCategories: allStoreCategories } =
+    useCustomerCatalog();
 
   const [searchText, setSearchText] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
 
-  const store = useMemo(() => stores.find((item) => item.id === id), [id]);
+  const store = useMemo(() => stores.find((item) => item.id === id), [id, stores]);
 
   const storeProducts = useMemo(
     () => products.filter((product) => product.storeId === store?.id),
-    [store?.id],
+    [products, store?.id],
   );
 
   const storeCategories = useMemo(() => {
@@ -44,7 +48,7 @@ export default function StoreDetailsScreen() {
     );
 
     return categories.filter((category) => categoryIds.has(category.id));
-  }, [storeProducts]);
+  }, [categories, storeProducts]);
 
   const filteredProducts = useMemo(() => {
     const query = searchText.trim().toLocaleLowerCase("ar");
@@ -69,22 +73,30 @@ export default function StoreDetailsScreen() {
     });
   }, [searchText, selectedCategory, storeProducts]);
 
-  const popularProducts = useMemo(
-    () => filteredProducts.filter((product) => product.popular).slice(0, 6),
-    [filteredProducts],
-  );
+  const popularProducts = useMemo(() => filteredProducts.slice(0, 6), [filteredProducts]);
 
   const offerProducts = useMemo(
-    () => filteredProducts.filter((product) => product.offer).slice(0, 6),
-    [filteredProducts],
+    () =>
+      offers
+        .filter(
+          (offer) =>
+            offer.store_id === store?.id &&
+            offer.items.some(
+              (item) =>
+                selectedCategory === "all" ||
+                item.product.categoryId === selectedCategory,
+            ),
+        )
+        .slice(0, 6),
+    [offers, selectedCategory, store?.id],
   );
 
   const primaryCategory = useMemo(
     () =>
       store
-        ? categories.find((category) => store.categoryIds.includes(category.id))
+        ? allStoreCategories.find((category) => store.categoryIds.includes(category.id))
         : undefined,
-    [store],
+    [store, allStoreCategories],
   );
 
   const handleProductPress = (productId: string) => {
@@ -111,6 +123,7 @@ export default function StoreDetailsScreen() {
           },
         ]}
       >
+        <CustomerCatalogStatus />
         <AppHeader title="المتجر" showBack cartCount={itemCount} />
 
         <View style={styles.notFound}>
@@ -303,7 +316,7 @@ export default function StoreDetailsScreen() {
           <StoreStat
             icon="star"
             label="التقييم"
-            value={store.rating.toFixed(1)}
+            value={store.rating === undefined ? "—" : store.rating.toFixed(1)}
             iconColor={colors.accent}
           />
 
@@ -319,7 +332,7 @@ export default function StoreDetailsScreen() {
           <StoreStat
             icon="time-outline"
             label="التوصيل"
-            value={store.deliveryTime}
+            value={store.deliveryTime ?? "يحدد عند الطلب"}
             iconColor={colors.primary}
           />
 
@@ -379,7 +392,7 @@ export default function StoreDetailsScreen() {
                 },
               ]}
             >
-              {store.deliveryTime} • {store.deliveryFee}
+              {store.deliveryTime ?? "التوصيل عند الطلب"} • {store.deliveryFee ?? "يحدد عند الطلب"}
             </Text>
           </View>
 
@@ -453,8 +466,14 @@ export default function StoreDetailsScreen() {
 
         {showHighlights && offerProducts.length > 0 ? (
           <OfferSection
-            products={offerProducts}
-            onProductPress={handleProductPress}
+            offers={offerProducts}
+            selectedOfferIds={selectedOfferIds}
+            onOfferPress={(offerId) =>
+              router.push({
+                pathname: "/offer-details",
+                params: { id: offerId },
+              })
+            }
           />
         ) : null}
 
@@ -634,7 +653,7 @@ type ProductSectionProps = {
   title: string;
   subtitle: string;
   icon: React.ComponentProps<typeof AppIcon>["name"];
-  products: (typeof products)[number][];
+  products: Product[];
   onProductPress: (productId: string) => void;
 };
 
@@ -705,15 +724,15 @@ function ProductSection({
   );
 }
 
-type OfferSectionProps = {
-  products: (typeof products)[number][];
-  onProductPress: (productId: string) => void;
-};
-
 function OfferSection({
-  products: sectionProducts,
-  onProductPress,
-}: OfferSectionProps) {
+  offers,
+  selectedOfferIds,
+  onOfferPress,
+}: {
+  offers: ReturnType<typeof useCustomerCatalog>["offers"];
+  selectedOfferIds: string[];
+  onOfferPress: (offerId: string) => void;
+}) {
   const { colors } = useTheme();
 
   return (
@@ -760,11 +779,12 @@ function OfferSection({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.horizontalList}
       >
-        {sectionProducts.map((product) => (
+        {offers.map((offer) => (
           <OfferCard
-            key={product.id}
-            product={product}
-            onPress={() => onProductPress(product.id)}
+            key={offer.id}
+            offer={offer}
+            added={selectedOfferIds.includes(offer.id)}
+            onPress={() => onOfferPress(offer.id)}
           />
         ))}
       </ScrollView>

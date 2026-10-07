@@ -1,12 +1,9 @@
 import { Href, useRouter } from "expo-router";
-import { useState } from "react";
 import {
-  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 
@@ -16,40 +13,28 @@ import { ProductCard } from "@/components/marketplace/ProductCard";
 import { StoreCard } from "@/components/marketplace/StoreCard";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { categories, products, stores } from "@/constants/catalog";
+import { CustomerCatalogStatus } from "@/components/marketplace/CustomerCatalogStatus";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
+import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { useTheme } from "@/context/ThemeContext";
 
 export default function HomeTab() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { itemCount } = useCart();
+  const { itemCount, selectedOfferIds } = useCart();
+  const { categories, offers, products, stores } = useCustomerCatalog();
 
-  const [searchText, setSearchText] = useState("");
+  const featuredStores = stores.slice(0, 6);
 
-  const featuredStores = stores.filter((store) => store.featured).slice(0, 6);
+  const popularProducts = products.filter((product) => product.available).slice(0, 8);
 
-  const popularProducts = products
-    .filter((product) => product.available && product.popular)
-    .slice(0, 8);
+  const featuredOffers = offers.slice(0, 8);
 
-  const offerProducts = products
-    .filter((product) => product.available && product.offer)
-    .slice(0, 8);
-
-  const visibleStores =
-    featuredStores.length > 0 ? featuredStores : stores.slice(0, 6);
+  const visibleStores = featuredStores;
 
   const handleSearch = () => {
-    const query = searchText.trim();
-
-    Keyboard.dismiss();
-
-    router.push({
-      pathname: "/home/search",
-      params: query ? { q: query } : undefined,
-    });
+    router.push("/home/search");
   };
 
   const handleStorePress = (storeId: string) => {
@@ -80,6 +65,7 @@ export default function HomeTab() {
       ]}
     >
       <AppHeader cartCount={itemCount} mode="customer" />
+      <CustomerCatalogStatus />
       
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -96,36 +82,32 @@ export default function HomeTab() {
                 },
               ]}
             >
-              أهلاً بك 👋
+              أهلاً بك في تسوق
             </Text>
 
-            <View style={styles.locationRow}>
-              <AppIcon
-                name="location-outline"
-                size={15}
-                color={colors.primary}
-              />
-
-              <Text
-                style={[
-                  styles.location,
-                  {
-                    color: colors.textSecondary,
-                  },
-                ]}
-              >
-                الكرك الشرقي
-              </Text>
-            </View>
+            <Text
+              style={[
+                styles.greetingSubtitle,
+                {
+                  color: colors.textSecondary,
+                },
+              ]}
+            >
+              اكتشف متاجر منطقتك وتسوق احتياجاتك بسهولة
+            </Text>
           </View>
 
-          <View
-            style={[
-              styles.searchContainer,
+          <Pressable
+            onPress={handleSearch}
+            accessibilityRole="button"
+            accessibilityLabel="ابحث عن منتج أو متجر"
+            style={({ pressed }) => [
+              styles.searchButton,
               {
                 backgroundColor: colors.surface,
                 borderColor: colors.border,
               },
+              pressed && styles.pressed,
             ]}
           >
             <View
@@ -139,38 +121,19 @@ export default function HomeTab() {
               <AppIcon name="search-outline" size={19} color={colors.primary} />
             </View>
 
-            <TextInput
-              value={searchText}
-              onChangeText={setSearchText}
-              onSubmitEditing={handleSearch}
-              placeholder="ابحث عن منتج أو متجر"
-              placeholderTextColor={colors.textMuted}
-              returnKeyType="search"
+            <Text
               style={[
-                styles.searchInput,
+                styles.searchLabel,
                 {
-                  color: colors.text,
+                  color: colors.textMuted,
                 },
               ]}
-              textAlign="right"
-            />
-
-            <Pressable
-              onPress={handleSearch}
-              style={({ pressed }) => [
-                styles.searchButton,
-                {
-                  backgroundColor: colors.primary,
-                },
-                pressed && styles.pressed,
-              ]}
-              hitSlop={6}
-              accessibilityRole="button"
-              accessibilityLabel="بحث"
             >
-              <AppIcon name="arrow-back" size={19} color={colors.surface} />
-            </Pressable>
-          </View>
+              ابحث عن منتج أو متجر
+            </Text>
+
+            <AppIcon name="arrow-back" size={19} color={colors.textMuted} />
+          </Pressable>
         </View>
 
         <View style={styles.section}>
@@ -216,7 +179,7 @@ export default function HomeTab() {
           accessibilityRole="button"
           accessibilityLabel="اكتشف العروض"
         >
-          <View style={styles.promoText}>
+          <View style={styles.promoContent}>
             <View
               style={[
                 styles.promoBadge,
@@ -251,52 +214,45 @@ export default function HomeTab() {
                 },
               ]}
             >
-              عروض ومتاجر
+              عروض مميزة
               {"\n"}
-              قريبة منك
+              من متاجر منطقتك
             </Text>
 
-            <View
-              style={[
-                styles.promoAction,
-                {
-                  backgroundColor: colors.surface,
-                },
-              ]}
-            >
+            <View style={styles.promoFooter}>
               <Text
                 style={[
-                  styles.promoActionText,
+                  styles.promoDescription,
                   {
-                    color: colors.primary,
+                    color: colors.primaryLight,
                   },
                 ]}
               >
-                اكتشف العروض
+                باقات وعروض من متاجر منطقتك
               </Text>
 
-              <AppIcon name="arrow-back" size={15} color={colors.primary} />
+              <View
+                style={[
+                  styles.promoAction,
+                  {
+                    backgroundColor: colors.surface,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.promoActionText,
+                    {
+                      color: colors.primary,
+                    },
+                  ]}
+                >
+                  اكتشف العروض
+                </Text>
+
+                <AppIcon name="arrow-back" size={15} color={colors.primary} />
+              </View>
             </View>
-          </View>
-
-          <View
-            style={[
-              styles.promoVisual,
-              {
-                backgroundColor: colors.primaryDark,
-              },
-            ]}
-          >
-            <AppIcon name="pricetags-outline" size={58} color={colors.accent} />
-
-            <View
-              style={[
-                styles.promoDot,
-                {
-                  backgroundColor: colors.surface,
-                },
-              ]}
-            />
           </View>
         </Pressable>
 
@@ -349,7 +305,7 @@ export default function HomeTab() {
           </View>
         ) : null}
 
-        {offerProducts.length > 0 ? (
+        {featuredOffers.length > 0 ? (
           <View style={styles.section}>
             <SectionHeader
               title="عروض اليوم"
@@ -365,11 +321,17 @@ export default function HomeTab() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.horizontalList}
             >
-              {offerProducts.map((product) => (
+              {featuredOffers.map((offer) => (
                 <OfferCard
-                  key={product.id}
-                  product={product}
-                  onPress={() => handleProductPress(product.id)}
+                  key={offer.id}
+                  offer={offer}
+                  added={selectedOfferIds.includes(offer.id)}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/offer-details",
+                      params: { id: offer.id },
+                    })
+                  }
                 />
               ))}
             </ScrollView>
@@ -508,28 +470,24 @@ const styles = StyleSheet.create({
 
   greetingTitle: {
     fontFamily: Fonts.bold,
-    fontSize: FontSizes.xxl,
-    lineHeight: 36,
+    fontSize: FontSizes.xl,
+    lineHeight: 30,
   },
 
-  locationRow: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: Spacing.one,
+  greetingSubtitle: {
     marginTop: Spacing.one,
+    fontFamily: Fonts.regular,
+    fontSize: FontSizes.xs,
+    lineHeight: 19,
+    textAlign: "right",
   },
 
-  location: {
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.sm,
-  },
-
-  searchContainer: {
+  searchButton: {
     flexDirection: "row-reverse",
     alignItems: "center",
-    minHeight: 56,
-    marginTop: Spacing.four,
-    paddingHorizontal: Spacing.two,
+    minHeight: 52,
+    marginTop: Spacing.three,
+    paddingHorizontal: Spacing.three,
     borderWidth: 1,
     borderRadius: Radius.xl,
   },
@@ -542,21 +500,12 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
   },
 
-  searchInput: {
+  searchLabel: {
     flex: 1,
-    minHeight: 52,
     paddingHorizontal: Spacing.three,
-    paddingVertical: 0,
     fontFamily: Fonts.regular,
     fontSize: FontSizes.sm,
-  },
-
-  searchButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.md,
+    textAlign: "right",
   },
 
   section: {
@@ -616,17 +565,17 @@ const styles = StyleSheet.create({
   },
 
   promoCard: {
-    flexDirection: "row-reverse",
-    minHeight: 174,
+    minHeight: 150,
     marginTop: Spacing.six,
     borderRadius: Radius.xl,
     overflow: "hidden",
   },
 
-  promoText: {
+  promoContent: {
     flex: 1,
     alignItems: "flex-end",
-    padding: Spacing.five,
+    justifyContent: "center",
+    padding: Spacing.four,
   },
 
   promoBadge: {
@@ -646,41 +595,39 @@ const styles = StyleSheet.create({
   promoTitle: {
     marginTop: Spacing.two,
     fontFamily: Fonts.bold,
-    fontSize: FontSizes.xl,
-    lineHeight: 30,
+    fontSize: FontSizes.lg,
+    lineHeight: 27,
+    textAlign: "right",
+  },
+
+  promoFooter: {
+    width: "100%",
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.two,
+    marginTop: Spacing.three,
+  },
+
+  promoDescription: {
+    flex: 1,
+    fontFamily: Fonts.regular,
+    fontSize: FontSizes.xs,
     textAlign: "right",
   },
 
   promoAction: {
     flexDirection: "row-reverse",
     alignItems: "center",
-    gap: Spacing.two,
-    marginTop: Spacing.three,
+    gap: Spacing.one,
     paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
+    minHeight: 36,
     borderRadius: Radius.full,
   },
 
   promoActionText: {
     fontFamily: Fonts.semiBold,
     fontSize: FontSizes.xs,
-  },
-
-  promoVisual: {
-    width: 104,
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-  },
-
-  promoDot: {
-    position: "absolute",
-    width: 12,
-    height: 12,
-    top: 34,
-    right: 24,
-    borderRadius: Radius.full,
-    opacity: 0.75,
   },
 
   horizontalList: {

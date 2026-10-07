@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -8,126 +8,181 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 
 import { AppHeader } from "@/components/navigation/AppHeader";
+import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
+import { AppTextField } from "@/components/ui/AppTextField";
+import { Radius, Spacing } from "@/constants/theme";
+import { useCart } from "@/context/CartContext";
 import { useTheme } from "@/context/ThemeContext";
+import {
+  deleteCustomerAddress,
+  getCustomerAddresses,
+  getDeliveryZones,
+  saveCustomerAddress,
+  setDefaultCustomerAddress,
+  type CustomerAddress,
+  type DeliveryZone,
+} from "@/lib/customer-orders";
 
-type Address = {
-  id: string;
+type AddressForm = {
   title: string;
-  details: string;
+  recipientName: string;
+  contactPhone: string;
+  deliveryAddress: string;
+  deliveryZoneId: string;
   mapsUrl: string;
   isDefault: boolean;
 };
 
-const initialAddresses: Address[] = [
-  {
-    id: "1",
-    title: "المنزل",
-    details: "الكرك الشرقي - الشارع الرئيسي",
-    mapsUrl: "",
-    isDefault: true,
-  },
-];
+const emptyForm: AddressForm = {
+  title: "",
+  recipientName: "",
+  contactPhone: "",
+  deliveryAddress: "",
+  deliveryZoneId: "",
+  mapsUrl: "",
+  isDefault: false,
+};
 
 export default function AddressesScreen() {
   const { colors } = useTheme();
+  const { itemCount } = useCart();
+  const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
+  const [zones, setZones] = useState<DeliveryZone[]>([]);
+  const [form, setForm] = useState<AddressForm>(emptyForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [busyAddressId, setBusyAddressId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  const scrollViewRef = useRef<ScrollView>(null);
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [nextAddresses, nextZones] = await Promise.all([
+        getCustomerAddresses(),
+        getDeliveryZones(),
+      ]);
+      setAddresses(nextAddresses);
+      setZones(nextZones);
+      return true;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تحميل عناوينك.");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const [addresses, setAddresses] = useState<Address[]>(initialAddresses);
-
-  const [isAdding, setIsAdding] = useState(false);
-  const [title, setTitle] = useState("");
-  const [details, setDetails] = useState("");
-  const [mapsUrl, setMapsUrl] = useState("");
-
-  const scrollToInput = (y: number) => {
-    setTimeout(() => {
-      scrollViewRef.current?.scrollTo({
-        y,
-        animated: true,
-      });
-    }, 150);
-  };
+  useEffect(() => {
+    const timer = setTimeout(() => void refresh(), 0);
+    return () => clearTimeout(timer);
+  }, [refresh]);
 
   const resetForm = () => {
-    setTitle("");
-    setDetails("");
-    setMapsUrl("");
-    setIsAdding(false);
+    setForm(emptyForm);
+    setEditingId(null);
+    setNotice(null);
+    setError(null);
   };
 
-  const handleAddAddress = () => {
-    const cleanTitle = title.trim();
-    const cleanDetails = details.trim();
-    const cleanMapsUrl = mapsUrl.trim();
+  const startEditing = (address: CustomerAddress) => {
+    setEditingId(address.id);
+    setForm({
+      title: address.title,
+      recipientName: address.recipient_name,
+      contactPhone: address.contact_phone,
+      deliveryAddress: address.delivery_address,
+      deliveryZoneId: address.zone?.is_active ? address.delivery_zone_id : "",
+      mapsUrl: address.maps_url,
+      isDefault: address.is_default,
+    });
+    setNotice(null);
+    setError(null);
+  };
 
-    if (!cleanTitle || !cleanDetails) {
-      Alert.alert("بيانات ناقصة", "يرجى إدخال اسم العنوان وتفاصيله.");
-      return;
-    }
-
-    if (cleanMapsUrl && !/^https?:\/\//i.test(cleanMapsUrl)) {
-      Alert.alert(
-        "رابط غير صحيح",
-        "يرجى إدخال رابط Google Maps يبدأ بـ https://",
-      );
-      return;
-    }
-
-    const newAddress: Address = {
-      id: Date.now().toString(),
-      title: cleanTitle,
-      details: cleanDetails,
-      mapsUrl: cleanMapsUrl,
-      isDefault: addresses.length === 0,
+  const handleSave = async () => {
+    const cleanForm = {
+      ...form,
+      title: form.title.trim(),
+      recipientName: form.recipientName.trim(),
+      contactPhone: form.contactPhone.trim(),
+      deliveryAddress: form.deliveryAddress.trim(),
+      mapsUrl: form.mapsUrl.trim(),
     };
+    if (
+      cleanForm.title.length < 2 ||
+      cleanForm.recipientName.length < 2 ||
+      cleanForm.contactPhone.length < 5 ||
+      cleanForm.deliveryAddress.length < 4 ||
+      !cleanForm.deliveryZoneId
+    ) {
+      setError("أكمل اسم العنوان والمستلم والهاتف والتفاصيل واختر منطقة توصيل.");
+      return;
+    }
+    if (cleanForm.mapsUrl && !/^https?:\/\//i.test(cleanForm.mapsUrl)) {
+      setError("رابط الموقع يجب أن يبدأ بـ https:// أو http://.");
+      return;
+    }
 
-    setAddresses((current) => [...current, newAddress]);
-
-    resetForm();
+    setSaving(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await saveCustomerAddress({
+        id: editingId,
+        ...cleanForm,
+      });
+      const refreshed = await refresh();
+      if (refreshed) {
+        resetForm();
+        setNotice(editingId ? "تم تحديث العنوان." : "تم حفظ العنوان.");
+      } else {
+        resetForm();
+        setError("تم حفظ العنوان، لكن تعذر تحديث القائمة. أعد فتح الصفحة للتحقق من التغيير.");
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر حفظ العنوان.");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleSetDefault = (id: string) => {
-    setAddresses((current) =>
-      current.map((address) => ({
-        ...address,
-        isDefault: address.id === id,
-      })),
-    );
+  const handleSetDefault = async (addressId: string) => {
+    setBusyAddressId(addressId);
+    setError(null);
+    try {
+      await setDefaultCustomerAddress(addressId);
+      await refresh();
+      setNotice("تم تعيين العنوان الافتراضي.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تعيين العنوان الافتراضي.");
+    } finally {
+      setBusyAddressId(null);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    Alert.alert("حذف العنوان", "هل تريد حذف هذا العنوان؟", [
-      {
-        text: "إلغاء",
-        style: "cancel",
-      },
+  const handleDelete = (address: CustomerAddress) => {
+    Alert.alert("حذف العنوان", `هل تريد حذف «${address.title}»؟`, [
+      { text: "إلغاء", style: "cancel" },
       {
         text: "حذف",
         style: "destructive",
         onPress: () => {
-          setAddresses((current) => {
-            const remaining = current.filter((address) => address.id !== id);
-
-            if (
-              remaining.length > 0 &&
-              !remaining.some((address) => address.isDefault)
-            ) {
-              remaining[0] = {
-                ...remaining[0],
-                isDefault: true,
-              };
-            }
-
-            return remaining;
-          });
+          setBusyAddressId(address.id);
+          setError(null);
+          void deleteCustomerAddress(address.id)
+            .then(refresh)
+            .catch((cause: unknown) => {
+              setError(cause instanceof Error ? cause.message : "تعذر حذف العنوان.");
+            })
+            .finally(() => setBusyAddressId(null));
         },
       },
     ]);
@@ -135,502 +190,184 @@ export default function AddressesScreen() {
 
   const handleOpenMaps = async (url: string) => {
     try {
-      const supported = await Linking.canOpenURL(url);
-
-      if (!supported) {
-        Alert.alert("تعذر فتح الرابط", "تأكد من أن رابط Google Maps صحيح.");
-        return;
-      }
-
       await Linking.openURL(url);
     } catch {
-      Alert.alert("تعذر فتح الرابط", "حدثت مشكلة أثناء فتح Google Maps.");
+      setError("تعذر فتح رابط الموقع. تحقق من صحة الرابط ثم حاول مجددًا.");
     }
   };
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: colors.background,
-        },
-      ]}
-    >
-      <AppHeader title="العناوين" showBack cartCount={0} mode="customer" />
-
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <AppHeader title="عناوين التوصيل" showBack cartCount={itemCount} mode="customer" />
       <KeyboardAvoidingView
-        style={styles.keyboardContainer}
+        style={styles.keyboard}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
         <ScrollView
-          ref={scrollViewRef}
-          showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.content}
         >
           <View style={styles.intro}>
-            <Text
-              style={[
-                styles.title,
-                {
-                  color: colors.text,
-                },
-              ]}
-            >
-              عناوين التوصيل
-            </Text>
-
-            <Text
-              style={[
-                styles.subtitle,
-                {
-                  color: colors.textSecondary,
-                },
-              ]}
-            >
-              احفظ عناوينك لتسهيل إتمام طلباتك
+            <Text style={[styles.title, { color: colors.text }]}>عناوينك المحفوظة</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              اختر منطقة التوصيل واحفظ بيانات المستلم لتسريع طلباتك القادمة.
             </Text>
           </View>
 
-          {addresses.length > 0 ? (
-            <View style={styles.addresses}>
+          {loading ? (
+            <Text style={[styles.message, { color: colors.textSecondary }]}>جارٍ تحميل العناوين...</Text>
+          ) : addresses.length === 0 ? (
+            <View style={[styles.empty, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <AppIcon name="location-outline" size={28} color={colors.primary} />
+              <Text style={{ color: colors.text, textAlign: "center" }}>
+                لم تحفظ عنوانًا بعد. أضف عنوانك الأول أدناه.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.list}>
               {addresses.map((address) => (
                 <View
                   key={address.id}
-                  style={[
-                    styles.addressCard,
-                    {
-                      borderColor: colors.border,
-                      backgroundColor: colors.surface,
-                    },
-                  ]}
+                  style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
                 >
-                  <View style={styles.addressTop}>
-                    <View
-                      style={[
-                        styles.addressIcon,
-                        {
-                          backgroundColor: colors.primaryLight,
-                        },
-                      ]}
-                    >
-                      <AppIcon
-                        name="location-outline"
-                        size={23}
-                        color={colors.primary}
-                      />
+                  <View style={styles.cardHeader}>
+                    <View style={[styles.addressIcon, { backgroundColor: colors.primaryLight }]}>
+                      <AppIcon name="location-outline" size={21} color={colors.primary} />
                     </View>
-
-                    <View style={styles.addressInfo}>
-                      <View style={styles.titleRow}>
-                        <Text
-                          style={[
-                            styles.addressTitle,
-                            {
-                              color: colors.text,
-                            },
-                          ]}
-                        >
-                          {address.title}
-                        </Text>
-
-                        {address.isDefault ? (
-                          <View
-                            style={[
-                              styles.defaultBadge,
-                              {
-                                backgroundColor: colors.primaryLight,
-                              },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.defaultBadgeText,
-                                {
-                                  color: colors.primary,
-                                },
-                              ]}
-                            >
-                              افتراضي
-                            </Text>
-                          </View>
+                    <View style={styles.cardInfo}>
+                      <View style={styles.titleLine}>
+                        <Text style={[styles.cardTitle, { color: colors.text }]}>{address.title}</Text>
+                        {address.is_default ? (
+                          <Text style={[styles.defaultBadge, { color: colors.primary, backgroundColor: colors.primaryLight }]}>
+                            افتراضي
+                          </Text>
                         ) : null}
                       </View>
-
-                      <Text
-                        style={[
-                          styles.addressDetails,
-                          {
-                            color: colors.textSecondary,
-                          },
-                        ]}
-                      >
-                        {address.details}
+                      <Text style={[styles.detail, { color: colors.textSecondary }]}>
+                        {address.recipient_name} · {address.contact_phone}
+                      </Text>
+                      <Text style={[styles.detail, { color: colors.textSecondary }]}>
+                        {address.delivery_address}
+                      </Text>
+                      <Text style={[styles.zone, { color: address.zone?.is_active ? colors.primary : colors.error }]}>
+                        {address.zone
+                          ? `${address.zone.name}${address.zone.is_active ? ` · ${address.zone.fixed_fee.toLocaleString("ar")} ل.س` : " · منطقة غير متاحة"}`
+                          : "منطقة التوصيل غير متاحة"}
                       </Text>
                     </View>
                   </View>
-
-                  {address.mapsUrl ? (
+                  {address.maps_url ? (
                     <Pressable
-                      onPress={() => handleOpenMaps(address.mapsUrl)}
-                      style={({ pressed }) => [
-                        styles.mapsButton,
-                        {
-                          backgroundColor: colors.primaryLight,
-                        },
-                        pressed && styles.pressed,
-                      ]}
+                      onPress={() => void handleOpenMaps(address.maps_url)}
                       accessibilityRole="button"
-                      accessibilityLabel="فتح الموقع على الخريطة"
+                      style={styles.linkButton}
                     >
-                      <AppIcon
-                        name="map-outline"
-                        size={18}
-                        color={colors.primary}
-                      />
-
-                      <Text
-                        style={[
-                          styles.mapsButtonText,
-                          {
-                            color: colors.primary,
-                          },
-                        ]}
-                      >
-                        فتح الموقع على الخريطة
-                      </Text>
+                      <AppIcon name="map-outline" size={16} color={colors.primary} />
+                      <Text style={{ color: colors.primary }}>فتح الموقع</Text>
                     </Pressable>
                   ) : null}
-
-                  <View
-                    style={[
-                      styles.addressActions,
-                      {
-                        borderTopColor: colors.border,
-                      },
-                    ]}
-                  >
-                    {!address.isDefault ? (
-                      <Pressable
-                        onPress={() => handleSetDefault(address.id)}
-                        style={({ pressed }) => [
-                          styles.actionButton,
-                          pressed && styles.pressed,
-                        ]}
-                        accessibilityRole="button"
-                        accessibilityLabel="تعيين كافتراضي"
-                      >
-                        <AppIcon
-                          name="checkmark-circle-outline"
-                          size={17}
-                          color={colors.primary}
-                        />
-
-                        <Text
-                          style={[
-                            styles.defaultActionText,
-                            {
-                              color: colors.primary,
-                            },
-                          ]}
-                        >
-                          تعيين كافتراضي
-                        </Text>
-                      </Pressable>
-                    ) : (
-                      <View />
-                    )}
-
-                    <Pressable
-                      onPress={() => handleDelete(address.id)}
-                      style={({ pressed }) => [
-                        styles.actionButton,
-                        pressed && styles.pressed,
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel="حذف العنوان"
-                    >
-                      <AppIcon
-                        name="trash-outline"
-                        size={17}
-                        color={colors.error}
+                  <View style={styles.actions}>
+                    {!address.is_default ? (
+                      <AppButton
+                        title="تعيين افتراضي"
+                        icon="checkmark-circle-outline"
+                        variant="outline"
+                        fullWidth={false}
+                        disabled={busyAddressId === address.id}
+                        onPress={() => void handleSetDefault(address.id)}
                       />
-
-                      <Text
-                        style={[
-                          styles.deleteText,
-                          {
-                            color: colors.error,
-                          },
-                        ]}
-                      >
-                        حذف
-                      </Text>
-                    </Pressable>
+                    ) : null}
+                    <AppButton
+                      title="تعديل"
+                      icon="create-outline"
+                      variant="secondary"
+                      fullWidth={false}
+                      disabled={busyAddressId === address.id}
+                      onPress={() => startEditing(address)}
+                    />
+                    <AppButton
+                      title="حذف"
+                      icon="trash-outline"
+                      variant="danger"
+                      fullWidth={false}
+                      loading={busyAddressId === address.id}
+                      onPress={() => handleDelete(address)}
+                    />
                   </View>
                 </View>
               ))}
             </View>
-          ) : (
-            <View
-              style={[
-                styles.emptyCard,
-                {
-                  borderColor: colors.border,
-                  backgroundColor: colors.surface,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.emptyIcon,
-                  {
-                    backgroundColor: colors.primaryLight,
-                  },
-                ]}
-              >
-                <AppIcon
-                  name="location-outline"
-                  size={36}
-                  color={colors.primary}
-                />
-              </View>
-
-              <Text
-                style={[
-                  styles.emptyTitle,
-                  {
-                    color: colors.text,
-                  },
-                ]}
-              >
-                لا توجد عناوين محفوظة
-              </Text>
-
-              <Text
-                style={[
-                  styles.emptyText,
-                  {
-                    color: colors.textSecondary,
-                  },
-                ]}
-              >
-                أضف عنواناً لتتمكن من استخدامه عند إتمام طلباتك.
-              </Text>
-            </View>
           )}
 
-          {isAdding ? (
-            <View
-              style={[
-                styles.formCard,
-                {
-                  borderColor: colors.border,
-                  backgroundColor: colors.surface,
-                },
-              ]}
-            >
-              <View style={styles.formHeader}>
-                <Text
-                  style={[
-                    styles.formTitle,
-                    {
-                      color: colors.text,
-                    },
-                  ]}
-                >
-                  إضافة عنوان جديد
-                </Text>
-
-                <Pressable
-                  onPress={resetForm}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel="إغلاق"
-                >
-                  <AppIcon
-                    name="close-outline"
-                    size={23}
-                    color={colors.textSecondary}
-                  />
-                </Pressable>
-              </View>
-
-              <Text
-                style={[
-                  styles.inputLabel,
-                  {
-                    color: colors.text,
-                  },
-                ]}
-              >
-                اسم العنوان
-              </Text>
-
-              <TextInput
-                value={title}
-                onChangeText={setTitle}
-                placeholder="مثلاً: المنزل"
-                placeholderTextColor={colors.textMuted}
-                style={[
-                  styles.input,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                  },
-                ]}
-                textAlign="right"
-                returnKeyType="next"
-                onFocus={() => scrollToInput(180)}
-              />
-
-              <Text
-                style={[
-                  styles.inputLabel,
-                  {
-                    color: colors.text,
-                  },
-                ]}
-              >
-                تفاصيل العنوان
-              </Text>
-
-              <TextInput
-                value={details}
-                onChangeText={setDetails}
-                placeholder="المنطقة، الشارع، رقم البناء..."
-                placeholderTextColor={colors.textMuted}
-                style={[
-                  styles.input,
-                  styles.detailsInput,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                  },
-                ]}
-                multiline
-                textAlign="right"
-                textAlignVertical="top"
-                onFocus={() => scrollToInput(270)}
-              />
-
-              <Text
-                style={[
-                  styles.inputLabel,
-                  {
-                    color: colors.text,
-                  },
-                ]}
-              >
-                رابط Google Maps
-              </Text>
-
-              <TextInput
-                value={mapsUrl}
-                onChangeText={setMapsUrl}
-                placeholder="الصق رابط موقعك من Google Maps"
-                placeholderTextColor={colors.textMuted}
-                style={[
-                  styles.input,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                  },
-                ]}
-                textAlign="right"
-                keyboardType="url"
-                autoCapitalize="none"
-                autoCorrect={false}
-                onFocus={() => scrollToInput(390)}
-              />
-
-              <Text
-                style={[
-                  styles.helperText,
-                  {
-                    color: colors.textMuted,
-                  },
-                ]}
-              >
-                افتح Google Maps، اختر موقعك، ثم اضغط مشاركة وانسخ الرابط والصقه
-                هنا.
-              </Text>
-
-              <Pressable
-                onPress={handleAddAddress}
-                style={({ pressed }) => [
-                  styles.saveButton,
-                  {
-                    backgroundColor: colors.primary,
-                  },
-                  pressed && styles.pressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="حفظ العنوان"
-              >
-                <AppIcon
-                  name="checkmark-outline"
-                  size={20}
-                  color={colors.surface}
-                />
-
-                <Text
-                  style={[
-                    styles.saveButtonText,
-                    {
-                      color: colors.surface,
-                    },
-                  ]}
-                >
-                  حفظ العنوان
-                </Text>
+          <View style={styles.formHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              {editingId ? "تعديل العنوان" : "إضافة عنوان"}
+            </Text>
+            {editingId ? (
+              <Pressable onPress={resetForm} accessibilityRole="button">
+                <Text style={{ color: colors.primary }}>إلغاء التعديل</Text>
               </Pressable>
-            </View>
-          ) : (
+            ) : null}
+          </View>
+
+          <View style={[styles.form, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <AppTextField label="اسم العنوان" value={form.title} onChangeText={(title) => setForm((current) => ({ ...current, title }))} placeholder="المنزل أو العمل" maxLength={80} />
+            <AppTextField label="اسم المستلم" value={form.recipientName} onChangeText={(recipientName) => setForm((current) => ({ ...current, recipientName }))} maxLength={120} />
+            <AppTextField label="رقم الهاتف" value={form.contactPhone} onChangeText={(contactPhone) => setForm((current) => ({ ...current, contactPhone }))} keyboardType="phone-pad" maxLength={32} />
+            <AppTextField label="العنوان بالتفصيل" value={form.deliveryAddress} onChangeText={(deliveryAddress) => setForm((current) => ({ ...current, deliveryAddress }))} placeholder="الحي، الشارع، أقرب علامة مميزة" multiline maxLength={1000} />
+            <AppTextField label="رابط الموقع (اختياري)" value={form.mapsUrl} onChangeText={(mapsUrl) => setForm((current) => ({ ...current, mapsUrl }))} placeholder="https://maps.google.com/..." keyboardType="url" autoCapitalize="none" maxLength={1000} />
+
+            <Text style={[styles.fieldLabel, { color: colors.text }]}>منطقة التوصيل</Text>
+            {zones.length === 0 ? (
+              <Text style={{ color: colors.textMuted, textAlign: "right" }}>لا توجد مناطق توصيل متاحة حاليًا.</Text>
+            ) : zones.map((zone) => {
+              const selected = zone.id === form.deliveryZoneId;
+              return (
+                <Pressable
+                  key={zone.id}
+                  onPress={() => setForm((current) => ({ ...current, deliveryZoneId: zone.id }))}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected }}
+                  style={[
+                    styles.zoneOption,
+                    {
+                      backgroundColor: colors.background,
+                      borderColor: selected ? colors.primary : colors.border,
+                    },
+                  ]}
+                >
+                  <View style={styles.zoneInfo}>
+                    <Text style={{ color: colors.text, fontWeight: "600" }}>{zone.name}</Text>
+                    <Text style={{ color: colors.textSecondary }}>
+                      {zone.fixed_fee.toLocaleString("ar")} ل.س رسوم توصيل
+                    </Text>
+                  </View>
+                  <AppIcon name={selected ? "radio-button-on" : "radio-button-off"} size={20} color={selected ? colors.primary : colors.textMuted} />
+                </Pressable>
+              );
+            })}
+
             <Pressable
-              onPress={() => {
-                setIsAdding(true);
-
-                setTimeout(() => {
-                  scrollViewRef.current?.scrollToEnd({
-                    animated: true,
-                  });
-                }, 200);
-              }}
-              style={({ pressed }) => [
-                styles.addButton,
-                {
-                  borderColor: colors.primary,
-                  backgroundColor: colors.surface,
-                },
-                pressed && styles.pressed,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="إضافة عنوان جديد"
+              onPress={() => setForm((current) => ({ ...current, isDefault: !current.isDefault }))}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: form.isDefault }}
+              style={styles.defaultToggle}
             >
-              <AppIcon
-                name="add-circle-outline"
-                size={22}
-                color={colors.primary}
-              />
-
-              <Text
-                style={[
-                  styles.addButtonText,
-                  {
-                    color: colors.primary,
-                  },
-                ]}
-              >
-                إضافة عنوان جديد
-              </Text>
+              <AppIcon name={form.isDefault ? "checkbox" : "square-outline"} size={21} color={colors.primary} />
+              <Text style={{ color: colors.text }}>تعيين هذا العنوان افتراضيًا</Text>
             </Pressable>
-          )}
+
+            {error ? <Text accessibilityRole="alert" style={[styles.feedback, { color: colors.error }]}>{error}</Text> : null}
+            {notice ? <Text accessibilityLiveRegion="polite" style={[styles.feedback, { color: colors.primary }]}>{notice}</Text> : null}
+            <AppButton
+              title={editingId ? "حفظ التعديلات" : "حفظ العنوان"}
+              icon="checkmark-outline"
+              loading={saving}
+              disabled={zones.length === 0}
+              onPress={() => void handleSave()}
+            />
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -638,250 +375,32 @@ export default function AddressesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-
-  keyboardContainer: {
-    flex: 1,
-  },
-
-  content: {
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.five,
-    paddingBottom: 180,
-  },
-
-  intro: {
-    alignItems: "flex-end",
-  },
-
-  title: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.xl,
-    textAlign: "right",
-  },
-
-  subtitle: {
-    marginTop: Spacing.one,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    textAlign: "right",
-  },
-
-  addresses: {
-    gap: Spacing.three,
-    marginTop: Spacing.five,
-  },
-
-  addressCard: {
-    padding: Spacing.four,
-    borderWidth: 1,
-    borderRadius: Radius.xl,
-  },
-
-  addressTop: {
-    flexDirection: "row-reverse",
-    alignItems: "flex-start",
-  },
-
-  addressIcon: {
-    width: 46,
-    height: 46,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.md,
-  },
-
-  addressInfo: {
-    flex: 1,
-    marginRight: Spacing.three,
-    alignItems: "flex-end",
-  },
-
-  titleRow: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: Spacing.two,
-  },
-
-  addressTitle: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.md,
-  },
-
-  defaultBadge: {
-    paddingHorizontal: Spacing.two,
-    paddingVertical: 3,
-    borderRadius: Radius.full,
-  },
-
-  defaultBadgeText: {
-    fontFamily: Fonts.medium,
-    fontSize: 10,
-  },
-
-  addressDetails: {
-    marginTop: Spacing.one,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    lineHeight: 21,
-    textAlign: "right",
-  },
-
-  mapsButton: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.two,
-    minHeight: 42,
-    marginTop: Spacing.three,
-    borderRadius: Radius.md,
-  },
-
-  mapsButtonText: {
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.sm,
-  },
-
-  addressActions: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: Spacing.four,
-    paddingTop: Spacing.three,
-    borderTopWidth: 1,
-  },
-
-  actionButton: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: Spacing.one,
-    minHeight: 34,
-  },
-
-  defaultActionText: {
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.xs,
-  },
-
-  deleteText: {
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.xs,
-  },
-
-  emptyCard: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: Spacing.five,
-    paddingHorizontal: Spacing.five,
-    paddingVertical: Spacing.ten,
-    borderWidth: 1,
-    borderRadius: Radius.xl,
-  },
-
-  emptyIcon: {
-    width: 72,
-    height: 72,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.full,
-  },
-
-  emptyTitle: {
-    marginTop: Spacing.four,
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.lg,
-  },
-
-  emptyText: {
-    marginTop: Spacing.one,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    lineHeight: 22,
-    textAlign: "center",
-  },
-
-  formCard: {
-    marginTop: Spacing.five,
-    padding: Spacing.four,
-    borderWidth: 1,
-    borderRadius: Radius.xl,
-  },
-
-  formHeader: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  formTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.lg,
-  },
-
-  inputLabel: {
-    marginTop: Spacing.four,
-    marginBottom: Spacing.two,
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.sm,
-    textAlign: "right",
-  },
-
-  input: {
-    minHeight: 48,
-    paddingHorizontal: Spacing.three,
-    borderWidth: 1,
-    borderRadius: Radius.md,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-  },
-
-  detailsInput: {
-    minHeight: 90,
-    paddingTop: Spacing.three,
-  },
-
-  helperText: {
-    marginTop: Spacing.two,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.xs,
-    lineHeight: 19,
-    textAlign: "right",
-  },
-
-  saveButton: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.two,
-    minHeight: 50,
-    marginTop: Spacing.four,
-    borderRadius: Radius.md,
-  },
-
-  saveButtonText: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.md,
-  },
-
-  addButton: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.two,
-    minHeight: 52,
-    marginTop: Spacing.five,
-    borderWidth: 1,
-    borderRadius: Radius.md,
-  },
-
-  addButtonText: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.md,
-  },
-
-  pressed: {
-    opacity: 0.7,
-  },
+  container: { flex: 1 },
+  keyboard: { flex: 1 },
+  content: { gap: Spacing.four, padding: Spacing.four, paddingBottom: Spacing.eight },
+  intro: { gap: Spacing.one },
+  title: { fontSize: 22, fontWeight: "700", textAlign: "right" },
+  subtitle: { lineHeight: 22, textAlign: "right" },
+  message: { paddingVertical: Spacing.three, textAlign: "center" },
+  empty: { alignItems: "center", borderRadius: Radius.lg, borderWidth: 1, gap: Spacing.two, padding: Spacing.four },
+  list: { gap: Spacing.three },
+  card: { borderRadius: Radius.lg, borderWidth: 1, gap: Spacing.three, padding: Spacing.three },
+  cardHeader: { alignItems: "flex-start", flexDirection: "row-reverse", gap: Spacing.three },
+  addressIcon: { alignItems: "center", borderRadius: Radius.md, height: 42, justifyContent: "center", width: 42 },
+  cardInfo: { flex: 1, gap: Spacing.one },
+  titleLine: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.two, flexWrap: "wrap" },
+  cardTitle: { fontSize: 16, fontWeight: "700" },
+  defaultBadge: { borderRadius: Radius.full, fontSize: 11, overflow: "hidden", paddingHorizontal: Spacing.two, paddingVertical: 3 },
+  detail: { lineHeight: 21, textAlign: "right" },
+  zone: { fontSize: 12, textAlign: "right" },
+  linkButton: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.one, minHeight: 36 },
+  actions: { flexDirection: "row-reverse", flexWrap: "wrap", gap: Spacing.two },
+  formHeader: { alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between" },
+  sectionTitle: { fontSize: 17, fontWeight: "700", textAlign: "right" },
+  form: { borderRadius: Radius.lg, borderWidth: 1, gap: Spacing.three, padding: Spacing.three },
+  fieldLabel: { fontWeight: "600", textAlign: "right" },
+  zoneOption: { alignItems: "center", borderRadius: Radius.md, borderWidth: 1, flexDirection: "row-reverse", justifyContent: "space-between", minHeight: 56, padding: Spacing.three },
+  zoneInfo: { gap: 4 },
+  defaultToggle: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.two, minHeight: 44 },
+  feedback: { lineHeight: 21, textAlign: "right" },
 });

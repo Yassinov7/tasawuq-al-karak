@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,8 +10,10 @@ import {
 } from "react-native";
 
 import { AppHeader } from "@/components/navigation/AppHeader";
+import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { AppModal } from "@/components/ui/AppModal";
+import { AppTextField } from "@/components/ui/AppTextField";
 import {
   FontSizes,
   Fonts,
@@ -18,26 +21,151 @@ import {
   Spacing,
 } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
+import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
+import {
+  createCustomerOrder,
+  getCustomerAddresses,
+  formatCurrency,
+  getDeliveryZones,
+  type CustomerAddress,
+  type DeliveryZone,
+} from "@/lib/customer-orders";
+import { supabase } from "@/lib/supabase";
 
 export default function CheckoutScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { itemCount, subtotal } = useCart();
+  const { user } = useAuth();
+  const {
+    itemCount,
+    subtotal,
+    currency,
+    hasMixedCurrencies,
+    loading: cartLoading,
+    syncError,
+    flush,
+    retrySync,
+    clearAfterOrder,
+  } = useCart();
 
   const [confirmModalVisible, setConfirmModalVisible] =
     useState(false);
+  const [recipientName, setRecipientName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [customerNote, setCustomerNote] = useState("");
+  const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([]);
+  const [savedAddresses, setSavedAddresses] = useState<CustomerAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [selectedZoneId, setSelectedZoneId] = useState("");
+  const [loadingDetails, setLoadingDetails] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const deliveryFee = itemCount > 0 ? 15000 : 0;
-  const total = subtotal + deliveryFee;
+  const selectedZone = deliveryZones.find((zone) => zone.id === selectedZoneId);
+  const deliveryFee = selectedZone?.fixed_fee ?? 0;
+  const total = currency && selectedZone?.currency === currency
+    ? subtotal + deliveryFee
+    : subtotal;
+  const confirmationTotal = currency
+    ? selectedZone && selectedZone.currency !== currency
+      ? `${formatCurrency(subtotal, currency)} + ${formatCurrency(deliveryFee, selectedZone.currency)}`
+      : formatCurrency(total, currency)
+    : "—";
+
+  useEffect(() => {
+    let alive = true;
+    const loadCheckoutDetails = async () => {
+      setLoadingDetails(true);
+      setError(null);
+      try {
+        const [zones, profileResult, addresses] = await Promise.all([
+          getDeliveryZones(),
+          user
+            ? supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle()
+            : Promise.resolve({ data: null, error: null }),
+          getCustomerAddresses(),
+        ]);
+        if (profileResult.error) throw profileResult.error;
+        if (!alive) return;
+        setDeliveryZones(zones);
+        setSavedAddresses(addresses);
+        const defaultAddress = addresses.find((address) => address.is_default);
+        const defaultZoneIsActive = Boolean(defaultAddress?.zone?.is_active);
+        setSelectedAddressId(defaultAddress && defaultZoneIsActive ? defaultAddress.id : null);
+        setSelectedZoneId(defaultZoneIsActive
+          ? defaultAddress?.delivery_zone_id ?? ""
+          : zones[0]?.id ?? "");
+        setRecipientName(defaultAddress?.recipient_name ?? profileResult.data?.full_name ?? "");
+        const metadataPhone = user?.user_metadata?.phone;
+        setContactPhone(defaultAddress?.contact_phone ?? (typeof metadataPhone === "string" ? metadataPhone : ""));
+        setDeliveryAddress(defaultAddress?.delivery_address ?? "");
+      } catch (cause) {
+        if (alive) {
+          setError(cause instanceof Error ? cause.message : "تعذر تحميل بيانات إتمام الطلب.");
+        }
+      } finally {
+        if (alive) setLoadingDetails(false);
+      }
+    };
+    void loadCheckoutDetails();
+    return () => {
+      alive = false;
+    };
+  }, [user]);
+
+  const selectSavedAddress = (address: CustomerAddress) => {
+    setSelectedAddressId(address.id);
+    setRecipientName(address.recipient_name);
+    setContactPhone(address.contact_phone);
+    setDeliveryAddress(address.delivery_address);
+    if (address.zone?.is_active) {
+      setSelectedZoneId(address.delivery_zone_id);
+      setError(null);
+    } else {
+      setSelectedZoneId("");
+      setError("منطقة هذا العنوان لم تعد متاحة. اختر منطقة توصيل فعالة.");
+    }
+  };
 
   const handleConfirmOrder = () => {
+    setError(null);
+    if (cartLoading || itemCount === 0) {
+      setError("السلة فارغة أو ما زالت قيد التحميل.");
+      return;
+    }
+    if (hasMixedCurrencies) {
+      setError("لا يمكن إرسال سلة تحتوي منتجات بعملات مختلفة.");
+      return;
+    }
+    if (!recipientName.trim() || !contactPhone.trim() || !deliveryAddress.trim() || !selectedZone) {
+      setError("أكمل بيانات المستلم وعنوان التوصيل واختر منطقة التوصيل.");
+      return;
+    }
     setConfirmModalVisible(true);
   };
 
-  const handleConfirm = () => {
-    setConfirmModalVisible(false);
-    router.push("/orders");
+  const handleConfirm = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await flush();
+      const orderId = await createCustomerOrder({
+        recipientName: recipientName.trim(),
+        contactPhone: contactPhone.trim(),
+        deliveryAddress: deliveryAddress.trim(),
+        deliveryZoneId: selectedZoneId,
+        customerNote: customerNote.trim(),
+      });
+      clearAfterOrder();
+      setConfirmModalVisible(false);
+      router.replace({ pathname: "/order-details", params: { id: orderId } });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر إنشاء الطلب. حاول مجددًا.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleCancel = () => {
@@ -65,15 +193,108 @@ export default function CheckoutScreen() {
         contentContainerStyle={styles.content}
       >
         <Section title="عنوان التوصيل">
-          <Pressable
-            style={[
-              styles.optionCard,
-              {
-                borderColor: colors.border,
-                backgroundColor: colors.surface,
-              },
-            ]}
-          >
+          {savedAddresses.length > 0 ? (
+            <View style={{ gap: Spacing.two }}>
+              <Text style={{ color: colors.textSecondary, textAlign: "right" }}>
+                اختر عنوانًا محفوظًا أو أدخل عنوانًا جديدًا لهذا الطلب:
+              </Text>
+              {savedAddresses.map((address) => {
+                const selected = selectedAddressId === address.id;
+                return (
+                  <Pressable
+                    key={address.id}
+                    onPress={() => selectSavedAddress(address)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    style={[
+                      styles.optionCard,
+                      {
+                        borderColor: selected ? colors.primary : colors.border,
+                        backgroundColor: colors.surface,
+                      },
+                    ]}
+                  >
+                    <View style={styles.optionInfo}>
+                      <Text style={[styles.optionTitle, { color: colors.text }]}>
+                        {address.title}{address.is_default ? " · افتراضي" : ""}
+                      </Text>
+                      <Text style={[styles.optionText, { color: colors.textSecondary }]}>
+                        {address.recipient_name} · {address.contact_phone}
+                      </Text>
+                      <Text style={[styles.optionText, { color: colors.textSecondary }]}>
+                        {address.delivery_address}
+                      </Text>
+                      <Text style={[styles.optionText, { color: address.zone?.is_active ? colors.primary : colors.error }]}>
+                        {address.zone
+                          ? `${address.zone.name} · ${formatCurrency(address.zone.fixed_fee, address.zone.currency)}`
+                          : "منطقة التوصيل غير متاحة"}
+                      </Text>
+                    </View>
+                    <AppIcon
+                      name={selected ? "checkmark-circle" : "ellipse-outline"}
+                      size={22}
+                      color={selected ? colors.primary : colors.textMuted}
+                    />
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+          <AppButton
+            title="إدارة العناوين المحفوظة"
+            icon="location-outline"
+            variant="outline"
+            onPress={() => router.push("/addresses")}
+          />
+          <AppTextField
+            label="اسم المستلم"
+            value={recipientName}
+            onChangeText={(value) => {
+              setSelectedAddressId(null);
+              setRecipientName(value);
+            }}
+            autoCapitalize="words"
+            maxLength={120}
+          />
+          <AppTextField
+            label="رقم الهاتف"
+            value={contactPhone}
+            onChangeText={(value) => {
+              setSelectedAddressId(null);
+              setContactPhone(value);
+            }}
+            keyboardType="phone-pad"
+            maxLength={32}
+          />
+          <AppTextField
+            label="العنوان بالتفصيل"
+            value={deliveryAddress}
+            onChangeText={(value) => {
+              setSelectedAddressId(null);
+              setDeliveryAddress(value);
+            }}
+            placeholder="الحي، الشارع، أقرب علامة مميزة"
+            multiline
+            maxLength={1000}
+          />
+          {loadingDetails ? <ActivityIndicator color={colors.primary} /> : null}
+          {deliveryZones.map((zone) => (
+            <Pressable
+              key={zone.id}
+              onPress={() => {
+                setSelectedAddressId(null);
+                setSelectedZoneId(zone.id);
+              }}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: selectedZoneId === zone.id }}
+              style={[
+                styles.optionCard,
+                {
+                  borderColor: selectedZoneId === zone.id ? colors.primary : colors.border,
+                  backgroundColor: colors.surface,
+                },
+              ]}
+            >
             <View
               style={[
                 styles.optionIcon,
@@ -99,7 +320,7 @@ export default function CheckoutScreen() {
                   },
                 ]}
               >
-                المنزل
+                {zone.name}
               </Text>
 
               <Text
@@ -111,16 +332,24 @@ export default function CheckoutScreen() {
                   },
                 ]}
               >
-                الكرك الشرقي
+                رسوم التوصيل: {formatCurrency(zone.fixed_fee, zone.currency)}
               </Text>
             </View>
 
             <AppIcon
-              name="checkmark-circle"
+              name={selectedZoneId === zone.id ? "checkmark-circle" : "ellipse-outline"}
               size={22}
               color={colors.primary}
             />
           </Pressable>
+          ))}
+          <AppTextField
+            label="ملاحظة للطلب (اختياري)"
+            value={customerNote}
+            onChangeText={setCustomerNote}
+            multiline
+            maxLength={1500}
+          />
         </Section>
 
         <Section title="طريقة الدفع">
@@ -200,16 +429,12 @@ export default function CheckoutScreen() {
 
             <SummaryRow
               label="المجموع الفرعي"
-              value={`${subtotal.toLocaleString(
-                "en-US",
-              )} ل.س`}
+              value={currency ? formatCurrency(subtotal, currency) : "—"}
             />
 
             <SummaryRow
               label="التوصيل"
-              value={`${deliveryFee.toLocaleString(
-                "en-US",
-              )} ل.س`}
+              value={selectedZone ? formatCurrency(deliveryFee, selectedZone.currency) : "اختر منطقة التوصيل"}
             />
 
             <View
@@ -243,7 +468,9 @@ export default function CheckoutScreen() {
                     },
                   ]}
                 >
-                  {total.toLocaleString("en-US")}
+                  {currency && selectedZone?.currency !== currency
+                    ? `${formatCurrency(subtotal, currency)} + ${selectedZone ? formatCurrency(deliveryFee, selectedZone.currency) : "—"}`
+                    : total.toLocaleString("en-US")}
                 </Text>
 
                 <Text
@@ -255,7 +482,9 @@ export default function CheckoutScreen() {
                     },
                   ]}
                 >
-                  ل.س
+                  {currency && selectedZone?.currency === currency
+                    ? currency === "USD" ? "$" : "ل.س"
+                    : ""}
                 </Text>
               </View>
             </View>
@@ -292,7 +521,21 @@ export default function CheckoutScreen() {
           </Text>
         </View>
 
+        {error ? (
+          <Text accessibilityRole="alert" style={{ color: colors.error, textAlign: "right" }}>
+            {error}
+          </Text>
+        ) : null}
+        {syncError ? (
+          <View style={{ alignItems: "flex-start", gap: Spacing.two }}>
+            <Text accessibilityRole="alert" style={{ color: colors.error, textAlign: "right" }}>
+              {syncError}
+            </Text>
+            <AppButton title="إعادة تحميل السلة" variant="outline" onPress={() => void retrySync()} />
+          </View>
+        ) : null}
         <Pressable
+          disabled={loadingDetails || submitting || cartLoading}
           onPress={handleConfirmOrder}
           style={({ pressed }) => [
             styles.confirmButton,
@@ -301,6 +544,7 @@ export default function CheckoutScreen() {
                 colors.primary,
             },
             pressed && styles.pressed,
+            (loadingDetails || submitting || cartLoading) && { opacity: 0.6 },
           ]}
           accessibilityRole="button"
           accessibilityLabel="تأكيد الطلب"
@@ -339,15 +583,20 @@ export default function CheckoutScreen() {
       <AppModal
         visible={confirmModalVisible}
         title="تأكيد الطلب"
-        message={`هل تريد تأكيد طلبك بقيمة ${total.toLocaleString(
-          "en-US",
-        )} ل.س والدفع عند الاستلام؟`}
+        message={`هل تريد تأكيد الطلب بقيمة ${confirmationTotal} والدفع عند الاستلام؟`}
         icon="checkmark-circle-outline"
-        confirmText="تأكيد الطلب"
+        confirmText={submitting ? "جارٍ إرسال الطلب..." : "تأكيد الطلب"}
         cancelText="مراجعة الطلب"
-        onConfirm={handleConfirm}
+        busy={submitting}
+        onConfirm={() => void handleConfirm()}
         onCancel={handleCancel}
-      />
+      >
+        {error ? (
+          <Text accessibilityRole="alert" style={{ color: colors.error, textAlign: "center", marginTop: Spacing.three }}>
+            {error}
+          </Text>
+        ) : null}
+      </AppModal>
     </View>
   );
 }

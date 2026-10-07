@@ -14,6 +14,7 @@ import { AppBottomNav } from "@/components/navigation/AppBottomNav";
 import { BottomNavHeight } from "@/constants/theme";
 import { CartProvider } from "@/context/CartContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { CustomerCatalogProvider } from "@/context/CustomerCatalogContext";
 import { FavoritesProvider } from "@/context/FavoritesContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { SettingsProvider } from "@/context/SettingsContext";
@@ -90,9 +91,11 @@ export default function RootLayout() {
         <ThemeProvider>
           <NotificationProvider>
             <FavoritesProvider>
-              <CartProvider>
-                <AppContent />
-              </CartProvider>
+              <CustomerCatalogProvider>
+                <CartProvider>
+                  <AppContent />
+                </CartProvider>
+              </CustomerCatalogProvider>
             </FavoritesProvider>
           </NotificationProvider>
         </ThemeProvider>

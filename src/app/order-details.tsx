@@ -1,76 +1,49 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { AppHeader } from "@/components/navigation/AppHeader";
+import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
 import { useTheme } from "@/context/ThemeContext";
+import { cancelCustomerOrder, formatCurrency, getCustomerOrder, type CustomerOrderView } from "@/lib/customer-orders";
+import { groupOrderItems } from "@/lib/order-item-groups";
 
-type OrderStatus = "confirmed" | "preparing" | "ready" | "completed";
-
-type OrderItem = {
-  name: string;
-  quantity: number;
-  price: string;
-};
-
-type StoreOrder = {
-  name: string;
-  status: OrderStatus;
-  items: OrderItem[];
-};
-
-const storeOrders: StoreOrder[] = [
-  {
-    name: "متجر المواد الغذائية",
-    status: "preparing",
-    items: [
-      {
-        name: "حليب كامل الدسم",
-        quantity: 2,
-        price: "18,000 ل.س",
-      },
-      {
-        name: "سكر 1 كغ",
-        quantity: 1,
-        price: "12,000 ل.س",
-      },
-      {
-        name: "أرز 1 كغ",
-        quantity: 2,
-        price: "24,000 ل.س",
-      },
-    ],
-  },
-  {
-    name: "محامص الكرك",
-    status: "confirmed",
-    items: [
-      {
-        name: "قهوة عربية",
-        quantity: 1,
-        price: "35,000 ل.س",
-      },
-    ],
-  },
-];
+type StoreOrderStatus = NonNullable<CustomerOrderView["stores"][number]["storeOrder"]["status"]>;
 
 const statusIcons: Record<
-  OrderStatus,
+  StoreOrderStatus,
   React.ComponentProps<typeof AppIcon>["name"]
 > = {
-  confirmed: "checkmark-circle-outline",
+  awaiting_review: "time-outline",
   preparing: "time-outline",
-  ready: "checkmark-circle-outline",
-  completed: "checkmark-done-outline",
+  ready_for_pickup: "checkmark-circle-outline",
+  handed_to_driver: "bicycle-outline",
+  delivered: "checkmark-done-outline",
+  rejected: "close-circle-outline",
+  cancelled: "close-circle-outline",
 };
 
-const statusLabels: Record<OrderStatus, string> = {
-  confirmed: "تم التأكيد",
+const statusLabels: Record<StoreOrderStatus, string> = {
+  awaiting_review: "بانتظار مراجعة المتجر",
   preparing: "قيد التجهيز",
-  ready: "جاهز",
-  completed: "مكتمل",
+  ready_for_pickup: "جاهز للاستلام",
+  handed_to_driver: "سُلّم إلى السائق",
+  delivered: "تم التسليم",
+  rejected: "مرفوض",
+  cancelled: "ملغى",
+};
+
+const customerStatusLabels: Record<CustomerOrderView["status"], string> = {
+  submitted: "تم استلام الطلب",
+  in_progress: "قيد التجهيز",
+  ready_for_delivery: "جاهز للتوصيل",
+  out_for_delivery: "في الطريق",
+  delivered: "تم التسليم",
+  partially_cancelled: "ملغى جزئيًا",
+  cancelled: "ملغى",
 };
 
 export default function OrderDetailsScreen() {
@@ -82,25 +55,109 @@ export default function OrderDetailsScreen() {
   const { colors } = useTheme();
   const { itemCount } = useCart();
 
-  const orderId = typeof params.id === "string" ? params.id : "TW-1001";
+  const orderId = typeof params.id === "string" ? params.id : "";
+  const [order, setOrder] = useState<CustomerOrderView | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
-  const getStatusColors = (status: OrderStatus) => {
+  const refresh = useCallback(async () => {
+    if (!orderId) {
+      setError("معرّف الطلب غير صالح.");
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      setOrder(await getCustomerOrder(orderId));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تحميل تفاصيل الطلب.");
+    } finally {
+      setLoading(false);
+    }
+  }, [orderId]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => void refresh(), 0);
+    return () => clearTimeout(timer);
+  }, [refresh]);
+
+  const displayOrderId = order ? `TW-${order.order_number}` : "";
+  const canCancel = Boolean(
+    order &&
+    order.stores.length > 0 &&
+    order.stores.every(({ storeOrder }) =>
+      ["awaiting_review", "rejected", "cancelled"].includes(storeOrder.status),
+    ),
+  );
+
+  const handleCancelOrder = () => {
+    Alert.alert("إلغاء الطلب", "هل تريد إلغاء هذا الطلب؟", [
+      { text: "العودة", style: "cancel" },
+      {
+        text: "إلغاء الطلب",
+        style: "destructive",
+        onPress: () => {
+          setCancelling(true);
+          void cancelCustomerOrder(orderId)
+            .then(refresh)
+            .catch((cause: unknown) => {
+              setError(cause instanceof Error ? cause.message : "تعذر إلغاء الطلب.");
+            })
+            .finally(() => setCancelling(false));
+        },
+      },
+    ]);
+  };
+
+  const getStatusColors = (status: StoreOrderStatus) => {
     switch (status) {
       case "preparing":
+      case "awaiting_review":
         return {
           color: colors.accent,
           background: colors.accentLight,
         };
 
-      case "confirmed":
-      case "ready":
-      case "completed":
+      case "ready_for_pickup":
+      case "handed_to_driver":
+      case "delivered":
         return {
           color: colors.primary,
           background: colors.primaryLight,
         };
+      case "rejected":
+      case "cancelled":
+        return {
+          color: colors.error,
+          background: colors.error + "18",
+        };
     }
   };
+
+  if (loading && !order) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <AppHeader title="تفاصيل الطلب" showBack cartCount={itemCount} mode="customer" />
+        <ActivityIndicator color={colors.primary} style={{ marginTop: Spacing.six }} />
+      </View>
+    );
+  }
+
+  if (!order) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <AppHeader title="تفاصيل الطلب" showBack cartCount={itemCount} mode="customer" />
+        <View style={{ padding: Spacing.four, gap: Spacing.three }}>
+          <Text style={{ color: colors.error, fontFamily: Fonts.regular, fontSize: FontSizes.sm, textAlign: "center" }}>
+            {error ?? "لم يتم العثور على الطلب أو لا تملك صلاحية عرضه."}
+          </Text>
+          {error ? <AppButton title="إعادة المحاولة" variant="outline" onPress={() => void refresh()} /> : null}
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View
@@ -117,6 +174,19 @@ export default function OrderDetailsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
+        <AppButton
+          title={loading ? "جارٍ تحديث الحالة..." : "تحديث حالة الطلب"}
+          icon="refresh-outline"
+          variant="outline"
+          disabled={loading}
+          onPress={() => void refresh()}
+        />
+        <AppButton
+          title="عرض فاتورة الطلب"
+          icon="document-text-outline"
+          variant="outline"
+          onPress={() => router.push({ pathname: "/invoice", params: { id: order.id } })}
+        />
         <View style={styles.orderHeader}>
           <View style={styles.orderNumber}>
             <Text
@@ -138,7 +208,7 @@ export default function OrderDetailsScreen() {
                 },
               ]}
             >
-              {orderId}
+              {displayOrderId}
             </Text>
           </View>
 
@@ -162,7 +232,7 @@ export default function OrderDetailsScreen() {
                 },
               ]}
             >
-              اليوم، 4:30 م
+              {new Date(order.created_at).toLocaleString("ar")}
             </Text>
           </View>
         </View>
@@ -188,21 +258,9 @@ export default function OrderDetailsScreen() {
           </Text>
 
           <View style={styles.timeline}>
-            <TimelineStep title="تم إنشاء الطلب" active completed />
-
-            <TimelineStep title="تم التأكيد" active completed />
-
-            <TimelineStep title="قيد التجهيز" active completed={false} />
-
             <TimelineStep
-              title="جاهز للاستلام"
-              active={false}
-              completed={false}
-            />
-
-            <TimelineStep
-              title="تم التسليم"
-              active={false}
+              title={`الحالة الحالية: ${customerStatusLabels[order.status]}`}
+              active
               completed={false}
               last
             />
@@ -222,12 +280,13 @@ export default function OrderDetailsScreen() {
           </Text>
 
           <View style={styles.stores}>
-            {storeOrders.map((store) => {
-              const statusColors = getStatusColors(store.status);
+            {order.stores.map(({ storeOrder, storeName, items }) => {
+              const statusColors = getStatusColors(storeOrder.status);
+              const itemGroups = groupOrderItems(items);
 
               return (
                 <View
-                  key={store.name}
+                  key={storeOrder.id}
                   style={[
                     styles.storeCard,
                     {
@@ -261,7 +320,7 @@ export default function OrderDetailsScreen() {
                           },
                         ]}
                       >
-                        {store.name}
+                        {storeName}
                       </Text>
 
                       <View
@@ -273,7 +332,7 @@ export default function OrderDetailsScreen() {
                         ]}
                       >
                         <AppIcon
-                          name={statusIcons[store.status]}
+                          name={statusIcons[storeOrder.status]}
                           size={13}
                           color={statusColors.color}
                         />
@@ -286,47 +345,59 @@ export default function OrderDetailsScreen() {
                             },
                           ]}
                         >
-                          {statusLabels[store.status]}
+                          {statusLabels[storeOrder.status]}
                         </Text>
                       </View>
                     </View>
                   </View>
 
                   <View style={styles.items}>
-                    {store.items.map((item) => (
+                    {itemGroups.map((group) => (
                       <View
-                        key={item.name}
+                        key={group.id}
                         style={[
                           styles.item,
                           {
+                            backgroundColor: colors.surfaceSecondary,
                             borderTopColor: colors.border,
+                            borderRadius: Radius.md,
+                            padding: Spacing.three,
                           },
                         ]}
                       >
-                        <View style={styles.itemQuantity}>
+                        <View style={{ flex: 1, gap: Spacing.one }}>
                           <Text
                             style={[
                               styles.quantityText,
                               {
-                                color: colors.primary,
+                                color: colors.text,
                               },
                             ]}
                           >
-                            {item.quantity}×
+                            {group.offerTitle ?? group.items[0].product_title_snapshot}
                           </Text>
+                          {group.offerDescription ? (
+                            <Text style={{ color: colors.accent, fontFamily: Fonts.medium, fontSize: FontSizes.xs, textAlign: "right" }}>
+                              {group.offerDescription}
+                            </Text>
+                          ) : (
+                            <Text style={{ color: colors.textMuted, fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "right" }}>
+                              {group.items[0].quantity} {group.items[0].selling_unit_snapshot}
+                            </Text>
+                          )}
+                          {group.offerTitle ? (
+                            <View style={{ gap: Spacing.one, marginTop: Spacing.one }}>
+                              {group.items.map((item) => (
+                                <Text
+                                  key={item.id}
+                                  style={{ color: colors.textSecondary, fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "right" }}
+                                >
+                                  {item.product_title_snapshot} · {item.quantity} {item.selling_unit_snapshot}
+                                </Text>
+                              ))}
+                            </View>
+                          ) : null}
                         </View>
-
-                        <Text
-                          style={[
-                            styles.itemName,
-                            {
-                              color: colors.text,
-                            },
-                          ]}
-                          numberOfLines={2}
-                        >
-                          {item.name}
-                        </Text>
 
                         <Text
                           style={[
@@ -336,8 +407,13 @@ export default function OrderDetailsScreen() {
                             },
                           ]}
                         >
-                          {item.price}
+                          {formatCurrency(group.finalTotal, group.currency)}
                         </Text>
+                        {group.originalTotal > group.finalTotal ? (
+                          <Text style={{ color: colors.textMuted, fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "right", textDecorationLine: "line-through" }}>
+                            قبل العرض {formatCurrency(group.originalTotal, group.currency)}
+                          </Text>
+                        ) : null}
                       </View>
                     ))}
                   </View>
@@ -367,9 +443,17 @@ export default function OrderDetailsScreen() {
             ملخص الطلب
           </Text>
 
-          <SummaryRow label="إجمالي المنتجات" value="89,000 ل.س" />
-
-          <SummaryRow label="التوصيل" value="10,000 ل.س" />
+          {order.totals.map((total) => (
+            <SummaryRow
+              key={total.currency}
+              label={`المنتجات (${total.currency})`}
+              value={formatCurrency(total.items_subtotal, total.currency)}
+            />
+          ))}
+          <SummaryRow
+            label="التوصيل"
+            value={formatCurrency(order.delivery_fee, order.delivery_currency)}
+          />
 
           <View
             style={[
@@ -380,46 +464,39 @@ export default function OrderDetailsScreen() {
             ]}
           />
 
-          <SummaryRow label="الإجمالي" value="99,000 ل.س" total />
+          {order.totals.map((total) => (
+            <SummaryRow
+              key={`total-${total.currency}`}
+              label={`الإجمالي (${total.currency})`}
+              value={formatCurrency(total.total, total.currency)}
+              total
+            />
+          ))}
         </View>
 
-        <Pressable
-          style={({ pressed }) => [
-            styles.invoiceButton,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.primary,
-            },
-            pressed && styles.pressed,
-          ]}
-          onPress={() =>
-            router.push({
-              pathname: "/invoice",
-              params: {
-                id: orderId,
-              },
-            })
-          }
-          accessibilityRole="button"
-          accessibilityLabel="عرض الفاتورة"
-        >
-          <AppIcon
-            name="document-text-outline"
-            size={20}
-            color={colors.primary}
-          />
-
-          <Text
-            style={[
-              styles.invoiceButtonText,
-              {
-                color: colors.primary,
-              },
-            ]}
-          >
-            عرض الفاتورة
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>عنوان التوصيل</Text>
+          <Text style={{ color: colors.textSecondary, fontFamily: Fonts.regular, fontSize: FontSizes.sm, textAlign: "right" }}>
+            {order.recipient_name} · {order.contact_phone}
           </Text>
-        </Pressable>
+          <Text style={{ color: colors.textSecondary, fontFamily: Fonts.regular, fontSize: FontSizes.sm, textAlign: "right" }}>
+            {order.delivery_address} · {order.delivery_zone_name_snapshot}
+          </Text>
+        </View>
+
+        {canCancel ? (
+          <AppButton
+            title={cancelling ? "جارٍ إلغاء الطلب..." : "إلغاء الطلب"}
+            variant="outline"
+            disabled={cancelling}
+            onPress={handleCancelOrder}
+          />
+        ) : null}
+        {error ? (
+          <Text accessibilityRole="alert" style={{ color: colors.error, fontFamily: Fonts.regular, fontSize: FontSizes.sm, textAlign: "center" }}>
+            {error}
+          </Text>
+        ) : null}
       </ScrollView>
     </View>
   );

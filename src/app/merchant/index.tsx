@@ -47,6 +47,11 @@ type HomeOffer = {
   bundle_price: number | null;
   currency: "SYP" | "USD";
   ends_at: string | null;
+  items?: {
+    title: string;
+    quantity: number;
+    item_role: "discounted" | "bundle" | "buy" | "reward";
+  }[];
 };
 
 type HomeSnapshot = {
@@ -293,7 +298,54 @@ export default function MerchantHomeScreen() {
           image_path: getProductImagePath(product.id, mediaRows),
         }));
 
-        const activeOffers = (offersResult.data ?? []) as HomeOffer[];
+        const offerRows = offersResult.data ?? [];
+        const activeOffers: HomeOffer[] = offerRows.map((offer) => ({
+          ...offer,
+          items: [],
+        }));
+
+        if (offerRows.length > 0) {
+          const { data: offerItems, error: offerItemsError } = await supabase
+            .from("store_offer_products")
+            .select("offer_id,product_id,quantity,item_role")
+            .in("offer_id", offerRows.map((offer) => offer.id));
+
+          if (offerItemsError) {
+            throw offerItemsError;
+          }
+
+          const itemRows = offerItems ?? [];
+          const offerProductIds = [...new Set(itemRows.map((item) => item.product_id))];
+          const productsById = new Map<string, string>();
+
+          if (offerProductIds.length > 0) {
+            const { data: offerProducts, error: offerProductsError } = await supabase
+              .from("products")
+              .select("id,title")
+              .in("id", offerProductIds);
+
+            if (offerProductsError) {
+              throw offerProductsError;
+            }
+
+            for (const product of offerProducts ?? []) {
+              productsById.set(product.id, product.title);
+            }
+          }
+
+          const offersById = new Map(activeOffers.map((offer) => [offer.id, offer]));
+          for (const item of itemRows) {
+            const offer = offersById.get(item.offer_id);
+            const title = productsById.get(item.product_id);
+            if (offer && title) {
+              offer.items = [...(offer.items ?? []), {
+                title,
+                quantity: item.quantity,
+                item_role: item.item_role,
+              }];
+            }
+          }
+        }
 
         const nextSnapshot: HomeSnapshot = {
           store,
@@ -331,7 +383,7 @@ export default function MerchantHomeScreen() {
         setRefreshing(false);
       }
     },
-    [cacheKey, user?.id],
+    [cacheKey, user],
   );
 
   useEffect(() => {
@@ -1256,6 +1308,22 @@ function OfferPreview({ offer, colors }: OfferPreviewProps) {
           {formatOffer(offer)}
         </Text>
 
+        {offer.items && offer.items.length > 0 ? (
+          <Text
+            style={[
+              styles.offerItems,
+              {
+                color: colors.textSecondary,
+              },
+            ]}
+            numberOfLines={2}
+          >
+            {offer.items
+              .map((item) => `${item.title} × ${item.quantity}${item.item_role === "reward" ? " (هدية)" : ""}`)
+              .join(" · ")}
+          </Text>
+        ) : null}
+
         {endDate ? (
           <Text
             style={[
@@ -1455,6 +1523,7 @@ const styles = StyleSheet.create({
   locationText: {
     fontFamily: Fonts.medium,
     fontSize: FontSizes.xs,
+    textAlign: "right",
   },
 
   cacheNotice: {
@@ -1487,6 +1556,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.medium,
     fontSize: FontSizes.xs,
     lineHeight: 18,
+    textAlign: "right",
   },
 
   storeCard: {
@@ -1545,6 +1615,7 @@ const styles = StyleSheet.create({
   statusText: {
     fontFamily: Fonts.bold,
     fontSize: 10,
+    textAlign: "right",
   },
 
   storeDivider: {
@@ -1737,7 +1808,7 @@ const styles = StyleSheet.create({
 
   offerCard: {
     minHeight: 78,
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     alignItems: "center",
     gap: Spacing.three,
     padding: Spacing.three,
@@ -1755,17 +1826,26 @@ const styles = StyleSheet.create({
 
   offerContent: {
     flex: 1,
+    alignItems: "flex-end",
   },
 
   offerTitle: {
     fontFamily: Fonts.bold,
     fontSize: FontSizes.sm,
+    textAlign: "right",
   },
 
   offerSummary: {
     marginTop: 3,
     fontFamily: Fonts.bold,
     fontSize: FontSizes.xs,
+  },
+
+  offerItems: {
+    marginTop: 4,
+    fontFamily: Fonts.regular,
+    fontSize: FontSizes.xs,
+    lineHeight: 18,
   },
 
   offerEnd: {

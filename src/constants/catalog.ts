@@ -16,9 +16,9 @@ export type Store = {
   categoryIds: string[];
   description: string;
   location: string;
-  rating: number;
-  deliveryTime: string;
-  deliveryFee: string;
+  rating?: number;
+  deliveryTime?: string;
+  deliveryFee?: string;
   featured?: boolean;
 };
 
@@ -29,10 +29,22 @@ export type Product = {
   name: string;
   description: string;
   price: number;
+  currency?: "SYP" | "USD";
   unit: string;
   available: boolean;
+  minimumQuantity?: number;
+  quantityStep?: number;
   popular?: boolean;
   offer?: boolean;
+  media?: ProductMedia[];
+};
+
+export type ProductMedia = {
+  id: string;
+  type: "image" | "video";
+  uri: string;
+  altText: string;
+  displayOrder: number;
 };
 
 /* -------------------------------------------------------------------------- */

@@ -17,7 +17,9 @@ import { Fonts, FontSizes, Radius, Spacing } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { getMerchantStore } from "@/lib/merchant-store";
+import { groupOrderItems } from "@/lib/order-item-groups";
 import { supabase } from "@/lib/supabase";
+import type { Json } from "@/types/database";
 
 type StoreOrderStatus =
   | "awaiting_review"
@@ -43,12 +45,14 @@ type StoreOrder = {
     created_at: string;
   };
   store_order_items: {
+    id: string;
     product_title_snapshot: string;
     selling_unit_snapshot: string;
     quantity: number;
     unit_price_snapshot: number;
     currency: "SYP" | "USD";
     line_total: number;
+    offer_snapshot: Json | null;
   }[];
   store_order_totals: {
     currency: "SYP" | "USD";
@@ -125,7 +129,7 @@ export default function MerchantOrdersScreen() {
         const { data, error } = await supabase
           .from("store_orders")
           .select(
-            "id,customer_order_id,status,customer_note,rejection_reason,created_at,customer_orders!inner(order_number,recipient_name,contact_phone,delivery_address,created_at),store_order_items(product_title_snapshot,selling_unit_snapshot,quantity,unit_price_snapshot,currency,line_total),store_order_totals(currency,items_subtotal)",
+            "id,customer_order_id,status,customer_note,rejection_reason,created_at,customer_orders!inner(order_number,recipient_name,contact_phone,delivery_address,created_at),store_order_items(id,product_title_snapshot,selling_unit_snapshot,quantity,unit_price_snapshot,currency,line_total,offer_snapshot),store_order_totals(currency,items_subtotal)",
           )
           .eq("store_id", store.id)
           .order("created_at", { ascending: false });
@@ -639,6 +643,7 @@ function OrderCard({
   const items = Array.isArray(order.store_order_items)
     ? order.store_order_items
     : [];
+  const itemGroups = groupOrderItems(items);
 
   const statusColor =
     order.status === "awaiting_review"
@@ -827,18 +832,21 @@ function OrderCard({
             },
           ]}
         >
-          {items.length} {items.length === 1 ? "منتج" : "منتجات"}
+          {itemGroups.length} {itemGroups.length === 1 ? "عنصر" : "عناصر"}
         </Text>
       </View>
 
       <View style={styles.items}>
-        {items.map((item, index) => (
+        {itemGroups.map((group) => (
           <View
-            key={`${order.id}-${index}`}
+            key={`${order.id}-${group.id}`}
             style={[
               styles.itemRow,
               {
                 borderBottomColor: colors.border,
+                backgroundColor: colors.surfaceSecondary,
+                borderRadius: Radius.md,
+                padding: Spacing.three,
               },
             ]}
           >
@@ -851,20 +859,28 @@ function OrderCard({
                   },
                 ]}
               >
-                {item.product_title_snapshot}
+                {group.offerTitle ?? group.items[0].product_title_snapshot}
               </Text>
-
-              <Text
-                style={[
-                  styles.itemMeta,
-                  {
-                    color: colors.textMuted,
-                  },
-                ]}
-              >
-                {item.quantity} {item.selling_unit_snapshot} ×{" "}
-                {money(Number(item.unit_price_snapshot), item.currency)}
-              </Text>
+              {group.offerDescription ? (
+                <Text style={{ color: colors.accent, fontFamily: Fonts.medium, fontSize: FontSizes.xs, textAlign: "right" }}>
+                  {group.offerDescription}
+                </Text>
+              ) : (
+                <Text style={[styles.itemMeta, { color: colors.textMuted }]}>
+                  {group.items[0].quantity} {group.items[0].selling_unit_snapshot} ×{" "}
+                  {money(Number(group.items[0].unit_price_snapshot), group.currency)}
+                </Text>
+              )}
+              {group.offerTitle ? group.items.map((item) => (
+                <Text key={item.id} style={[styles.itemMeta, { color: colors.textSecondary }]}>
+                  {item.product_title_snapshot} · {item.quantity} {item.selling_unit_snapshot}
+                </Text>
+              )) : null}
+              {group.originalTotal > group.finalTotal ? (
+                <Text style={[styles.itemMeta, { color: colors.textMuted, textDecorationLine: "line-through" }]}>
+                  قبل العرض {money(group.originalTotal, group.currency)}
+                </Text>
+              ) : null}
             </View>
 
             <Text
@@ -875,7 +891,7 @@ function OrderCard({
                 },
               ]}
             >
-              {money(Number(item.line_total), item.currency)}
+              {money(group.finalTotal, group.currency)}
             </Text>
           </View>
         ))}

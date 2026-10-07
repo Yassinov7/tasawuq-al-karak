@@ -10,9 +10,10 @@ import {
 
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { categories, products, stores } from "@/constants/catalog";
+import { CustomerCatalogStatus } from "@/components/marketplace/CustomerCatalogStatus";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
+import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -20,6 +21,7 @@ export default function FavoritesScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { itemCount } = useCart();
+  const { categories, products, stores } = useCustomerCatalog();
 
   const { favoriteIds, removeFavorite, clearFavorites } = useFavorites();
 
@@ -53,7 +55,10 @@ export default function FavoritesScreen() {
       <AppHeader title="المفضلة" showBack cartCount={itemCount} mode="customer" />
 
       {favoriteProducts.length === 0 ? (
+        <>
+        <CustomerCatalogStatus />
         <EmptyFavorites onContinue={() => router.push("/home")} />
+        </>
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}

@@ -1,12 +1,10 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { AppBadge } from "@/components/ui/AppBadge";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { categories, products, stores } from "@/constants/catalog";
+import { type Store } from "@/constants/catalog";
+import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
-
-type Store = (typeof stores)[number];
 
 type StoreCardProps = {
   store: Store;
@@ -22,6 +20,7 @@ export function StoreCard({
   showFeatured = true,
 }: StoreCardProps) {
   const { colors } = useTheme();
+  const { storeCategories: categories, products } = useCustomerCatalog();
 
   const category = categories.find((item) =>
     store.categoryIds.includes(item.id),
@@ -46,67 +45,73 @@ export function StoreCard({
         },
       ]}
     >
-      <View
-        style={[
-          styles.image,
-          {
-            backgroundColor: colors.primaryLight,
-          },
-        ]}
-      >
-        <AppIcon
-          name={category?.icon ?? "storefront-outline"}
-          size={compact ? 32 : 38}
-          color={colors.primary}
-        />
+      <View style={styles.header}>
+        <View
+          style={[
+            styles.storeIcon,
+            compact && styles.compactStoreIcon,
+            {
+              backgroundColor: colors.primaryLight,
+            },
+          ]}
+        >
+          <AppIcon
+            name={category?.icon ?? "storefront-outline"}
+            size={compact ? 23 : 26}
+            color={colors.primary}
+          />
+        </View>
+
+        <View style={styles.identity}>
+          <Text
+            style={[
+              styles.name,
+              {
+                color: colors.text,
+              },
+            ]}
+            numberOfLines={2}
+          >
+            {store.name}
+          </Text>
+          {category ? (
+            <Text
+              style={[
+                styles.category,
+                {
+                  color: colors.textMuted,
+                },
+              ]}
+              numberOfLines={1}
+            >
+              {category.name}
+            </Text>
+          ) : null}
+        </View>
 
         {showFeatured && store.featured ? (
-          <View style={styles.featuredBadge}>
-            <AppBadge text="مميز" variant="accent" icon="star" />
+          <View style={[styles.featuredBadge, { backgroundColor: colors.accentLight }]}>
+            <AppIcon name="star" size={11} color={colors.accent} />
+            <Text style={[styles.featuredText, { color: colors.accent }]}>مميز</Text>
           </View>
         ) : null}
       </View>
 
-      <Text
-        style={[
-          styles.name,
-          {
-            color: colors.text,
-          },
-        ]}
-        numberOfLines={1}
-      >
-        {store.name}
-      </Text>
-
-      <Text
-        style={[
-          styles.description,
-          {
-            color: colors.textSecondary,
-          },
-        ]}
-        numberOfLines={2}
-      >
-        {store.description}
-      </Text>
+      {store.description ? (
+        <Text
+          style={[
+            styles.description,
+            {
+              color: colors.textSecondary,
+            },
+          ]}
+          numberOfLines={2}
+        >
+          {store.description}
+        </Text>
+      ) : null}
 
       <View style={styles.meta}>
-        <View style={styles.metaItem}>
-          <AppIcon name="star" size={13} color={colors.accent} />
-
-          <Text
-            style={[
-              styles.metaText,
-              {
-                color: colors.textSecondary,
-              },
-            ]}
-          >
-            {store.rating.toFixed(1)}
-          </Text>
-        </View>
-
         <View style={styles.metaItem}>
           <AppIcon name="time-outline" size={13} color={colors.textSecondary} />
 
@@ -118,19 +123,12 @@ export function StoreCard({
               },
             ]}
           >
-            {store.deliveryTime}
+            {store.deliveryTime ?? "التوصيل عند الطلب"}
           </Text>
         </View>
       </View>
 
-      <View
-        style={[
-          styles.bottom,
-          {
-            borderTopColor: colors.border,
-          },
-        ]}
-      >
+      <View style={[styles.bottom, { borderTopColor: colors.border }]}>
         <Text
           style={[
             styles.productCount,
@@ -142,16 +140,10 @@ export function StoreCard({
           {productCount} منتج
         </Text>
 
-        <Text
-          style={[
-            styles.deliveryFee,
-            {
-              color: colors.textMuted,
-            },
-          ]}
-        >
-          {store.deliveryFee}
-        </Text>
+        <View style={styles.openAction}>
+          <Text style={[styles.openText, { color: colors.primary }]}>عرض المتجر</Text>
+          <AppIcon name="chevron-back-outline" size={15} color={colors.primary} />
+        </View>
       </View>
     </Pressable>
   );
@@ -172,25 +164,56 @@ const styles = StyleSheet.create({
     width: 205,
   },
 
-  image: {
-    height: 115,
+  header: {
+    minHeight: 56,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+
+  storeIcon: {
+    width: 50,
+    height: 50,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: Radius.lg,
-    position: "relative",
+  },
+
+  compactStoreIcon: {
+    width: 42,
+    height: 42,
+  },
+
+  identity: {
+    flex: 1,
+    alignItems: "flex-end",
   },
 
   featuredBadge: {
-    position: "absolute",
-    top: Spacing.two,
-    right: Spacing.two,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.one,
+    borderRadius: Radius.full,
   },
 
   name: {
-    marginTop: Spacing.three,
     fontFamily: Fonts.bold,
-    fontSize: FontSizes.md,
+    fontSize: FontSizes.sm,
     textAlign: "right",
+  },
+
+  category: {
+    marginTop: 3,
+    fontFamily: Fonts.medium,
+    fontSize: 10,
+    textAlign: "right",
+  },
+
+  featuredText: {
+    fontFamily: Fonts.medium,
+    fontSize: 10,
   },
 
   description: {
@@ -204,9 +227,8 @@ const styles = StyleSheet.create({
   meta: {
     flexDirection: "row-reverse",
     alignItems: "center",
-    justifyContent: "flex-start",
-    gap: Spacing.three,
-    marginTop: Spacing.three,
+    justifyContent: "flex-end",
+    marginTop: Spacing.two,
   },
 
   metaItem: {
@@ -217,25 +239,31 @@ const styles = StyleSheet.create({
 
   metaText: {
     fontFamily: Fonts.medium,
-    fontSize: 10,
+    fontSize: FontSizes.xs,
   },
 
   bottom: {
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: Spacing.three,
+    marginTop: Spacing.two,
     paddingTop: Spacing.two,
     borderTopWidth: 1,
   },
 
   productCount: {
     fontFamily: Fonts.medium,
-    fontSize: 10,
+    fontSize: FontSizes.xs,
   },
 
-  deliveryFee: {
-    fontFamily: Fonts.regular,
-    fontSize: 10,
+  openAction: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: Spacing.half,
+  },
+
+  openText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: FontSizes.xs,
   },
 });

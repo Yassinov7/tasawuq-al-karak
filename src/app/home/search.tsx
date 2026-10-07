@@ -15,26 +15,49 @@ import { ProductCard } from "@/components/marketplace/ProductCard";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppEmptyState } from "@/components/ui/AppEmptyState";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { categories, products, stores } from "@/constants/catalog";
+import { CustomerCatalogStatus } from "@/components/marketplace/CustomerCatalogStatus";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
+import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { useTheme } from "@/context/ThemeContext";
 
 function normalizeText(value: string) {
   return value
     .trim()
     .toLocaleLowerCase("ar")
-    .replace(/[أإآ]/g, "ا")
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ي")
     .replace(/ى/g, "ي")
     .replace(/ة/g, "ه")
     .replace(/ـ/g, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ");
 }
+
+function matchesAllTerms(value: string, terms: string[]) {
+  const normalized = normalizeText(value);
+  return terms.every((term) => normalized.includes(term));
+}
+
+type SearchFilter = "all" | "products" | "stores" | "categories";
+type ProductSort = "relevance" | "price-ascending" | "price-descending";
+type CurrencyFilter = "all" | "SYP" | "USD";
+
+const searchFilters: { id: SearchFilter; label: string; icon: React.ComponentProps<typeof AppIcon>["name"] }[] = [
+  { id: "all", label: "الكل", icon: "apps-outline" },
+  { id: "products", label: "المنتجات", icon: "cube-outline" },
+  { id: "stores", label: "المتاجر", icon: "storefront-outline" },
+  { id: "categories", label: "التصنيفات", icon: "grid-outline" },
+];
 
 export default function SearchTab() {
   const router = useRouter();
   const { colors } = useTheme();
   const { itemCount } = useCart();
+  const { categories, products, stores, storeCategories } =
+    useCustomerCatalog();
 
   const params = useLocalSearchParams<{
     q?: string;
@@ -49,32 +72,37 @@ export default function SearchTab() {
         : "";
 
   const [searchText, setSearchText] = useState(initialText);
+  const [filter, setFilter] = useState<SearchFilter>("all");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [currencyFilter, setCurrencyFilter] = useState<CurrencyFilter>("all");
+  const [productSort, setProductSort] = useState<ProductSort>("relevance");
+  const [filtersVisible, setFiltersVisible] = useState(false);
 
   const query = normalizeText(searchText);
+  const terms = useMemo(() => query.split(" ").filter(Boolean), [query]);
 
   const results = useMemo(() => {
     if (!query) {
       return {
-        stores: [],
-        products: [],
-        categories: [],
+        stores,
+        products: products.filter((product) => product.available),
+        categories,
       };
     }
 
     const storeResults = stores
       .map((store) => {
         const storeName = normalizeText(store.name);
-        const description = normalizeText(store.description);
 
         const directMatch = storeName === query;
-        const nameMatch = storeName.includes(query);
-        const descriptionMatch = description.includes(query);
+        const nameMatch = matchesAllTerms(store.name, terms);
+        const descriptionMatch = matchesAllTerms(store.description, terms);
 
         const categoryMatch = store.categoryIds.some((categoryId) => {
-          const category = categories.find((item) => item.id === categoryId);
+          const category = storeCategories.find((item) => item.id === categoryId);
 
           return category
-            ? normalizeText(category.name).includes(query)
+            ? matchesAllTerms(category.name, terms)
             : false;
         });
 
@@ -82,8 +110,10 @@ export default function SearchTab() {
 
         if (directMatch) {
           score += 1000;
-        } else if (nameMatch) {
+        } else if (storeName.startsWith(query)) {
           score += 700;
+        } else if (nameMatch) {
+          score += 600;
         } else if (categoryMatch) {
           score += 500;
         } else if (descriptionMatch) {
@@ -97,19 +127,15 @@ export default function SearchTab() {
       })
       .filter((item) => item.score > 0)
       .sort((a, b) => b.score - a.score)
-      .slice(0, 8)
       .map((item) => item.store);
 
     const productResults = products
       .map((product) => {
         const productName = normalizeText(product.name);
-        const description = normalizeText(product.description);
-        const unit = normalizeText(product.unit);
-
         const directMatch = productName === query;
-        const nameMatch = productName.includes(query);
-        const descriptionMatch = description.includes(query);
-        const unitMatch = unit.includes(query);
+        const nameMatch = matchesAllTerms(product.name, terms);
+        const descriptionMatch = matchesAllTerms(product.description, terms);
+        const unitMatch = matchesAllTerms(product.unit, terms);
 
         const categoryMatch = (() => {
           const category = categories.find(
@@ -117,7 +143,7 @@ export default function SearchTab() {
           );
 
           return category
-            ? normalizeText(category.name).includes(query)
+            ? matchesAllTerms(category.name, terms)
             : false;
         })();
 
@@ -125,8 +151,10 @@ export default function SearchTab() {
 
         if (directMatch) {
           score += 1000;
-        } else if (nameMatch) {
+        } else if (productName.startsWith(query)) {
           score += 700;
+        } else if (nameMatch) {
+          score += 600;
         } else if (categoryMatch) {
           score += 500;
         } else if (descriptionMatch) {
@@ -142,7 +170,6 @@ export default function SearchTab() {
       })
       .filter((item) => item.score > 0 && item.product.available)
       .sort((a, b) => b.score - a.score)
-      .slice(0, 12)
       .map((item) => item.product);
 
     const categoryResults = categories
@@ -150,7 +177,7 @@ export default function SearchTab() {
         const categoryName = normalizeText(category.name);
 
         const directMatch = categoryName === query;
-        const partialMatch = categoryName.includes(query);
+        const partialMatch = matchesAllTerms(category.name, terms);
 
         return {
           category,
@@ -159,7 +186,6 @@ export default function SearchTab() {
       })
       .filter((item) => item.score > 0)
       .sort((a, b) => b.score - a.score)
-      .slice(0, 6)
       .map((item) => item.category);
 
     return {
@@ -167,13 +193,80 @@ export default function SearchTab() {
       products: productResults,
       categories: categoryResults,
     };
-  }, [query]);
+  }, [query, terms, categories, products, storeCategories, stores]);
 
-  const totalResults =
-    results.stores.length + results.products.length + results.categories.length;
+  const visibleResults = useMemo(() => {
+    const filteredProducts = results.products.filter((product) => {
+      const matchesCategory =
+        selectedCategoryId === null || product.categoryId === selectedCategoryId;
+      const matchesCurrency =
+        currencyFilter === "all" || (product.currency ?? "SYP") === currencyFilter;
+      return matchesCategory && matchesCurrency;
+    });
+    const sortedProducts = [...filteredProducts];
+
+    if (currencyFilter !== "all" && productSort === "price-ascending") {
+      sortedProducts.sort((a, b) => a.price - b.price);
+    } else if (currencyFilter !== "all" && productSort === "price-descending") {
+      sortedProducts.sort((a, b) => b.price - a.price);
+    }
+
+    if (filter === "products") {
+      return { stores: [], products: sortedProducts, categories: [] };
+    }
+    if (filter === "stores") {
+      return { stores: results.stores, products: [], categories: [] };
+    }
+    if (filter === "categories") {
+      return { stores: [], products: [], categories: results.categories };
+    }
+    return { ...results, products: sortedProducts };
+  }, [currencyFilter, filter, productSort, results, selectedCategoryId]);
+
+  const filterCounts: Record<SearchFilter, number> = query
+    ? {
+        all: results.stores.length + results.products.length + results.categories.length,
+        products: results.products.length,
+        stores: results.stores.length,
+        categories: results.categories.length,
+      }
+    : {
+        all: stores.length + products.filter((product) => product.available).length + categories.length,
+        products: products.filter((product) => product.available).length,
+        stores: stores.length,
+        categories: categories.length,
+      };
+  const productCategories = query
+    ? categories.filter((category) =>
+        results.products.some((product) => product.categoryId === category.id),
+      )
+    : categories.filter((category) =>
+        products.some((product) => product.available && product.categoryId === category.id),
+      );
+  const productResultsForRefinement = query
+    ? results.products.length > 0
+    : products.some((product) => product.available);
+  const activeFilterCount =
+    Number(filter !== "all") +
+    Number(selectedCategoryId !== null) +
+    Number(currencyFilter !== "all") +
+    Number(productSort !== "relevance");
+  const totalResults = visibleResults.stores.length +
+    visibleResults.products.length + visibleResults.categories.length;
+  const quickSearches = [...new Set([
+    ...products.filter((product) => product.popular).map((product) => product.name),
+    ...categories.slice(0, 4).map((category) => category.name),
+  ])].slice(0, 5);
 
   const handleSubmit = () => {
     Keyboard.dismiss();
+  };
+
+  const handleQueryChange = (value: string) => {
+    setSearchText(value);
+    setSelectedCategoryId(null);
+    setCurrencyFilter("all");
+    setProductSort("relevance");
   };
 
   const handleStorePress = (storeId: string) => {
@@ -196,11 +289,19 @@ export default function SearchTab() {
 
   const handleCategoryPress = (categoryName: string) => {
     setSearchText(categoryName);
+    setFilter("products");
+    setSelectedCategoryId(null);
+    setCurrencyFilter("all");
+    setProductSort("relevance");
     Keyboard.dismiss();
   };
 
   const handleQuickSearch = (value: string) => {
     setSearchText(value);
+    setSelectedCategoryId(null);
+    setCurrencyFilter("all");
+    setProductSort("relevance");
+    setFilter("all");
   };
 
   return (
@@ -212,6 +313,7 @@ export default function SearchTab() {
         },
       ]}
     >
+      <CustomerCatalogStatus />
       <AppHeader title="البحث" showBack cartCount={itemCount} />
 
       <ScrollView
@@ -219,75 +321,366 @@ export default function SearchTab() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.content}
       >
-        <View
-          style={[
-            styles.searchBox,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-            },
-          ]}
-        >
+        <View style={styles.searchRow}>
           <View
             style={[
-              styles.searchLeading,
+              styles.searchBox,
               {
-                backgroundColor: colors.primaryLight,
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
               },
             ]}
           >
-            <AppIcon name="search-outline" size={19} color={colors.primary} />
+            <AppIcon name="search-outline" size={19} color={colors.textMuted} />
+
+            <TextInput
+              value={searchText}
+              onChangeText={handleQueryChange}
+              placeholder="ابحث عن منتج أو متجر"
+              placeholderTextColor={colors.textMuted}
+              style={[
+                styles.input,
+                {
+                  color: colors.text,
+                },
+              ]}
+              textAlign="right"
+              returnKeyType="search"
+              onSubmitEditing={handleSubmit}
+              autoFocus={false}
+            />
+
+            {searchText.length > 0 ? (
+              <Pressable
+                onPress={() => {
+                  setSearchText("");
+                  setSelectedCategoryId(null);
+                  setCurrencyFilter("all");
+                  setProductSort("relevance");
+                  setFilter("all");
+                }}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="مسح البحث"
+                style={({ pressed }) => [
+                  styles.clearButton,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <AppIcon name="close-circle" size={20} color={colors.textMuted} />
+              </Pressable>
+            ) : null}
           </View>
 
-          <TextInput
-            value={searchText}
-            onChangeText={setSearchText}
-            placeholder="ابحث عن متجر أو منتج أو تصنيف"
-            placeholderTextColor={colors.textMuted}
-            style={[
-              styles.input,
-              {
-                color: colors.text,
-              },
-            ]}
-            textAlign="right"
-            returnKeyType="search"
-            onSubmitEditing={handleSubmit}
-            autoFocus={false}
-          />
-
-          {searchText.length > 0 ? (
-            <Pressable
-              onPress={() => setSearchText("")}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="مسح البحث"
-              style={({ pressed }) => [
-                styles.clearButton,
-                pressed && styles.pressed,
-              ]}
-            >
-              <AppIcon name="close-circle" size={20} color={colors.textMuted} />
-            </Pressable>
-          ) : null}
-
           <Pressable
-            onPress={handleSubmit}
+            onPress={() => {
+              Keyboard.dismiss();
+              setFiltersVisible((visible) => !visible);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={filtersVisible ? "إخفاء الفلاتر" : "إظهار الفلاتر"}
+            accessibilityState={{ expanded: filtersVisible }}
             style={({ pressed }) => [
-              styles.searchButton,
+              styles.filterToggle,
               {
-                backgroundColor: colors.primary,
+                backgroundColor: filtersVisible || activeFilterCount > 0
+                  ? colors.primary
+                  : colors.surface,
+                borderColor: filtersVisible || activeFilterCount > 0
+                  ? colors.primary
+                  : colors.border,
               },
               pressed && styles.pressed,
             ]}
-            accessibilityRole="button"
-            accessibilityLabel="بحث"
           >
-            <AppIcon name="search-outline" size={20} color={colors.surface} />
+            <AppIcon
+              name="options-outline"
+              size={19}
+              color={filtersVisible || activeFilterCount > 0 ? colors.surface : colors.primary}
+            />
+            {activeFilterCount > 0 ? (
+              <View
+                style={[
+                  styles.activeFilterBadge,
+                  {
+                    backgroundColor: colors.accent,
+                    borderColor: colors.surface,
+                  },
+                ]}
+              >
+                <Text style={[styles.activeFilterCount, { color: colors.surface }]}>
+                  {activeFilterCount}
+                </Text>
+              </View>
+            ) : null}
           </Pressable>
         </View>
 
-        {!query ? (
+        {filtersVisible ? (
+          <View
+            style={[
+              styles.filterPanel,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+          <View style={styles.filterPanelHeader}>
+            <Text style={[styles.filterPanelTitle, { color: colors.text }]}>
+              تصفية البحث
+            </Text>
+            {filter !== "all" || selectedCategoryId || currencyFilter !== "all" ||
+            productSort !== "relevance" ? (
+              <Pressable
+                onPress={() => {
+                  setFilter("all");
+                  setSelectedCategoryId(null);
+                  setCurrencyFilter("all");
+                  setProductSort("relevance");
+                }}
+                accessibilityRole="button"
+                hitSlop={8}
+              >
+                <Text style={[styles.resetInlineText, { color: colors.primary }]}>
+                  مسح الفلاتر
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filters}
+          >
+            {searchFilters.map((item) => {
+              const selected = filter === item.id;
+              return (
+                <Pressable
+                  key={item.id}
+                  onPress={() => {
+                    setFilter(item.id);
+                    if (item.id !== "products") {
+                      setSelectedCategoryId(null);
+                      setCurrencyFilter("all");
+                      setProductSort("relevance");
+                    }
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  style={[
+                    styles.filterChip,
+                    {
+                      backgroundColor: selected ? colors.primary : colors.surface,
+                      borderColor: selected ? colors.primary : colors.border,
+                    },
+                  ]}
+                >
+                  <AppIcon
+                    name={item.icon}
+                    size={15}
+                    color={selected ? colors.surface : colors.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      styles.filterText,
+                      { color: selected ? colors.surface : colors.textSecondary },
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.filterCount,
+                      {
+                        color: selected ? colors.primary : colors.textMuted,
+                        backgroundColor: selected ? colors.surface : colors.surfaceSecondary,
+                      },
+                    ]}
+                  >
+                    {filterCounts[item.id]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <Text style={[styles.filterHint, { color: colors.textMuted }]}>
+            اختر نوع النتائج، أو اكتب كلمة للبحث داخلها
+          </Text>
+          </View>
+        ) : null}
+
+        {filtersVisible && (filter === "all" || filter === "products") &&
+        productResultsForRefinement ? (
+          <View
+            style={[
+              styles.refinements,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <View style={styles.refinementsHeader}>
+              <Text style={[styles.refinementTitle, { color: colors.text }]}>
+                تصفية المنتجات
+              </Text>
+              <Pressable
+                onPress={() => {
+                  setSelectedCategoryId(null);
+                  setCurrencyFilter("all");
+                  setProductSort("relevance");
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="إعادة ضبط فلاتر المنتجات"
+                hitSlop={8}
+              >
+                <Text style={[styles.resetInlineText, { color: colors.primary }]}>
+                  إعادة ضبط
+                </Text>
+              </Pressable>
+            </View>
+            {productCategories.length > 0 ? (
+              <>
+                <Text style={[styles.refinementLabel, { color: colors.textSecondary }]}>
+                  تصنيف المنتجات
+                </Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.filters}
+                >
+                  <Pressable
+                    onPress={() => setSelectedCategoryId(null)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: selectedCategoryId === null }}
+                    style={[
+                      styles.categoryFilter,
+                      {
+                        backgroundColor: selectedCategoryId === null ? colors.primary : colors.surface,
+                        borderColor: selectedCategoryId === null ? colors.primary : colors.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryFilterText,
+                        { color: selectedCategoryId === null ? colors.surface : colors.textSecondary },
+                      ]}
+                    >
+                      كل التصنيفات
+                    </Text>
+                  </Pressable>
+                  {productCategories.map((category) => {
+                    const selected = selectedCategoryId === category.id;
+                    return (
+                      <CategoryChip
+                        key={category.id}
+                        label={category.name}
+                        icon={category.icon}
+                        active={selected}
+                        onPress={() => {
+                          setFilter("products");
+                          setCurrencyFilter("all");
+                          setProductSort("relevance");
+                          setSelectedCategoryId(selected ? null : category.id);
+                        }}
+                      />
+                    );
+                  })}
+                </ScrollView>
+              </>
+            ) : null}
+
+            <View>
+              <Text style={[styles.refinementLabel, { color: colors.textSecondary }]}>
+                العملة
+              </Text>
+              <View style={styles.sortOptions}>
+                {([
+                  { id: "all", label: "الكل" },
+                  { id: "SYP", label: "ل.س" },
+                  { id: "USD", label: "$" },
+                ] as const).map((option) => {
+                  const selected = currencyFilter === option.id;
+                  return (
+                    <Pressable
+                      key={option.id}
+                      onPress={() => {
+                        setCurrencyFilter(option.id);
+                        setProductSort("relevance");
+                        if (option.id !== "all") {
+                          setFilter("products");
+                        }
+                      }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      style={[
+                        styles.sortChip,
+                        {
+                          backgroundColor: selected ? colors.primaryLight : colors.surface,
+                          borderColor: selected ? colors.primary : colors.border,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.sortText,
+                          { color: selected ? colors.primary : colors.textSecondary },
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            {currencyFilter !== "all" ? (
+              <View>
+                <Text style={[styles.refinementLabel, { color: colors.textSecondary }]}>
+                  ترتيب السعر
+                </Text>
+                <View style={styles.sortOptions}>
+                  {([
+                    { id: "relevance", label: "الأقرب" },
+                    { id: "price-ascending", label: "الأقل سعراً" },
+                    { id: "price-descending", label: "الأعلى سعراً" },
+                  ] as const).map((option) => {
+                    const selected = productSort === option.id;
+                    return (
+                      <Pressable
+                        key={option.id}
+                        onPress={() => setProductSort(option.id)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                        style={[
+                          styles.sortChip,
+                          {
+                            backgroundColor: selected ? colors.accentLight : colors.surface,
+                            borderColor: selected ? colors.accent : colors.border,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.sortText,
+                            { color: selected ? colors.accent : colors.textSecondary },
+                          ]}
+                        >
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
+        {!query && filter === "all" && selectedCategoryId === null ? (
           <View style={styles.emptyState}>
             <View
               style={[
@@ -387,7 +780,7 @@ export default function SearchTab() {
               </View>
 
               <View style={styles.quickChips}>
-                {["حليب", "قهوة", "مطاعم", "موبايل", "ملابس"].map((item) => (
+                {quickSearches.map((item) => (
                   <Pressable
                     key={item}
                     onPress={() => handleQuickSearch(item)}
@@ -426,7 +819,11 @@ export default function SearchTab() {
             <AppEmptyState
               icon="search-outline"
               title="لم نجد نتائج"
-              description={`لم نجد متجراً أو منتجاً يطابق «${searchText.trim()}».`}
+              description={
+                query
+                  ? `لم نجد نتيجة تطابق «${searchText.trim()}» مع الفلاتر المختارة.`
+                  : "لا توجد نتائج متاحة ضمن هذه الفلاتر حالياً."
+              }
             />
 
             <Text
@@ -437,8 +834,31 @@ export default function SearchTab() {
                 },
               ]}
             >
-              جرّب كلمة مختلفة أو اسم منتج أقصر.
+              جرّب كلمة مختلفة أو أزل بعض الفلاتر.
             </Text>
+            {filter !== "all" || selectedCategoryId || currencyFilter !== "all" ? (
+              <Pressable
+                onPress={() => {
+                  setFilter("all");
+                  setSelectedCategoryId(null);
+                  setCurrencyFilter("all");
+                  setProductSort("relevance");
+                }}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.resetFilters,
+                  {
+                    backgroundColor: colors.primaryLight,
+                  },
+                  pressed && styles.pressed,
+                ]}
+              >
+                <AppIcon name="options-outline" size={16} color={colors.primary} />
+                <Text style={[styles.resetFiltersText, { color: colors.primary }]}>
+                  إزالة الفلاتر
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : (
           <View style={styles.results}>
@@ -459,7 +879,7 @@ export default function SearchTab() {
                     },
                   ]}
                 >
-                  نتائج البحث
+                  {query ? "نتائج البحث" : "تصفح النتائج"}
                 </Text>
 
                 <Text
@@ -470,7 +890,7 @@ export default function SearchTab() {
                     },
                   ]}
                 >
-                  لـ «{searchText.trim()}»
+                  {query ? `لـ «${searchText.trim()}»` : "حسب الفلاتر المختارة"}
                 </Text>
               </View>
 
@@ -506,11 +926,11 @@ export default function SearchTab() {
               </View>
             </View>
 
-            {results.categories.length > 0 ? (
+            {visibleResults.categories.length > 0 ? (
               <View style={styles.section}>
                 <SectionHeader
                   title="التصنيفات"
-                  icon="pricetags-outline"
+                  icon="grid-outline"
                   colors={colors}
                 />
 
@@ -519,7 +939,7 @@ export default function SearchTab() {
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.horizontalList}
                 >
-                  {results.categories.map((category) => (
+                  {visibleResults.categories.map((category) => (
                     <CategoryChip
                       key={category.id}
                       label={category.name}
@@ -531,7 +951,7 @@ export default function SearchTab() {
               </View>
             ) : null}
 
-            {results.stores.length > 0 ? (
+            {visibleResults.stores.length > 0 ? (
               <View style={styles.section}>
                 <SectionHeader
                   title="المتاجر"
@@ -540,8 +960,8 @@ export default function SearchTab() {
                 />
 
                 <View style={styles.storeResults}>
-                  {results.stores.map((store) => {
-                    const category = categories.find((item) =>
+                  {visibleResults.stores.map((store) => {
+                    const category = storeCategories.find((item) =>
                       store.categoryIds.includes(item.id),
                     );
 
@@ -614,7 +1034,7 @@ export default function SearchTab() {
                                   },
                                 ]}
                               >
-                                {store.rating.toFixed(1)}
+                                {store.rating === undefined ? "—" : store.rating.toFixed(1)}
                               </Text>
                             </View>
 
@@ -660,7 +1080,7 @@ export default function SearchTab() {
               </View>
             ) : null}
 
-            {results.products.length > 0 ? (
+            {visibleResults.products.length > 0 ? (
               <View style={styles.section}>
                 <SectionHeader
                   title="المنتجات"
@@ -669,7 +1089,7 @@ export default function SearchTab() {
                 />
 
                 <View style={styles.productGrid}>
-                  {results.products.map((product) => (
+                  {visibleResults.products.map((product) => (
                     <ProductCard
                       key={product.id}
                       product={product}
@@ -736,27 +1156,26 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.ten,
   },
 
-  searchBox: {
+  searchRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
-    minHeight: 58,
-    paddingHorizontal: Spacing.two,
-    borderWidth: 1,
-    borderRadius: Radius.xl,
+    gap: Spacing.two,
   },
 
-  searchLeading: {
-    width: 38,
-    height: 38,
+  searchBox: {
+    flex: 1,
+    flexDirection: "row-reverse",
     alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.md,
+    minHeight: 52,
+    paddingHorizontal: Spacing.three,
+    borderWidth: 1,
+    borderRadius: Radius.lg,
   },
 
   input: {
     flex: 1,
-    minHeight: 54,
-    paddingHorizontal: Spacing.three,
+    minHeight: 50,
+    paddingHorizontal: Spacing.two,
     paddingVertical: 0,
     fontFamily: Fonts.regular,
     fontSize: FontSizes.sm,
@@ -769,12 +1188,154 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  searchButton: {
-    width: 42,
-    height: 42,
+  filterToggle: {
+    width: 52,
+    height: 52,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderRadius: Radius.lg,
+    position: "relative",
+  },
+
+  activeFilterBadge: {
+    position: "absolute",
+    top: -4,
+    end: -4,
+    minWidth: 19,
+    height: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderRadius: Radius.full,
+  },
+
+  activeFilterCount: {
+    fontFamily: Fonts.bold,
+    fontSize: 10,
+    textAlign: "center",
+  },
+
+  filterPanel: {
+    marginTop: Spacing.three,
+    padding: Spacing.three,
+    borderWidth: 1,
+    borderRadius: Radius.xl,
+  },
+
+  filterPanelHeader: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  filterPanelTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: FontSizes.sm,
+    textAlign: "right",
+  },
+
+  filterHint: {
+    marginTop: Spacing.two,
+    fontFamily: Fonts.regular,
+    fontSize: FontSizes.xs,
+    textAlign: "right",
+  },
+
+  filters: {
+    flexDirection: "row-reverse",
+    gap: Spacing.two,
+    paddingTop: Spacing.two,
+  },
+
+  filterChip: {
+    flexDirection: "row-reverse",
+    gap: Spacing.one,
+    alignItems: "center",
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    minHeight: 42,
+    justifyContent: "center",
+    paddingHorizontal: Spacing.three,
+  },
+
+  filterText: {
+    fontFamily: Fonts.medium,
+    fontSize: FontSizes.xs,
+  },
+
+  filterCount: {
+    minWidth: 20,
+    textAlign: "center",
+    overflow: "hidden",
+    borderRadius: Radius.full,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    fontFamily: Fonts.bold,
+    fontSize: 10,
+  },
+
+  refinements: {
+    gap: Spacing.three,
+    marginTop: Spacing.three,
+    padding: Spacing.three,
+    borderWidth: 1,
+    borderRadius: Radius.lg,
+  },
+
+  refinementsHeader: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  refinementTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: FontSizes.sm,
+  },
+
+  resetInlineText: {
+    fontFamily: Fonts.medium,
+    fontSize: FontSizes.xs,
+  },
+
+  refinementLabel: {
+    marginBottom: Spacing.two,
+    fontFamily: Fonts.semiBold,
+    fontSize: FontSizes.xs,
+    textAlign: "right",
+  },
+
+  categoryFilter: {
+    minHeight: 40,
+    justifyContent: "center",
+    paddingHorizontal: Spacing.three,
+    borderWidth: 1,
+    borderRadius: Radius.full,
+  },
+
+  categoryFilterText: {
+    fontFamily: Fonts.medium,
+    fontSize: FontSizes.xs,
+  },
+
+  sortOptions: {
+    flexDirection: "row-reverse",
+    flexWrap: "wrap",
+    gap: Spacing.two,
+  },
+
+  sortChip: {
+    minHeight: 36,
+    justifyContent: "center",
+    paddingHorizontal: Spacing.three,
+    borderWidth: 1,
+    borderRadius: Radius.full,
+  },
+
+  sortText: {
+    fontFamily: Fonts.medium,
+    fontSize: FontSizes.xs,
   },
 
   emptyState: {
@@ -882,6 +1443,21 @@ const styles = StyleSheet.create({
   emptyHint: {
     marginTop: Spacing.three,
     fontFamily: Fonts.medium,
+    fontSize: FontSizes.xs,
+  },
+
+  resetFilters: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: Spacing.two,
+    minHeight: 42,
+    marginTop: Spacing.three,
+    paddingHorizontal: Spacing.four,
+    borderRadius: Radius.full,
+  },
+
+  resetFiltersText: {
+    fontFamily: Fonts.semiBold,
     fontSize: FontSizes.xs,
   },
 

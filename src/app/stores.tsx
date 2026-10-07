@@ -7,15 +7,17 @@ import { StoreCard } from "@/components/marketplace/StoreCard";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppEmptyState } from "@/components/ui/AppEmptyState";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { categories, stores } from "@/constants/catalog";
+import { CustomerCatalogStatus } from "@/components/marketplace/CustomerCatalogStatus";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
+import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { useTheme } from "@/context/ThemeContext";
 
 export default function StoresScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { itemCount } = useCart();
+  const { stores, storeCategories: categories } = useCustomerCatalog();
 
   const [searchText, setSearchText] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -55,12 +57,9 @@ export default function StoresScreen() {
 
       return searchableText.includes(query);
     });
-  }, [searchText, selectedCategory]);
+  }, [searchText, selectedCategory, categories, stores]);
 
-  const featuredStores = useMemo(
-    () => filteredStores.filter((store) => store.featured),
-    [filteredStores],
-  );
+  const featuredStores = useMemo(() => filteredStores, [filteredStores]);
 
   const handleStorePress = (storeId: string) => {
     router.push({
@@ -83,6 +82,7 @@ export default function StoresScreen() {
         },
       ]}
     >
+      <CustomerCatalogStatus />
       <AppHeader title="المتاجر" cartCount={itemCount} mode="shared" />
       <ScrollView
         showsVerticalScrollIndicator={false}

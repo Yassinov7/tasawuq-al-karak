@@ -1,4 +1,4 @@
-import { Href, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -7,50 +7,45 @@ import { OfferCard } from "@/components/marketplace/OfferCard";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppEmptyState } from "@/components/ui/AppEmptyState";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { categories, products } from "@/constants/catalog";
+import { CustomerCatalogStatus } from "@/components/marketplace/CustomerCatalogStatus";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
+import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { useTheme } from "@/context/ThemeContext";
 
 export default function OffersTab() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { itemCount } = useCart();
+  const { itemCount, selectedOfferIds } = useCart();
+  const { categories, offers } = useCustomerCatalog();
 
   const [selectedCategory, setSelectedCategory] = useState("all");
 
-  const offerProducts = useMemo(
-    () => products.filter((product) => product.available && product.offer),
-    [],
-  );
-
   const filteredOffers = useMemo(() => {
     if (selectedCategory === "all") {
-      return offerProducts;
+      return offers;
     }
 
-    return offerProducts.filter(
-      (product) => product.categoryId === selectedCategory,
+    return offers.filter(
+      (offer) => offer.items.some((item) => item.product.categoryId === selectedCategory),
     );
-  }, [offerProducts, selectedCategory]);
+  }, [offers, selectedCategory]);
 
   const offerCategories = useMemo(() => {
     const categoryIds = new Set(
-      offerProducts.map((product) => product.categoryId),
+      offers.flatMap((offer) => offer.items.map((item) => item.product.categoryId)),
     );
 
     return categories.filter((category) => categoryIds.has(category.id));
-  }, [offerProducts]);
+  }, [categories, offers]);
 
-  const featuredOffers = filteredOffers.slice(0, 4);
-
-  const handleProductPress = (productId: string) => {
+  const handleOfferPress = (offerId: string) => {
     router.push({
-      pathname: "/product-details",
+      pathname: "/offer-details",
       params: {
-        id: productId,
+        id: offerId,
       },
-    } as Href);
+    });
   };
 
   return (
@@ -62,110 +57,35 @@ export default function OffersTab() {
         },
       ]}
     >
+      <CustomerCatalogStatus />
       <AppHeader title="العروض" cartCount={itemCount} />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
-        <View
-          style={[
-            styles.hero,
-            {
-              backgroundColor: colors.primary,
-            },
-          ]}
-        >
-          <View style={styles.heroContent}>
-            <View style={styles.heroText}>
-              <View
-                style={[
-                  styles.heroBadge,
-                  {
-                    backgroundColor: colors.primaryDark,
-                  },
-                ]}
-              >
-                <AppIcon
-                  name="sparkles-outline"
-                  size={13}
-                  color={colors.accent}
-                />
-
-                <Text
-                  style={[
-                    styles.heroBadgeText,
-                    {
-                      color: colors.surface,
-                    },
-                  ]}
-                >
-                  عروض محلية
-                </Text>
-              </View>
-
-              <Text
-                style={[
-                  styles.heroTitle,
-                  {
-                    color: colors.surface,
-                  },
-                ]}
-              >
-                وفر أكثر
-                {"\n"}
-                وتسوق بذكاء
-              </Text>
-
-              <Text
-                style={[
-                  styles.heroDescription,
-                  {
-                    color: colors.primaryLight,
-                  },
-                ]}
-              >
-                اكتشف المنتجات التي عليها عروض من متاجر منطقتك.
-              </Text>
-            </View>
-
-            <View
-              style={[
-                styles.heroIcon,
-                {
-                  backgroundColor: colors.primaryDark,
-                  borderColor: colors.primary,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.heroIconInner,
-                  {
-                    backgroundColor: colors.primary,
-                  },
-                ]}
-              >
-                <AppIcon name="pricetags" size={48} color={colors.accent} />
-              </View>
-
-              <View
-                style={[
-                  styles.heroDot,
-                  {
-                    backgroundColor: colors.surface,
-                  },
-                ]}
-              />
-            </View>
+        <View style={[styles.intro, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={[styles.introIcon, { backgroundColor: colors.accentLight }]}>
+            <AppIcon name="pricetags-outline" size={22} color={colors.accent} />
+          </View>
+          <View style={styles.introText}>
+            <Text style={[styles.introTitle, { color: colors.text }]}>عروض المتاجر</Text>
+            <Text style={[styles.introDescription, { color: colors.textSecondary }]}>
+              كل عرض حزمة واحدة؛ افتح التفاصيل لمراجعة المكونات والسعر قبل إضافتها للسلة.
+            </Text>
+          </View>
+          <View style={[styles.introCount, { backgroundColor: colors.primaryLight }]}>
+            <Text style={[styles.introCountText, { color: colors.primary }]}>
+              {offers.length}
+            </Text>
           </View>
         </View>
 
-        <View style={styles.section}>
+        <View style={styles.filterSection}>
           <SectionHeader
-            title="تصفح حسب التصنيف"
-            subtitle="اختر نوع المنتجات التي تريدها"
-            icon="options-outline"
+            title="تصفية حسب التصنيف"
+            subtitle={selectedCategory === "all" ? "كل التصنيفات" : "تم اختيار تصنيف"}
+            icon="grid-outline"
             colors={colors}
           />
 
@@ -193,34 +113,6 @@ export default function OffersTab() {
           </ScrollView>
         </View>
 
-        {featuredOffers.length > 0 ? (
-          <View style={styles.section}>
-            <SectionHeader
-              title="عروض مميزة"
-              subtitle="اخترنا لك مجموعة من العروض"
-              icon="flame-outline"
-              colors={colors}
-              iconBackground={colors.accentLight}
-              iconColor={colors.accent}
-            />
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.featuredList}
-            >
-              {featuredOffers.map((product) => (
-                <OfferCard
-                  key={product.id}
-                  product={product}
-                  featured
-                  onPress={() => handleProductPress(product.id)}
-                />
-              ))}
-            </ScrollView>
-          </View>
-        ) : null}
-
         <View style={styles.section}>
           <View style={styles.allOffersHeader}>
             <View style={styles.allOffersTitleArea}>
@@ -232,7 +124,7 @@ export default function OffersTab() {
                   },
                 ]}
               >
-                {selectedCategory === "all" ? "كل العروض" : "العروض المتاحة"}
+                {selectedCategory === "all" ? "العروض المتاحة" : "العروض في هذا التصنيف"}
               </Text>
 
               <Text
@@ -277,11 +169,13 @@ export default function OffersTab() {
 
           {filteredOffers.length > 0 ? (
             <View style={styles.grid}>
-              {filteredOffers.map((product) => (
+              {filteredOffers.map((offer) => (
                 <OfferCard
-                  key={product.id}
-                  product={product}
-                  onPress={() => handleProductPress(product.id)}
+                  key={offer.id}
+                  offer={offer}
+                  expanded
+                  added={selectedOfferIds.includes(offer.id)}
+                  onPress={() => handleOfferPress(offer.id)}
                 />
               ))}
             </View>
@@ -297,8 +191,10 @@ export default function OffersTab() {
             >
               <AppEmptyState
                 icon="pricetags-outline"
-                title="لا توجد عروض حالياً"
-                description="لا توجد منتجات عليها عروض ضمن هذا التصنيف حالياً."
+                title={offers.length === 0 ? "لا توجد عروض حالياً" : "لا توجد عروض في هذا التصنيف"}
+                description={offers.length === 0
+                  ? "ستظهر العروض الجديدة من المتاجر هنا عند توفرها."
+                  : "اختر تصنيفاً آخر لاستعراض العروض المتاحة."}
                 buttonText="عرض جميع العروض"
                 onButtonPress={() => setSelectedCategory("all")}
               />
@@ -338,8 +234,8 @@ export default function OffersTab() {
               },
             ]}
           >
-            الأسعار والعروض المعروضة حالياً تجريبية ضمن بيانات التطبيق، وسيتم
-            ربطها لاحقاً ببيانات المتاجر الفعلية.
+            الأسعار ومكونات العروض مأخوذة من بيانات المتاجر، وتظهر تفاصيل الباقة
+            عند فتح العرض.
           </Text>
         </View>
       </ScrollView>
@@ -425,85 +321,65 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.ten,
   },
 
-  hero: {
-    minHeight: 190,
-    borderRadius: Radius.xl,
-    overflow: "hidden",
-  },
-
-  heroContent: {
-    flex: 1,
-    flexDirection: "row-reverse",
+  intro: {
     alignItems: "center",
-    padding: Spacing.five,
+    flexDirection: "row-reverse",
+    gap: Spacing.three,
+    padding: Spacing.three,
+    borderWidth: 1,
+    borderRadius: Radius.xl,
   },
 
-  heroText: {
+  introIcon: {
+    alignItems: "center",
+    height: 46,
+    justifyContent: "center",
+    width: 46,
+    borderRadius: Radius.lg,
+  },
+
+  introText: {
     flex: 1,
     alignItems: "flex-end",
-  },
-
-  heroBadge: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
     gap: Spacing.one,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: 5,
-    borderRadius: Radius.full,
   },
 
-  heroBadgeText: {
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.xs,
-  },
-
-  heroTitle: {
-    marginTop: Spacing.two,
+  introTitle: {
     fontFamily: Fonts.bold,
-    fontSize: FontSizes.xxl,
-    lineHeight: 35,
+    fontSize: FontSizes.md,
     textAlign: "right",
   },
 
-  heroDescription: {
-    maxWidth: 235,
-    marginTop: Spacing.two,
+  introDescription: {
     fontFamily: Fonts.regular,
     fontSize: FontSizes.xs,
     lineHeight: 19,
     textAlign: "right",
   },
 
-  heroIcon: {
-    width: 102,
-    height: 102,
-    marginStart: Spacing.three,
+  introCount: {
     alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderRadius: Radius.full,
-    position: "relative",
-  },
-
-  heroIconInner: {
-    width: 76,
-    height: 76,
-    alignItems: "center",
+    minWidth: 36,
+    height: 36,
     justifyContent: "center",
     borderRadius: Radius.full,
+    paddingHorizontal: Spacing.two,
   },
 
-  heroDot: {
-    position: "absolute",
-    width: 12,
-    height: 12,
-    top: 14,
-    right: 12,
-    borderRadius: Radius.full,
+  introCountText: {
+    fontFamily: Fonts.bold,
+    fontSize: FontSizes.sm,
+  },
+
+  filterSection: {
+    marginTop: Spacing.four,
+    padding: Spacing.three,
+    backgroundColor: "transparent",
+    borderRadius: Radius.xl,
   },
 
   section: {
-    marginTop: Spacing.six,
+    marginTop: Spacing.four,
   },
 
   sectionHeader: {
@@ -550,12 +426,6 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.one,
   },
 
-  featuredList: {
-    flexDirection: "row-reverse",
-    gap: Spacing.three,
-    paddingBottom: Spacing.one,
-  },
-
   allOffersHeader: {
     flexDirection: "row-reverse",
     alignItems: "center",
@@ -584,9 +454,6 @@ const styles = StyleSheet.create({
   },
 
   grid: {
-    flexDirection: "row-reverse",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
     gap: Spacing.three,
   },
 

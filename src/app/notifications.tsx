@@ -1,8 +1,9 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { AppHeader } from "@/components/navigation/AppHeader";
+import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { AppModal } from "@/components/ui/AppModal";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
@@ -22,6 +23,8 @@ export default function NotificationsScreen() {
   const {
     notifications,
     unreadCount,
+    syncError,
+    refresh,
     markAsRead,
     markAllAsRead,
     removeNotification,
@@ -34,37 +37,45 @@ export default function NotificationsScreen() {
     string | null
   >(null);
 
-  const handleNotificationPress = (notification: AppNotification) => {
-    markAsRead(notification.id);
-
-    if (notification.data?.orderId) {
-      router.push("/order-details");
+  const handleNotificationPress = async (notification: AppNotification) => {
+    try {
+      await markAsRead(notification.id);
+    } catch (cause) {
+      Alert.alert("تعذر تحديث الإشعار", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
       return;
     }
 
-    if (notification.data?.productId) {
-      router.push({
-        pathname: "/product-details",
-        params: {
-          id: notification.data.productId,
-        },
-      });
+    const { orderId, productId, storeId, offerId, url } = notification.data ?? {};
+    const route = url?.split("?")[0];
+    if (route === "/merchant/orders") {
+      router.push("/merchant/orders");
       return;
     }
-
-    if (notification.data?.storeId) {
-      router.push({
-        pathname: "/store-details",
-        params: {
-          id: notification.data.storeId,
-        },
-      });
+    if (route === "/driver/orders") {
+      Alert.alert("الوجهة غير متاحة", "لا تتضمن نسخة التطبيق الحالية شاشة طلبات السائق.");
       return;
     }
-
-    if (notification.data?.url) {
-      router.push(notification.data.url as never);
+    if (orderId) {
+      router.push({ pathname: "/order-details", params: { id: orderId } });
+      return;
     }
+    if (productId) {
+      router.push({ pathname: "/product-details", params: { id: productId } });
+      return;
+    }
+    if (storeId) {
+      router.push({ pathname: "/store-details", params: { id: storeId } });
+      return;
+    }
+    if (offerId) {
+      router.push("/home/offers");
+      return;
+    }
+    if (route === "/home/offers") {
+      router.push("/home/offers");
+      return;
+    }
+    Alert.alert("الإشعار غير مرتبط بصفحة", "لا يتضمن هذا الإشعار وجهة صالحة للفتح.");
   };
 
   const handleDelete = (notification: AppNotification) => {
@@ -82,11 +93,15 @@ export default function NotificationsScreen() {
 
   const handleModalConfirm = () => {
     if (modal === "delete" && selectedNotificationId) {
-      removeNotification(selectedNotificationId);
+      void removeNotification(selectedNotificationId).catch((cause: unknown) => {
+        Alert.alert("تعذر حذف الإشعار", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
+      });
     }
 
     if (modal === "clear") {
-      clearNotifications();
+      void clearNotifications().catch((cause: unknown) => {
+        Alert.alert("تعذر حذف الإشعارات", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
+      });
     }
 
     setModal(null);
@@ -118,7 +133,16 @@ export default function NotificationsScreen() {
         ]}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
-          notifications.length > 0 ? (
+          <View>
+            {syncError ? (
+              <View style={{ gap: Spacing.two, marginBottom: Spacing.three }}>
+                <Text accessibilityRole="alert" style={{ color: colors.error, fontFamily: Fonts.regular, fontSize: FontSizes.sm, textAlign: "right" }}>
+                  {syncError}
+                </Text>
+                <AppButton title="إعادة تحميل الإشعارات" variant="outline" onPress={() => void refresh().catch(() => undefined)} />
+              </View>
+            ) : null}
+            {notifications.length > 0 ? (
             <View style={styles.headerActions}>
               <View>
                 <Text
@@ -149,7 +173,9 @@ export default function NotificationsScreen() {
               <View style={styles.headerButtons}>
                 {unreadCount > 0 ? (
                   <Pressable
-                    onPress={markAllAsRead}
+                    onPress={() => void markAllAsRead().catch((cause: unknown) => {
+                      Alert.alert("تعذر تحديث الإشعارات", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
+                    })}
                     style={({ pressed }) => [
                       styles.smallAction,
                       pressed && styles.pressed,
@@ -204,7 +230,8 @@ export default function NotificationsScreen() {
                 </Pressable>
               </View>
             </View>
-          ) : null
+            ) : null}
+          </View>
         }
         renderItem={({ item }) => (
           <NotificationCard

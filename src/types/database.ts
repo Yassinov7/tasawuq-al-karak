@@ -55,6 +55,63 @@ export type Database = {
           },
         ]
       }
+      customer_addresses: {
+        Row: {
+          contact_phone: string
+          created_at: string
+          customer_id: string
+          delivery_address: string
+          delivery_zone_id: string
+          id: string
+          is_default: boolean
+          maps_url: string
+          recipient_name: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          contact_phone: string
+          created_at?: string
+          customer_id: string
+          delivery_address: string
+          delivery_zone_id: string
+          id?: string
+          is_default?: boolean
+          maps_url?: string
+          recipient_name: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          contact_phone?: string
+          created_at?: string
+          customer_id?: string
+          delivery_address?: string
+          delivery_zone_id?: string
+          id?: string
+          is_default?: boolean
+          maps_url?: string
+          recipient_name?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_addresses_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_addresses_delivery_zone_id_fkey"
+            columns: ["delivery_zone_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_cart_items: {
         Row: {
           cart_id: string
@@ -129,6 +186,39 @@ export type Database = {
             columns: ["store_id"]
             isOneToOne: false
             referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_cart_offer_selections: {
+        Row: {
+          cart_id: string
+          created_at: string
+          offer_id: string
+        }
+        Insert: {
+          cart_id: string
+          created_at?: string
+          offer_id: string
+        }
+        Update: {
+          cart_id?: string
+          created_at?: string
+          offer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_cart_offer_selections_cart_id_fkey"
+            columns: ["cart_id"]
+            isOneToOne: false
+            referencedRelation: "customer_carts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_cart_offer_selections_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "store_offers"
             referencedColumns: ["id"]
           },
         ]
@@ -974,6 +1064,7 @@ export type Database = {
           currency: Database["public"]["Enums"]["currency_code"]
           id: string
           line_total: number
+          offer_snapshot: Json | null
           product_id: string | null
           product_title_snapshot: string
           quantity: number
@@ -986,6 +1077,7 @@ export type Database = {
           currency: Database["public"]["Enums"]["currency_code"]
           id?: string
           line_total: number
+          offer_snapshot?: Json | null
           product_id?: string | null
           product_title_snapshot: string
           quantity: number
@@ -998,6 +1090,7 @@ export type Database = {
           currency?: Database["public"]["Enums"]["currency_code"]
           id?: string
           line_total?: number
+          offer_snapshot?: Json | null
           product_id?: string | null
           product_title_snapshot?: string
           quantity?: number
@@ -1362,6 +1455,14 @@ export type Database = {
         }
         Returns: string
       }
+      add_customer_cart_offer: {
+        Args: { target_offer: string }
+        Returns: undefined
+      }
+      delete_customer_address: {
+        Args: { target_address: string }
+        Returns: undefined
+      }
       delete_store_offer: { Args: { target_offer: string }; Returns: undefined }
       is_admin: { Args: never; Returns: boolean }
       is_approved_driver: { Args: never; Returns: boolean }
@@ -1381,12 +1482,33 @@ export type Database = {
         Args: { target_order: string }
         Returns: undefined
       }
+      remove_customer_cart_offer: {
+        Args: { target_offer: string }
+        Returns: undefined
+      }
       review_driver_application: {
         Args: {
           decision: Database["public"]["Enums"]["application_status"]
           decision_note?: string
           target_application: string
         }
+        Returns: undefined
+      }
+      save_customer_address: {
+        Args: {
+          input_contact_phone: string
+          input_delivery_address: string
+          input_delivery_zone: string
+          input_is_default: boolean
+          input_maps_url: string
+          input_recipient_name: string
+          input_title: string
+          target_address: string | null
+        }
+        Returns: string
+      }
+      set_default_customer_address: {
+        Args: { target_address: string }
         Returns: undefined
       }
       review_merchant_application: {

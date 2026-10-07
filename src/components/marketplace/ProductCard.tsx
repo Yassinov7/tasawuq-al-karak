@@ -1,12 +1,12 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { AppBadge } from "@/components/ui/AppBadge";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { categories, products, stores } from "@/constants/catalog";
+import { ProductMediaPreview } from "@/components/marketplace/ProductMediaPreview";
+import type { Product } from "@/constants/catalog";
+import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
-
-type Product = (typeof products)[number];
 
 type ProductCardProps = {
   product: Product;
@@ -24,12 +24,21 @@ export function ProductCard({
   showOffer = false,
 }: ProductCardProps) {
   const { colors } = useTheme();
+  const { categories, stores } = useCustomerCatalog();
+  const { width } = useWindowDimensions();
 
   const category = categories.find((item) => item.id === product.categoryId);
 
   const store = stores.find((item) => item.id === product.storeId);
 
   const iconSize = compact ? 30 : 34;
+  const media = product.media?.find((item) => item.type === "image");
+  const mediaWidth = Math.max(
+    80,
+    compact
+      ? (width - Spacing.four * 2 - Spacing.three) / 2 - Spacing.three * 2
+      : 175 - Spacing.three * 2,
+  );
 
   return (
     <Pressable
@@ -57,11 +66,20 @@ export function ProductCard({
           },
         ]}
       >
-        <AppIcon
-          name={category?.icon ?? "cube-outline"}
-          size={iconSize}
-          color={colors.primary}
-        />
+        {media ? (
+          <ProductMediaPreview
+            media={media}
+            width={mediaWidth}
+            height={compact ? 105 : 110}
+            fallbackIcon={category?.icon ?? "cube-outline"}
+          />
+        ) : (
+          <AppIcon
+            name={category?.icon ?? "cube-outline"}
+            size={iconSize}
+            color={colors.primary}
+          />
+        )}
 
         {showOffer && product.offer ? (
           <View style={styles.offerBadge}>
@@ -116,7 +134,7 @@ export function ProductCard({
             },
           ]}
         >
-          ل.س
+          {product.currency === "USD" ? "$" : "ل.س"}
         </Text>
       </View>
 
@@ -153,6 +171,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: Radius.lg,
+    overflow: "hidden",
     position: "relative",
   },
 

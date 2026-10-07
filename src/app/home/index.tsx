@@ -79,8 +79,8 @@ export default function HomeTab() {
         },
       ]}
     >
-      <AppHeader cartCount={itemCount} />
-
+      <AppHeader cartCount={itemCount} mode="customer" />
+      
       <ScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"

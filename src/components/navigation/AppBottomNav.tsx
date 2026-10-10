@@ -73,29 +73,60 @@ const driverNavItems: NavItem[] = [
     label: "الرئيسية",
     icon: "home-outline",
     activeIcon: "home",
-    route: "./driver",
+    route: "/driver" as Href,
   },
   {
-    label: "الطلبات",
+    label: "توصيلاتي",
     icon: "receipt-outline",
     activeIcon: "receipt",
-    route: "./driver/orders",
-  },
-  {
-    label: "المحفظة",
-    icon: "wallet-outline",
-    activeIcon: "wallet",
-    route: "/wallet",
+    route: "/driver/orders" as Href,
   },
   {
     label: "حسابي",
     icon: "person-outline",
     activeIcon: "person",
-    route: "./driver/account",
+    route: "/driver/account" as Href,
+  },
+];
+
+const adminNavItems: NavItem[] = [
+  {
+    label: "الرئيسية",
+    icon: "home-outline",
+    activeIcon: "home",
+    route: "/admin" as Href,
+  },
+  {
+    label: "الطلبات",
+    icon: "receipt-outline",
+    activeIcon: "receipt",
+    route: "/admin/requests" as Href,
+  },
+  {
+    label: "السائقون",
+    icon: "bicycle-outline",
+    activeIcon: "bicycle",
+    route: "/admin/drivers" as Href,
+  },
+  {
+    label: "المتاجر",
+    icon: "storefront-outline",
+    activeIcon: "storefront",
+    route: "/admin/stores" as Href,
+  },
+  {
+    label: "المالية",
+    icon: "wallet-outline",
+    activeIcon: "wallet",
+    route: "/admin/finance" as Href,
   },
 ];
 
 function getNavigationMode(pathname: string) {
+  if (pathname.startsWith("/admin")) {
+    return "admin";
+  }
+
   if (pathname.startsWith("/merchant")) {
     return "merchant";
   }
@@ -115,7 +146,9 @@ export function AppBottomNav() {
   const mode = getNavigationMode(pathname);
 
   const visibleItems =
-    mode === "merchant"
+    mode === "admin"
+      ? adminNavItems
+      : mode === "merchant"
       ? merchantNavItems
       : mode === "driver"
         ? driverNavItems
@@ -127,7 +160,7 @@ export function AppBottomNav() {
         return pathname === "/merchant";
       }
 
-      if (route === "./driver") {
+      if (route === ("/driver" as Href)) {
         return pathname === "/driver";
       }
 

@@ -10,6 +10,7 @@ import {
 
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppIcon } from "@/components/ui/AppIcon";
+import { SyriaFlag } from "@/components/ui/SyriaFlag";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
 import { ThemeMode, useSettings } from "@/context/SettingsContext";
@@ -389,7 +390,7 @@ export default function SettingsScreen() {
                 },
               ]}
             >
-              <Text style={styles.flagText}>🇸🇾</Text>
+              <SyriaFlag />
             </View>
 
             <View style={styles.settingInfo}>
@@ -697,10 +698,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: Radius.md,
-  },
-
-  flagText: {
-    fontSize: 25,
   },
 
   fixedText: {

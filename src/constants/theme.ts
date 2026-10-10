@@ -8,6 +8,7 @@ export const LightColors = {
   primaryLight: "#EAF3EC",
   accent: "#C89B3C",
   accentLight: "#F8F0DC",
+  accentText: "#20251F",
   background: "#FCFBF7",
   surface: "#FFFFFF",
   surfaceSecondary: "#F3F1EA",
@@ -16,6 +17,7 @@ export const LightColors = {
   textMuted: "#92998F",
   border: "#E2E4DE",
   success: "#3E7D4B",
+  successText: "#FFFFFF",
   error: "#B84A45",
 } as const;
 
@@ -26,6 +28,7 @@ export const DarkColors = {
 
   accent: "#DDBA62",
   accentLight: "#45391F",
+  accentText: "#20251F",
 
   background: "#0D100E",
   surface: "#181D19",
@@ -38,6 +41,7 @@ export const DarkColors = {
   border: "#363D37",
 
   success: "#7FB88A",
+  successText: "#20251F",
   error: "#E87972",
 } as const;
 

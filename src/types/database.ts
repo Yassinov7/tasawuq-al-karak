@@ -445,6 +445,7 @@ export type Database = {
           created_at: string
           full_name: string
           id: string
+          is_available: boolean
           review_note: string | null
           reviewed_at: string | null
           reviewed_by: string | null
@@ -461,6 +462,7 @@ export type Database = {
           created_at?: string
           full_name: string
           id?: string
+          is_available?: boolean
           review_note?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -477,6 +479,7 @@ export type Database = {
           created_at?: string
           full_name?: string
           id?: string
+          is_available?: boolean
           review_note?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -1465,6 +1468,7 @@ export type Database = {
       }
       delete_store_offer: { Args: { target_offer: string }; Returns: undefined }
       is_admin: { Args: never; Returns: boolean }
+      is_available_driver: { Args: never; Returns: boolean }
       is_approved_driver: { Args: never; Returns: boolean }
       is_store_owner: { Args: { target_store: string }; Returns: boolean }
       record_wallet_transaction: {
@@ -1510,6 +1514,22 @@ export type Database = {
       set_default_customer_address: {
         Args: { target_address: string }
         Returns: undefined
+      }
+      set_driver_availability: {
+        Args: { input_available: boolean }
+        Returns: boolean
+      }
+      list_available_delivery_tasks: {
+        Args: never
+        Returns: {
+          created_at: string
+          customer_order_id: string
+          delivery_address: string
+          delivery_zone_name_snapshot: string
+          order_number: number
+          store_count: number
+          task_id: string
+        }[]
       }
       review_merchant_application: {
         Args: {

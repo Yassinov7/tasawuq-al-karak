@@ -31,6 +31,14 @@ const MAIN_ROUTES = [
   "/merchant/catalog",
   "/merchant/orders",
   "/merchant/account",
+  "/driver",
+  "/driver/orders",
+  "/driver/account",
+  "/admin",
+  "/admin/requests",
+  "/admin/drivers",
+  "/admin/stores",
+  "/admin/finance",
 ] as const;
 
 function AppContent() {

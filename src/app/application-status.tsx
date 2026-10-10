@@ -158,7 +158,15 @@ export default function ApplicationStatusScreen() {
           throw applicationError;
         }
 
-        setStatus(application as Status | null);
+        const applicationStatus = application as Status | null;
+        if (applicationStatus?.status === "accepted") {
+          router.replace(
+            currentRole === "merchant" ? "/merchant" : "/driver",
+          );
+          return;
+        }
+
+        setStatus(applicationStatus);
       } catch {
         setError(
           "تعذر تحميل حالة الطلب. تحقق من اتصالك بالإنترنت ثم حاول مرة أخرى.",
@@ -168,7 +176,7 @@ export default function ApplicationStatusScreen() {
         setRefreshing(false);
       }
     },
-    [user],
+    [router, user],
   );
 
   useEffect(() => {
@@ -508,8 +516,8 @@ export default function ApplicationStatusScreen() {
 
           {isAccepted && !isMerchant ? (
             <AppButton
-              title="عرض المحفظة والعمليات"
-              onPress={() => router.push("/wallet" as Href)}
+              title="فتح مساحة السائق"
+              onPress={() => router.replace("/driver" as Href)}
             />
           ) : null}
 

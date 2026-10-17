@@ -117,6 +117,6 @@ export const BottomTabInset =
     default: 0,
   }) ?? 0;
 
-export const BottomNavHeight = 92;
+export const BottomNavHeight = 96;
 
 export const MaxContentWidth = 800;

@@ -12,6 +12,8 @@ import {
 import { CategoryChip } from "@/components/marketplace/CategoryChip";
 import { OfferCard } from "@/components/marketplace/OfferCard";
 import { ProductCard } from "@/components/marketplace/ProductCard";
+import { StoreDetailsHero } from "@/components/marketplace/StoreDetailsHero";
+import { RatingsSection } from "@/components/marketplace/RatingsSection";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppIcon } from "@/components/ui/AppIcon";
 import type { Product } from "@/constants/catalog";
@@ -29,7 +31,15 @@ export default function StoreDetailsScreen() {
 
   const { colors } = useTheme();
   const { itemCount, selectedOfferIds } = useCart();
-  const { categories, offers, products, stores, storeCategories: allStoreCategories } =
+  const {
+    categories,
+    error,
+    loading,
+    offers,
+    products,
+    stores,
+    storeCategories: allStoreCategories,
+  } =
     useCustomerCatalog();
 
   const [searchText, setSearchText] = useState("");
@@ -113,6 +123,15 @@ export default function StoreDetailsScreen() {
     setSelectedCategory("all");
   };
 
+  if (loading || error) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <AppHeader title="المتجر" showBack cartCount={itemCount} />
+        <CustomerCatalogStatus />
+      </View>
+    );
+  }
+
   if (!store) {
     return (
       <View
@@ -123,7 +142,6 @@ export default function StoreDetailsScreen() {
           },
         ]}
       >
-        <CustomerCatalogStatus />
         <AppHeader title="المتجر" showBack cartCount={itemCount} />
 
         <View style={styles.notFound}>
@@ -203,106 +221,13 @@ export default function StoreDetailsScreen() {
         },
       ]}
     >
-      <AppHeader title={store.name} cartCount={itemCount} mode="shared" />
+      <AppHeader title={store.name} showBack cartCount={itemCount} mode="shared" />
       <ScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.content}
       >
-        <View
-          style={[
-            styles.storeHero,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.storeHeroIcon,
-              {
-                backgroundColor: colors.primaryLight,
-              },
-            ]}
-          >
-            <AppIcon
-              name={primaryCategory?.icon ?? "storefront-outline"}
-              size={58}
-              color={colors.primary}
-            />
-          </View>
-
-          <View style={styles.storeHeroInfo}>
-            <View style={styles.storeTitleRow}>
-              <Text
-                style={[
-                  styles.storeName,
-                  {
-                    color: colors.text,
-                  },
-                ]}
-                numberOfLines={2}
-              >
-                {store.name}
-              </Text>
-
-              {store.featured ? (
-                <View
-                  style={[
-                    styles.featuredBadge,
-                    {
-                      backgroundColor: colors.accent,
-                    },
-                  ]}
-                >
-                  <AppIcon name="star" size={11} color={colors.surface} />
-
-                  <Text
-                    style={[
-                      styles.featuredText,
-                      {
-                        color: colors.surface,
-                      },
-                    ]}
-                  >
-                    مميز
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-
-            <Text
-              style={[
-                styles.storeDescription,
-                {
-                  color: colors.textSecondary,
-                },
-              ]}
-            >
-              {store.description}
-            </Text>
-
-            <View style={styles.locationRow}>
-              <AppIcon
-                name="location-outline"
-                size={15}
-                color={colors.textSecondary}
-              />
-
-              <Text
-                style={[
-                  styles.locationText,
-                  {
-                    color: colors.textSecondary,
-                  },
-                ]}
-              >
-                {store.location}
-              </Text>
-            </View>
-          </View>
-        </View>
+        <StoreDetailsHero store={store} categoryIcon={primaryCategory?.icon} />
 
         <View
           style={[
@@ -314,89 +239,11 @@ export default function StoreDetailsScreen() {
           ]}
         >
           <StoreStat
-            icon="star"
-            label="التقييم"
-            value={store.rating === undefined ? "—" : store.rating.toFixed(1)}
-            iconColor={colors.accent}
-          />
-
-          <View
-            style={[
-              styles.statDivider,
-              {
-                backgroundColor: colors.border,
-              },
-            ]}
-          />
-
-          <StoreStat
-            icon="time-outline"
-            label="التوصيل"
-            value={store.deliveryTime ?? "يحدد عند الطلب"}
-            iconColor={colors.primary}
-          />
-
-          <View
-            style={[
-              styles.statDivider,
-              {
-                backgroundColor: colors.border,
-              },
-            ]}
-          />
-
-          <StoreStat
             icon="cube-outline"
             label="المنتجات"
             value={String(storeProducts.length)}
             iconColor={colors.primary}
           />
-        </View>
-
-        <View
-          style={[
-            styles.deliveryCard,
-            {
-              backgroundColor: colors.primaryLight,
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.deliveryIcon,
-              {
-                backgroundColor: colors.surface,
-              },
-            ]}
-          >
-            <AppIcon name="bicycle-outline" size={22} color={colors.primary} />
-          </View>
-
-          <View style={styles.deliveryInfo}>
-            <Text
-              style={[
-                styles.deliveryTitle,
-                {
-                  color: colors.text,
-                },
-              ]}
-            >
-              التوصيل إلى منطقتك
-            </Text>
-
-            <Text
-              style={[
-                styles.deliveryText,
-                {
-                  color: colors.textSecondary,
-                },
-              ]}
-            >
-              {store.deliveryTime ?? "التوصيل عند الطلب"} • {store.deliveryFee ?? "يحدد عند الطلب"}
-            </Text>
-          </View>
-
-          <AppIcon name="checkmark-circle" size={21} color={colors.success} />
         </View>
 
         <View
@@ -456,9 +303,9 @@ export default function StoreDetailsScreen() {
 
         {showHighlights && popularProducts.length > 0 ? (
           <ProductSection
-            title="الأكثر طلباً"
-            subtitle="منتجات يطلبها الزبائن بكثرة"
-            icon="trending-up-outline"
+            title="منتجات من المتجر"
+            subtitle="تشكيلة من منتجات المتجر"
+            icon="grid-outline"
             products={popularProducts}
             onProductPress={handleProductPress}
           />
@@ -605,6 +452,7 @@ export default function StoreDetailsScreen() {
             </View>
           )}
         </View>
+        <RatingsSection kind="store" storeId={store.id} />
       </ScrollView>
     </View>
   );

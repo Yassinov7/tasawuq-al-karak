@@ -5,107 +5,57 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from "react-native";
 
 import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { Fonts, FontSizes, Radius, Spacing } from "@/constants/theme";
+import { ApplicationStatusEmptyState } from "@/components/application-status/ApplicationStatusEmptyState";
+import {
+  formatDate,
+  formatMoney,
+  statusText,
+  type Status,
+} from "@/components/application-status/model";
+import { styles } from "@/components/application-status/styles";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
+import {
+  AccountRoutingError,
+  getAccountRoute,
+  getAccountRoutingErrorMessage,
+} from "@/lib/account-routing";
 import { supabase } from "@/lib/supabase";
-
-type Status = {
-  status: string;
-  review_note: string | null;
-  submitted_at: string;
-  plan_price_snapshot?: number;
-  plan_currency_snapshot?: string;
-};
-
-type StatusConfig = {
-  title: string;
-  note: string;
-  icon:
-    | "time-outline"
-    | "checkmark-circle-outline"
-    | "close-circle-outline"
-    | "information-circle-outline";
-  tone: "pending" | "accepted" | "rejected" | "changes";
-};
-
-const statusText: Record<string, StatusConfig> = {
-  pending: {
-    title: "طلبك قيد المراجعة",
-    note: "ستراجع الإدارة المعلومات التي قدمتها، وسيتم تحديث حالة الطلب بعد انتهاء المراجعة.",
-    icon: "time-outline",
-    tone: "pending",
-  },
-
-  accepted: {
-    title: "تمت الموافقة على طلبك",
-    note: "تم اعتماد طلبك وأصبح حسابك جاهزاً للانتقال إلى المرحلة التالية.",
-    icon: "checkmark-circle-outline",
-    tone: "accepted",
-  },
-
-  rejected: {
-    title: "تعذر قبول الطلب حالياً",
-    note: "راجع ملاحظة الإدارة لمعرفة سبب عدم قبول الطلب والخطوة التالية المتاحة لك.",
-    icon: "close-circle-outline",
-    tone: "rejected",
-  },
-
-  changes_requested: {
-    title: "نحتاج معلومات إضافية",
-    note: "راجِع ملاحظة الإدارة واستكمل المعلومات المطلوبة عند إعادة فتح الطلب.",
-    icon: "information-circle-outline",
-    tone: "changes",
-  },
-};
-
-const formatDate = (value: string) => {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "غير متوفر";
-  }
-
-  return date.toLocaleDateString("ar-SY", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-};
-
-const formatMoney = (
-  value: number | undefined,
-  currency: string | undefined,
-) => {
-  const amount = Number(value ?? 0);
-
-  return `${amount.toLocaleString("ar-SY")} ${
-    currency === "USD" ? "دولار" : "ل.س"
-  }`;
-};
 
 export default function ApplicationStatusScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const {
+    user,
+    loading: authLoading,
+    initializationError,
+    retrySession,
+  } = useAuth();
   const { colors } = useTheme();
 
   const [status, setStatus] = useState<Status | null>(null);
   const [role, setRole] = useState("");
   const [loading, setLoading] = useState(true);
+  const [redirecting, setRedirecting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
   const loadStatus = useCallback(
     async (isRefresh = false) => {
-      if (!user) {
+      if (authLoading) return;
+      if (initializationError) {
+        setError("تعذر التحقق من جلسة الدخول. حاول مرة أخرى.");
         setLoading(false);
+        return;
+      }
+      if (!user) {
+        setRedirecting(true);
+        router.replace("/login");
         return;
       }
 
@@ -118,6 +68,13 @@ export default function ApplicationStatusScreen() {
       setError("");
 
       try {
+        const destination = await getAccountRoute(user.id);
+        if (destination !== "/application-status") {
+          setRedirecting(true);
+          router.replace(destination as Href);
+          return;
+        }
+
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("role")
@@ -128,11 +85,19 @@ export default function ApplicationStatusScreen() {
           throw profileError;
         }
 
-        const currentRole = profile?.role ?? "";
+        if (!profile) {
+          throw new AccountRoutingError("profile-missing");
+        }
+
+        const currentRole = profile.role;
 
         if (currentRole !== "merchant" && currentRole !== "driver") {
-          setRole(currentRole);
-          setStatus(null);
+          const currentDestination = await getAccountRoute(user.id);
+          if (currentDestination === "/application-status") {
+            throw new AccountRoutingError("invalid-role");
+          }
+          setRedirecting(true);
+          router.replace(currentDestination as Href);
           return;
         }
 
@@ -159,7 +124,17 @@ export default function ApplicationStatusScreen() {
         }
 
         const applicationStatus = application as Status | null;
+        if (!applicationStatus) {
+          const latestDestination = await getAccountRoute(user.id);
+          if (latestDestination !== "/application-status") {
+            setRedirecting(true);
+            router.replace(latestDestination as Href);
+            return;
+          }
+          throw new Error("Application status was not available.");
+        }
         if (applicationStatus?.status === "accepted") {
+          setRedirecting(true);
           router.replace(
             currentRole === "merchant" ? "/merchant" : "/driver",
           );
@@ -167,16 +142,18 @@ export default function ApplicationStatusScreen() {
         }
 
         setStatus(applicationStatus);
-      } catch {
+      } catch (loadError) {
         setError(
-          "تعذر تحميل حالة الطلب. تحقق من اتصالك بالإنترنت ثم حاول مرة أخرى.",
+          loadError instanceof AccountRoutingError
+            ? getAccountRoutingErrorMessage(loadError)
+            : "تعذر تحميل حالة الطلب. تحقق من اتصالك بالإنترنت ثم حاول مرة أخرى.",
         );
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [router, user],
+    [authLoading, initializationError, router, user],
   );
 
   useEffect(() => {
@@ -185,11 +162,19 @@ export default function ApplicationStatusScreen() {
   }, [loadStatus]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.replace("/login");
+    try {
+      const { error: signOutError } = await supabase.auth.signOut();
+      if (signOutError) {
+        setError("تعذر تسجيل الخروج. تحقق من الاتصال ثم حاول مرة أخرى.");
+        return;
+      }
+      router.replace("/login");
+    } catch {
+      setError("تعذر تسجيل الخروج. تحقق من الاتصال ثم حاول مرة أخرى.");
+    }
   };
 
-  if (loading) {
+  if (authLoading || loading || redirecting) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -203,44 +188,14 @@ export default function ApplicationStatusScreen() {
 
   if (!status) {
     return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <View
-          style={[
-            styles.emptyIcon,
-            { backgroundColor: colors.surfaceSecondary },
-          ]}
-        >
-          <AppIcon
-            name="document-text-outline"
-            size={28}
-            color={colors.textSecondary}
-          />
-        </View>
-
-        <Text style={[styles.emptyTitle, { color: colors.text }]}>
-          لا يوجد طلب مسجل
-        </Text>
-
-        <Text
-          style={[styles.emptyDescription, { color: colors.textSecondary }]}
-        >
-          لا يوجد طلب انتساب مرتبط بهذا الحساب حالياً.
-        </Text>
-
-        {error ? (
-          <Text style={[styles.errorText, { color: colors.error }]}>
-            {error}
-          </Text>
-        ) : null}
-
-        <AppButton title="إعادة المحاولة" onPress={() => void loadStatus()} />
-
-        <AppButton
-          title="تسجيل الخروج"
-          variant="outline"
-          onPress={() => void handleLogout()}
-        />
-      </View>
+      <ApplicationStatusEmptyState
+        error={error}
+        onRetry={() => {
+          if (initializationError) void retrySession();
+          else void loadStatus();
+        }}
+        onLogout={() => void handleLogout()}
+      />
     );
   }
 
@@ -542,306 +497,3 @@ export default function ApplicationStatusScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: Spacing.five,
-    gap: Spacing.three,
-  },
-
-  loadingText: {
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    textAlign: "center",
-  },
-
-  emptyIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: Radius.full,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  emptyTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.lg,
-    textAlign: "center",
-  },
-
-  emptyDescription: {
-    maxWidth: 420,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    lineHeight: 24,
-    textAlign: "center",
-  },
-
-  errorText: {
-    maxWidth: 420,
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.sm,
-    lineHeight: 22,
-    textAlign: "center",
-  },
-
-  header: {
-    minHeight: 72,
-    paddingHorizontal: Spacing.four,
-    borderBottomWidth: 1,
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  headerButton: {
-    width: 42,
-    height: 42,
-    borderRadius: Radius.full,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  headerTitleContainer: {
-    flex: 1,
-    alignItems: "center",
-  },
-
-  headerTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.lg,
-    textAlign: "center",
-  },
-
-  headerSubtitle: {
-    marginTop: 2,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.xs,
-    textAlign: "center",
-  },
-
-  container: {
-    width: "100%",
-    maxWidth: 620,
-    alignSelf: "center",
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.ten,
-    gap: Spacing.three,
-  },
-
-  statusCard: {
-    borderWidth: 1,
-    borderRadius: Radius.xl,
-    padding: Spacing.five,
-    alignItems: "center",
-    gap: Spacing.three,
-  },
-
-  statusIcon: {
-    width: 76,
-    height: 76,
-    borderRadius: Radius.full,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  statusTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.xl,
-    textAlign: "center",
-  },
-
-  statusDescription: {
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    lineHeight: 25,
-    textAlign: "center",
-  },
-
-  statusBadge: {
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: Spacing.two,
-  },
-
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: Radius.full,
-  },
-
-  statusBadgeText: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.xs,
-  },
-
-  detailsCard: {
-    borderWidth: 1,
-    borderRadius: Radius.xl,
-    padding: Spacing.four,
-  },
-
-  detailsTitle: {
-    marginBottom: Spacing.three,
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.md,
-    textAlign: "right",
-  },
-
-  detailRow: {
-    minHeight: 54,
-    borderBottomWidth: 1,
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: Spacing.three,
-  },
-
-  detailLabel: {
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    textAlign: "right",
-  },
-
-  detailValue: {
-    flex: 1,
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.sm,
-    textAlign: "left",
-  },
-
-  planBox: {
-    marginTop: Spacing.three,
-    borderRadius: Radius.lg,
-    padding: Spacing.three,
-    flexDirection: "row-reverse",
-    alignItems: "flex-start",
-    gap: Spacing.three,
-  },
-
-  planIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: Radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  planContent: {
-    flex: 1,
-    alignItems: "flex-end",
-  },
-
-  planTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.sm,
-    textAlign: "right",
-  },
-
-  planDescription: {
-    marginTop: 3,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.xs,
-    lineHeight: 19,
-    textAlign: "right",
-  },
-
-  planPrice: {
-    marginTop: Spacing.one,
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.md,
-    textAlign: "right",
-  },
-
-  reviewCard: {
-    borderWidth: 1,
-    borderRadius: Radius.xl,
-    padding: Spacing.four,
-  },
-
-  reviewHeader: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: Spacing.two,
-    marginBottom: Spacing.three,
-  },
-
-  reviewIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: Radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  reviewTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.md,
-    textAlign: "right",
-  },
-
-  reviewText: {
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    lineHeight: 25,
-    textAlign: "right",
-  },
-
-  nextStepCard: {
-    borderWidth: 1,
-    borderRadius: Radius.lg,
-    padding: Spacing.three,
-    flexDirection: "row-reverse",
-    alignItems: "flex-start",
-    gap: Spacing.three,
-  },
-
-  nextStepIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  nextStepContent: {
-    flex: 1,
-    alignItems: "flex-end",
-  },
-
-  nextStepTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.sm,
-    textAlign: "right",
-  },
-
-  nextStepDescription: {
-    marginTop: 4,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.xs,
-    lineHeight: 21,
-    textAlign: "right",
-  },
-
-  actions: {
-    gap: Spacing.two,
-  },
-
-  footerHint: {
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.xs,
-    lineHeight: 19,
-    textAlign: "center",
-  },
-});

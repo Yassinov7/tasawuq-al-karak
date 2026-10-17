@@ -9,6 +9,7 @@ import { Stack, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { View } from "react-native";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppBottomNav } from "@/components/navigation/AppBottomNav";
 import { BottomNavHeight } from "@/constants/theme";
@@ -44,6 +45,7 @@ const MAIN_ROUTES = [
 function AppContent() {
   const pathname = usePathname();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const showBottomNav = MAIN_ROUTES.includes(
     pathname as (typeof MAIN_ROUTES)[number],
@@ -65,7 +67,7 @@ function AppContent() {
           animationDuration: 180,
           contentStyle: {
             backgroundColor: colors.background,
-            paddingBottom: showBottomNav ? BottomNavHeight : 0,
+            paddingBottom: showBottomNav ? BottomNavHeight + insets.bottom : 0,
           },
         }}
       />
@@ -94,21 +96,23 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <SettingsProvider>
-        <ThemeProvider>
-          <NotificationProvider>
-            <FavoritesProvider>
-              <CustomerCatalogProvider>
-                <CartProvider>
-                  <AppContent />
-                </CartProvider>
-              </CustomerCatalogProvider>
-            </FavoritesProvider>
-          </NotificationProvider>
-        </ThemeProvider>
-      </SettingsProvider>
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <SettingsProvider>
+          <ThemeProvider>
+            <NotificationProvider>
+              <FavoritesProvider>
+                <CustomerCatalogProvider>
+                  <CartProvider>
+                    <AppContent />
+                  </CartProvider>
+                </CustomerCatalogProvider>
+              </FavoritesProvider>
+            </NotificationProvider>
+          </ThemeProvider>
+        </SettingsProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }
 

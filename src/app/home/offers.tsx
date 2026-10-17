@@ -38,6 +38,9 @@ export default function OffersTab() {
 
     return categories.filter((category) => categoryIds.has(category.id));
   }, [categories, offers]);
+  const selectedCategoryName = selectedCategory === "all"
+    ? null
+    : categories.find((category) => category.id === selectedCategory)?.name ?? null;
 
   const handleOfferPress = (offerId: string) => {
     router.push({
@@ -58,7 +61,7 @@ export default function OffersTab() {
       ]}
     >
       <CustomerCatalogStatus />
-      <AppHeader title="العروض" cartCount={itemCount} />
+      <AppHeader cartCount={itemCount} mode="customer" />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -74,17 +77,12 @@ export default function OffersTab() {
               كل عرض حزمة واحدة؛ افتح التفاصيل لمراجعة المكونات والسعر قبل إضافتها للسلة.
             </Text>
           </View>
-          <View style={[styles.introCount, { backgroundColor: colors.primaryLight }]}>
-            <Text style={[styles.introCountText, { color: colors.primary }]}>
-              {offers.length}
-            </Text>
-          </View>
         </View>
 
         <View style={styles.filterSection}>
           <SectionHeader
             title="تصفية حسب التصنيف"
-            subtitle={selectedCategory === "all" ? "كل التصنيفات" : "تم اختيار تصنيف"}
+            subtitle={selectedCategoryName ?? "كل التصنيفات"}
             icon="grid-outline"
             colors={colors}
           />
@@ -357,19 +355,6 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
 
-  introCount: {
-    alignItems: "center",
-    minWidth: 36,
-    height: 36,
-    justifyContent: "center",
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.two,
-  },
-
-  introCountText: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.sm,
-  },
 
   filterSection: {
     marginTop: Spacing.four,

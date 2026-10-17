@@ -1,5 +1,6 @@
 import { Href, usePathname, useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppIcon } from "@/components/ui/AppIcon";
 import { FontSizes, Fonts, Radius, Shadows, Spacing } from "@/constants/theme";
@@ -142,6 +143,7 @@ export function AppBottomNav() {
   const router = useRouter();
   const pathname = usePathname();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const mode = getNavigationMode(pathname);
 
@@ -171,7 +173,10 @@ export function AppBottomNav() {
   };
 
   return (
-    <View pointerEvents="box-none" style={styles.wrapper}>
+    <View
+      pointerEvents="box-none"
+      style={[styles.wrapper, { paddingBottom: Math.max(insets.bottom, Spacing.two) }]}
+    >
       <View
         style={[
           styles.container,

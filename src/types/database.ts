@@ -1,3 +1,8 @@
+import type {
+  ProfileAgeRange,
+  ProfileGender,
+} from "@/types/profile-demographics";
+
 export type Json =
   | string
   | number
@@ -859,27 +864,104 @@ export type Database = {
           },
         ]
       }
+      product_reviews: {
+        Row: {
+          comment: string | null
+          created_at: string
+          customer_id: string
+          id: string
+          product_id: string | null
+          product_title_snapshot: string
+          purchased_product_id: string
+          rating: number
+          store_id: string
+          store_order_id: string
+          updated_at: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          customer_id: string
+          id?: string
+          product_id?: string | null
+          product_title_snapshot: string
+          purchased_product_id: string
+          rating: number
+          store_id: string
+          store_order_id: string
+          updated_at?: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          customer_id?: string
+          id?: string
+          product_id?: string | null
+          product_title_snapshot?: string
+          purchased_product_id?: string
+          rating?: number
+          store_id?: string
+          store_order_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_reviews_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reviews_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reviews_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reviews_store_order_id_fkey"
+            columns: ["store_order_id"]
+            isOneToOne: false
+            referencedRelation: "store_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
+          age_range: ProfileAgeRange | null
           created_at: string
           email: string
           full_name: string
+          gender: ProfileGender | null
           id: string
           role: Database["public"]["Enums"]["account_role"]
           updated_at: string
         }
         Insert: {
+          age_range?: ProfileAgeRange | null
           created_at?: string
           email: string
           full_name: string
+          gender?: ProfileGender | null
           id: string
           role?: Database["public"]["Enums"]["account_role"]
           updated_at?: string
         }
         Update: {
+          age_range?: ProfileAgeRange | null
           created_at?: string
           email?: string
           full_name?: string
+          gender?: ProfileGender | null
           id?: string
           role?: Database["public"]["Enums"]["account_role"]
           updated_at?: string
@@ -1297,6 +1379,61 @@ export type Database = {
           },
         ]
       }
+      store_reviews: {
+        Row: {
+          comment: string | null
+          created_at: string
+          customer_id: string
+          id: string
+          rating: number
+          store_id: string
+          store_order_id: string
+          updated_at: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          customer_id: string
+          id?: string
+          rating: number
+          store_id: string
+          store_order_id: string
+          updated_at?: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          customer_id?: string
+          id?: string
+          rating?: number
+          store_id?: string
+          store_order_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_reviews_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "store_reviews_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "store_reviews_store_order_id_fkey"
+            columns: ["store_order_id"]
+            isOneToOne: true
+            referencedRelation: "store_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscription_plans: {
         Row: {
           created_at: string
@@ -1421,7 +1558,45 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      product_public_reviews: {
+        Row: {
+          comment: string | null
+          created_at: string
+          id: string
+          product_id: string | null
+          product_title_snapshot: string
+          rating: number
+          updated_at: string
+        }
+        Relationships: []
+      }
+      product_rating_summaries: {
+        Row: {
+          average_rating: number | null
+          product_id: string
+          rating_count: number
+        }
+        Relationships: []
+      }
+      store_public_reviews: {
+        Row: {
+          comment: string | null
+          created_at: string
+          id: string
+          rating: number
+          store_id: string
+          updated_at: string
+        }
+        Relationships: []
+      }
+      store_rating_summaries: {
+        Row: {
+          average_rating: number | null
+          rating_count: number
+          store_id: string
+        }
+        Relationships: []
+      }
     }
     Functions: {
       accept_delivery_task: {
@@ -1467,6 +1642,33 @@ export type Database = {
         Returns: undefined
       }
       delete_store_offer: { Args: { target_offer: string }; Returns: undefined }
+      create_product_review: {
+        Args: {
+          input_comment?: string | null
+          input_rating: number
+          target_product: string
+          target_store_order: string
+        }
+        Returns: string
+      }
+      create_store_review: {
+        Args: {
+          input_comment?: string | null
+          input_rating: number
+          target_store_order: string
+        }
+        Returns: string
+      }
+      delete_product_review: { Args: { target_review: string }; Returns: undefined }
+      delete_store_review: { Args: { target_review: string }; Returns: undefined }
+      get_my_product_review: {
+        Args: { target_product: string; target_store_order: string }
+        Returns: { comment: string | null; id: string; rating: number }[]
+      }
+      get_my_store_review: {
+        Args: { target_store_order: string }
+        Returns: { comment: string | null; id: string; rating: number }[]
+      }
       is_admin: { Args: never; Returns: boolean }
       is_available_driver: { Args: never; Returns: boolean }
       is_approved_driver: { Args: never; Returns: boolean }
@@ -1589,6 +1791,14 @@ export type Database = {
           reason?: string
           target_store_order: string
         }
+        Returns: undefined
+      }
+      update_product_review: {
+        Args: { input_comment?: string | null; input_rating: number; target_review: string }
+        Returns: undefined
+      }
+      update_store_review: {
+        Args: { input_comment?: string | null; input_rating: number; target_review: string }
         Returns: undefined
       }
     }

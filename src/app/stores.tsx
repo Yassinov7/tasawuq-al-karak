@@ -1,6 +1,6 @@
 import { Href, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { CategoryChip } from "@/components/marketplace/CategoryChip";
 import { StoreCard } from "@/components/marketplace/StoreCard";
@@ -59,7 +59,14 @@ export default function StoresScreen() {
     });
   }, [searchText, selectedCategory, categories, stores]);
 
-  const featuredStores = useMemo(() => filteredStores, [filteredStores]);
+  const featuredStores = useMemo(
+    () => filteredStores.filter((store) => store.featured === true),
+    [filteredStores],
+  );
+  const otherStores = useMemo(
+    () => filteredStores.filter((store) => store.featured !== true),
+    [filteredStores],
+  );
 
   const handleStorePress = (storeId: string) => {
     router.push({
@@ -83,7 +90,7 @@ export default function StoresScreen() {
       ]}
     >
       <CustomerCatalogStatus />
-      <AppHeader title="المتاجر" cartCount={itemCount} mode="shared" />
+      <AppHeader cartCount={itemCount} mode="customer" />
       <ScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -100,17 +107,20 @@ export default function StoresScreen() {
         >
           <AppIcon name="search-outline" size={21} color={colors.textMuted} />
 
-          <Text
+          <TextInput
+            value={searchText}
+            onChangeText={setSearchText}
+            placeholder="ابحث عن متجر..."
+            placeholderTextColor={colors.textMuted}
             style={[
               styles.searchPlaceholder,
               {
                 color: searchText ? colors.text : colors.textMuted,
               },
             ]}
-            numberOfLines={1}
-          >
-            {searchText || "ابحث عن متجر..."}
-          </Text>
+            textAlign="right"
+            returnKeyType="search"
+          />
 
           {searchText ? (
             <Pressable
@@ -123,23 +133,6 @@ export default function StoresScreen() {
             </Pressable>
           ) : null}
 
-          <Pressable
-            onPress={() => {
-              // Text input will be added here when the
-              // search field becomes interactive.
-            }}
-            style={({ pressed }) => [
-              styles.searchButton,
-              {
-                backgroundColor: colors.primary,
-                opacity: pressed ? 0.7 : 1,
-              },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="البحث في المتاجر"
-          >
-            <AppIcon name="search-outline" size={19} color={colors.surface} />
-          </Pressable>
         </View>
 
         <View style={styles.section}>
@@ -213,9 +206,7 @@ export default function StoresScreen() {
           </ScrollView>
         </View>
 
-        {featuredStores.length > 0 &&
-        !searchText &&
-        selectedCategory === "all" ? (
+        {featuredStores.length > 0 ? (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View>
@@ -238,7 +229,7 @@ export default function StoresScreen() {
                     },
                   ]}
                 >
-                  متاجر مختارة من منطقتك
+                  متاجر مختارة
                 </Text>
               </View>
 
@@ -276,7 +267,7 @@ export default function StoresScreen() {
                 {searchText
                   ? "نتائج البحث"
                   : selectedCategory === "all"
-                    ? "جميع المتاجر"
+                    ? featuredStores.length > 0 ? "بقية المتاجر" : "جميع المتاجر"
                     : "المتاجر حسب التصنيف"}
               </Text>
 
@@ -293,9 +284,9 @@ export default function StoresScreen() {
             </View>
           </View>
 
-          {filteredStores.length > 0 ? (
+          {otherStores.length > 0 ? (
             <View style={styles.grid}>
-              {filteredStores.map((store) => (
+              {otherStores.map((store) => (
                 <StoreCard
                   key={store.id}
                   store={store}
@@ -304,7 +295,7 @@ export default function StoresScreen() {
                 />
               ))}
             </View>
-          ) : (
+          ) : filteredStores.length === 0 ? (
             <AppEmptyState
               icon="storefront-outline"
               title="لم نجد متاجر"
@@ -316,36 +307,9 @@ export default function StoresScreen() {
               buttonText="إظهار جميع المتاجر"
               onButtonPress={clearFilters}
             />
-          )}
+          ) : null}
         </View>
 
-        <View
-          style={[
-            styles.note,
-            {
-              backgroundColor: colors.surfaceSecondary,
-              borderColor: colors.border,
-            },
-          ]}
-        >
-          <AppIcon
-            name="information-circle-outline"
-            size={18}
-            color={colors.textMuted}
-          />
-
-          <Text
-            style={[
-              styles.noteText,
-              {
-                color: colors.textSecondary,
-              },
-            ]}
-          >
-            المتاجر والبيانات المعروضة حالياً تجريبية، وسيتم ربطها لاحقاً
-            ببيانات المتاجر الفعلية.
-          </Text>
-        </View>
       </ScrollView>
     </View>
   );
@@ -375,6 +339,7 @@ const styles = StyleSheet.create({
 
   searchPlaceholder: {
     flex: 1,
+    minWidth: 0,
     fontFamily: Fonts.regular,
     fontSize: FontSizes.sm,
     textAlign: "right",
@@ -445,21 +410,4 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
 
-  note: {
-    flexDirection: "row-reverse",
-    alignItems: "flex-start",
-    gap: Spacing.two,
-    marginTop: Spacing.six,
-    padding: Spacing.three,
-    borderWidth: 1,
-    borderRadius: Radius.lg,
-  },
-
-  noteText: {
-    flex: 1,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.xs,
-    lineHeight: 19,
-    textAlign: "right",
-  },
 });

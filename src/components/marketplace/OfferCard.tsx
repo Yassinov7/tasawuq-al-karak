@@ -92,6 +92,11 @@ export function OfferCard({
               وفّر {summary.savings.toLocaleString("ar")} {offer.currency === "USD" ? "$" : "ل.س"}
             </Text>
           ) : null}
+          {summary.savings > 0 ? (
+            <Text style={[styles.originalPrice, { color: colors.textMuted }]}>
+              {summary.originalTotal.toLocaleString("ar")} {offer.currency === "USD" ? "$" : "ل.س"}
+            </Text>
+          ) : null}
           <Text style={[styles.priceLabel, { color: colors.textMuted }]}>سعر العرض</Text>
           <Text style={[styles.price, { color: colors.primary }]}>
             {summary.finalTotal.toLocaleString("ar")} {offer.currency === "USD" ? "$" : "ل.س"}
@@ -126,6 +131,7 @@ const styles = StyleSheet.create({
   bundleContents: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, lineHeight: 18, textAlign: "right" },
   footer: { alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between" },
   savings: { fontFamily: Fonts.medium, fontSize: FontSizes.xs },
+  originalPrice: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, textDecorationLine: "line-through" },
   priceLabel: { fontFamily: Fonts.regular, fontSize: FontSizes.xs },
   price: { fontFamily: Fonts.bold, fontSize: FontSizes.md },
   detailsAction: { alignItems: "center", borderRadius: Radius.full, flexDirection: "row-reverse", gap: Spacing.one, minHeight: 36, paddingHorizontal: Spacing.two },

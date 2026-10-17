@@ -111,7 +111,7 @@ export function StoreCard({
         </Text>
       ) : null}
 
-      <View style={styles.meta}>
+      {store.deliveryTime ? <View style={styles.meta}>
         <View style={styles.metaItem}>
           <AppIcon name="time-outline" size={13} color={colors.textSecondary} />
 
@@ -123,10 +123,10 @@ export function StoreCard({
               },
             ]}
           >
-            {store.deliveryTime ?? "التوصيل عند الطلب"}
+            {store.deliveryTime}
           </Text>
         </View>
-      </View>
+      </View> : null}
 
       <View style={[styles.bottom, { borderTopColor: colors.border }]}>
         <Text

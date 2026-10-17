@@ -300,7 +300,7 @@ export default function AccountTab() {
         },
       ]}
     >
-      <AppHeader title="حسابي" cartCount={itemCount} />
+      <AppHeader title="حسابي" cartCount={itemCount} mode="customer" />
 
       <KeyboardAvoidingView
         style={styles.keyboardContainer}

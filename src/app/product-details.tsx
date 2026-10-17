@@ -1,10 +1,10 @@
 import { Href, useLocalSearchParams, useRouter } from "expo-router";
-import { Image } from "expo-image";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { ProductCard } from "@/components/marketplace/ProductCard";
-import { ProductMediaPreview } from "@/components/marketplace/ProductMediaPreview";
+import { ProductMediaGallery } from "@/components/marketplace/ProductMediaGallery";
+import { RatingsSection } from "@/components/marketplace/RatingsSection";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
@@ -25,7 +25,7 @@ export default function ProductDetailsScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { width: screenWidth } = useWindowDimensions();
-  const { categories, products, stores, offers } = useCustomerCatalog();
+  const { categories, error, loading, products, stores, offers } = useCustomerCatalog();
 
   const {
     itemCount,
@@ -74,13 +74,21 @@ export default function ProductDetailsScreen() {
   }, [product, products]);
 
   const cartQuantity = product ? getQuantity(product.id) : 0;
-  const activeMedia = product?.media?.[activeMediaIndex];
   const matchingOffers = product
     ? offers.filter((offer) => offer.items.some((item) => item.product.id === product.id))
     : [];
   const mediaWidth = Math.max(260, screenWidth - Spacing.four * 2);
 
   const favorite = product ? isFavorite(product.id) : false;
+  if (loading || error) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <AppHeader title="المنتج" showBack cartCount={itemCount} />
+        <CustomerCatalogStatus />
+      </View>
+    );
+  }
+
   if (!product) {
     return (
       <View
@@ -92,8 +100,6 @@ export default function ProductDetailsScreen() {
         ]}
       >
         <AppHeader title="المنتج" showBack cartCount={itemCount} />
-        <CustomerCatalogStatus />
-
         <View style={styles.notFound}>
           <View
             style={[
@@ -216,7 +222,6 @@ export default function ProductDetailsScreen() {
         mode="shared"
         cartCount={itemCount}
       />
-      <CustomerCatalogStatus />
       {syncError ? (
         <Text accessibilityRole="alert" style={{ color: colors.error, textAlign: "center", paddingHorizontal: Spacing.four }}>
           {syncError}
@@ -227,124 +232,15 @@ export default function ProductDetailsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
-        <View
-          style={[
-            styles.productImage,
-            {
-              backgroundColor: product.offer
-                ? colors.accentLight
-                : colors.primaryLight,
-            },
-          ]}
-        >
-          {activeMedia ? (
-            <ProductMediaPreview
-              key={activeMedia.id}
-              media={activeMedia}
-              width={mediaWidth}
-              height={270}
-              fallbackIcon={category?.icon ?? "cube-outline"}
-              contentFit="contain"
-              interactive
-            />
-          ) : (
-            <AppIcon
-              name={category?.icon ?? "cube-outline"}
-              size={78}
-              color={colors.primary}
-            />
-          )}
-
-          <Pressable
-            onPress={handleToggleFavorite}
-            accessibilityRole="button"
-            accessibilityLabel={
-              favorite ? "إزالة من المفضلة" : "إضافة إلى المفضلة"
-            }
-            accessibilityState={{
-              selected: favorite,
-            }}
-            style={({ pressed }) => [
-              styles.favoriteButton,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-              },
-              pressed && styles.pressed,
-            ]}
-          >
-            <AppIcon
-              name={favorite ? "heart" : "heart-outline"}
-              size={23}
-              color={favorite ? colors.error : colors.textSecondary}
-            />
-          </Pressable>
-
-          {product.offer ? (
-            <View
-              style={[
-                styles.offerBadge,
-                {
-                  backgroundColor: colors.accent,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.offerBadgeText,
-                  {
-                    color: colors.surface,
-                  },
-                ]}
-              >
-                عرض
-              </Text>
-            </View>
-          ) : null}
-        </View>
-
-        {product.media && product.media.length > 1 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ flexDirection: "row-reverse", gap: Spacing.two, paddingTop: Spacing.two }}
-          >
-            {product.media.map((media, index) => {
-              const selected = index === activeMediaIndex;
-              return (
-                <Pressable
-                  key={media.id}
-                  onPress={() => setActiveMediaIndex(index)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  accessibilityLabel={media.type === "video" ? "عرض فيديو المنتج" : `عرض صورة ${media.altText}`}
-                  style={{
-                    alignItems: "center",
-                    backgroundColor: colors.surface,
-                    borderColor: selected ? colors.primary : colors.border,
-                    borderRadius: Radius.md,
-                    borderWidth: selected ? 2 : 1,
-                    height: 64,
-                    justifyContent: "center",
-                    overflow: "hidden",
-                    width: 64,
-                  }}
-                >
-                  {media.type === "image" ? (
-                    <Image
-                      source={{ uri: media.uri }}
-                      contentFit="cover"
-                      style={{ height: "100%", width: "100%" }}
-                      accessibilityLabel={media.altText}
-                    />
-                  ) : (
-                    <AppIcon name="videocam-outline" size={25} color={colors.primary} />
-                  )}
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        ) : null}
+        <ProductMediaGallery
+          activeMediaIndex={activeMediaIndex}
+          categoryIcon={category?.icon}
+          favorite={favorite}
+          onSelectMedia={setActiveMediaIndex}
+          onToggleFavorite={handleToggleFavorite}
+          product={product}
+          width={mediaWidth}
+        />
 
         <View style={styles.productInfo}>
           <View style={styles.categoryRow}>
@@ -857,6 +753,7 @@ export default function ProductDetailsScreen() {
             </ScrollView>
           </View>
         ) : null}
+        <RatingsSection kind="product" storeId={product.storeId} productId={product.id} />
       </ScrollView>
     </View>
   );

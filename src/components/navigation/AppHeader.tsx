@@ -1,5 +1,6 @@
 import { usePathname, useRouter } from "expo-router";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppIcon } from "@/components/ui/AppIcon";
 import { Fonts, Radius, Spacing } from "@/constants/theme";
@@ -37,6 +38,7 @@ export function AppHeader({
   const pathname = usePathname();
   const { unreadCount } = useNotifications();
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const detectedMode = getHeaderMode(pathname);
   const headerMode = mode ?? detectedMode;
@@ -70,11 +72,10 @@ export function AppHeader({
         {
           backgroundColor: colors.background,
           borderBottomColor: colors.border,
+          paddingTop: insets.top,
         },
       ]}
     >
-      <View style={styles.safeTop} />
-
       <View style={styles.header}>
         <View style={styles.side}>
           {showBack ? (
@@ -229,10 +230,6 @@ export function AppHeader({
 const styles = StyleSheet.create({
   container: {
     borderBottomWidth: 1,
-  },
-
-  safeTop: {
-    height: 28,
   },
 
   header: {

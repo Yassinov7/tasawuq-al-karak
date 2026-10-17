@@ -40,13 +40,17 @@ const currencyName = (currency: string) => currency === "USD" ? "دولار" : "
 export default function AdminScreen() {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, loading: authLoading } = useAuth(); const { colors } = useTheme();
+  const { user, loading: authLoading, initializationError, retrySession } = useAuth(); const { colors } = useTheme();
   const section: AdminSection = pathname === "/admin/requests" ? "requests" : pathname === "/admin/drivers" ? "drivers" : pathname === "/admin/stores" ? "stores" : pathname === "/admin/finance" ? "finance" : "overview";
   const [requestRole, setRequestRole] = useState<Role>("merchant"); const [financeView, setFinanceView] = useState<"wallets" | "plans">("wallets");
   const [requestStatus, setRequestStatus] = useState<"pending" | "all" | "changes_requested" | "rejected" | "accepted">("pending");
   const [merchantRequests, setMerchantRequests] = useState<RequestRow[]>([]); const [driverRequests, setDriverRequests] = useState<RequestRow[]>([]); const [profiles, setProfiles] = useState<Profile[]>([]); const [drivers, setDrivers] = useState<AdminDriver[]>([]); const [merchants, setMerchants] = useState<AdminMerchant[]>([]); const [stores, setStores] = useState<AdminStore[]>([]); const [deliveryTasks, setDeliveryTasks] = useState<AdminDeliveryTask[]>([]); const [storeOrders, setStoreOrders] = useState<AdminStoreOrder[]>([]); const [wallets, setWallets] = useState<Wallet[]>([]); const [plans, setPlans] = useState<Plan[]>([]);
   const [authorizedUserId, setAuthorizedUserId] = useState<string | null>(null);
-  const authorized = authorizedUserId === user?.id;
+  const [accessRetry, setAccessRetry] = useState(0);
+  const authorized =
+    authorizedUserId === user?.id &&
+    !authLoading &&
+    !initializationError;
   const [loading, setLoading] = useState(true); const [refreshing, setRefreshing] = useState(false); const [busy, setBusy] = useState(false); const [signingOut, setSigningOut] = useState(false); const [error, setError] = useState(""); const [message, setMessage] = useState("");
   const [selectedRequest, setSelectedRequest] = useState<{ role: Role; row: RequestRow; decision: "accepted" | "rejected" | "changes_requested" } | null>(null); const [reviewNote, setReviewNote] = useState("");
   const [walletTarget, setWalletTarget] = useState<TransactionTarget | null>(null); const [operation, setOperation] = useState<"funding" | "settlement" | "adjustment">("funding"); const [direction, setDirection] = useState<"credit" | "debit">("credit"); const [amount, setAmount] = useState(""); const [note, setNote] = useState("");
@@ -91,7 +95,7 @@ export default function AdminScreen() {
   }, [authorized, user]);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || initializationError) return;
     if (!user) {
       router.replace("/login");
       return;
@@ -107,11 +111,11 @@ export default function AdminScreen() {
       setAuthorizedUserId(user.id);
     }).catch(() => {
       if (!active) return;
-      setError("تعذر التحقق من صلاحيات الحساب. أعد تسجيل الدخول وحاول مجددًا.");
+      setError("تعذر التحقق من صلاحيات الحساب. تحقق من الاتصال وحاول مرة أخرى.");
       setLoading(false);
     });
     return () => { active = false; };
-  }, [authLoading, router, user]);
+  }, [accessRetry, authLoading, initializationError, router, user]);
 
   useEffect(() => {
     if (!authorized) return;
@@ -229,8 +233,8 @@ export default function AdminScreen() {
     router.replace(routes[nextSection]);
   };
 
-  if (loading) return <View style={[styles.center, { backgroundColor: colors.background }]}><ActivityIndicator color={colors.primary} /></View>;
-  if (!authorized) return <View style={[styles.screen, { backgroundColor: colors.background }]}><AppHeader title="صلاحيات الإدارة" mode="business" /><View style={styles.accessMessage}><Text style={[styles.subtitle, { color: colors.textSecondary }]}>{error || "جارٍ التحقق من صلاحيات الحساب…"}</Text>{user ? <AppButton title="تسجيل الخروج" variant="outline" onPress={() => void signOut()} loading={signingOut} /> : null}</View></View>;
+  if (authLoading || (loading && !initializationError)) return <View style={[styles.center, { backgroundColor: colors.background }]}><ActivityIndicator color={colors.primary} /></View>;
+  if (!authorized) return <View style={[styles.screen, { backgroundColor: colors.background }]}><AppHeader title="صلاحيات الإدارة" mode="business" /><View style={styles.accessMessage}><Text style={[styles.subtitle, { color: colors.textSecondary }]}>{initializationError ? "تعذر التحقق من جلسة الدخول. حاول مرة أخرى." : error || "جارٍ التحقق من صلاحيات الحساب…"}</Text>{initializationError || error ? <AppButton title="إعادة المحاولة" onPress={() => { if (initializationError) void retrySession(); else setAccessRetry((count) => count + 1); }} /> : null}{user ? <AppButton title="تسجيل الخروج" variant="outline" onPress={() => void signOut()} loading={signingOut} /> : null}</View></View>;
   return <View style={[styles.screen, { backgroundColor: colors.background }]}>
     <AppHeader title="إدارة المنصة" mode="business" />
     <ScrollView

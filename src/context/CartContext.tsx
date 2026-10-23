@@ -18,6 +18,7 @@ import {
 } from "@/lib/catalog-quantity";
 import { calculateCustomerOffer } from "@/lib/customer-offers";
 import { supabase } from "@/lib/supabase";
+import { purchaseAvailabilityMessage } from "@/lib/purchase-availability";
 
 export type CartItem = {
   productId: string;
@@ -49,12 +50,12 @@ type CartContextValue = {
 const CartContext = createContext<CartContextValue | undefined>(undefined);
 
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "تعذرت مزامنة السلة.";
+  return purchaseAvailabilityMessage(error) ?? (error instanceof Error ? error.message : "تعذرت مزامنة السلة.");
 }
 
 export function CartProvider({ children }: PropsWithChildren) {
   const { user, loading: authLoading } = useAuth();
-  const { offers, products } = useCustomerCatalog();
+  const { offers, products, refresh } = useCustomerCatalog();
   const [items, setItems] = useState<CartItem[]>([]);
   const [selectedOfferIds, setSelectedOfferIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -184,6 +185,7 @@ export function CartProvider({ children }: PropsWithChildren) {
       } catch (error: unknown) {
         writeErrorRef.current = error;
         setSyncError(errorMessage(error));
+        if (purchaseAvailabilityMessage(error)) void refresh();
         if (userIdRef.current === userId) {
           try {
             await loadCart(userId);
@@ -197,7 +199,7 @@ export function CartProvider({ children }: PropsWithChildren) {
     });
     queueRef.current = task.then(() => undefined);
     return task;
-  }, [loadCart]);
+  }, [loadCart, refresh]);
 
   const saveItem = useCallback((productId: string, quantity: number) => {
     if (!authReady) {
@@ -335,7 +337,10 @@ export function CartProvider({ children }: PropsWithChildren) {
   const increaseItem = useCallback(async (productId: string) => {
     const current = itemsRef.current.find((item) => item.productId === productId);
     const product = products.find((item) => item.id === productId);
-    if (!current || !product) return;
+    if (!current || !product || !product.available) {
+      setSyncError("هذا المنتج لم يعد متاحًا. أزله من السلة قبل المتابعة.");
+      return;
+    }
     await saveItem(
       productId,
       normalizeCatalogQuantity(current.quantity + (product.quantityStep ?? 1)),

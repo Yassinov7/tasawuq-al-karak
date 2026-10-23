@@ -1,5 +1,6 @@
-import { useRouter, type Href } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMerchantWorkspace } from "@/context/MerchantWorkspaceContext";
+import { useFocusEffect, useRouter, type Href } from "expo-router";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -11,22 +12,25 @@ import {
   View,
 } from "react-native";
 
-import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { AppConfirmModal, AppModal } from "@/components/ui/AppModal";
 import { AppTextField } from "@/components/ui/AppTextField";
 import { Fonts, FontSizes, Radius, Spacing } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
+import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { useTheme } from "@/context/ThemeContext";
 import {
   peekLocalCache,
+  invalidateLocalCache,
   readLocalCache,
   writeLocalCache,
 } from "@/lib/local-cache";
 import {
   getMerchantStore,
+  filterMerchantProducts,
   getStoreMediaUrl,
+  setMerchantProductAvailability,
   type MerchantStore,
 } from "@/lib/merchant-store";
 import { supabase } from "@/lib/supabase";
@@ -41,6 +45,7 @@ type Product = {
   selling_unit: string;
   is_available: boolean;
 };
+
 
 type Category = {
   id: string;
@@ -69,6 +74,9 @@ export function MerchantProductsPanel({
   const router = useRouter();
   const { user } = useAuth();
   const { colors } = useTheme();
+  const { refreshProductAvailability } = useCustomerCatalog();
+  const mutationLock = useRef(false);
+  const loadSequence = useRef(0);
 
   const cacheKey = user ? `merchant-products:${user.id}` : "";
 
@@ -84,7 +92,7 @@ export function MerchantProductsPanel({
     cached?.categories ?? [],
   );
   const [media, setMedia] = useState<ProductMedia[]>(cached?.media ?? []);
-  const [query, setQuery] = useState("");
+  const { query, setQuery, availability, setAvailability } = useMerchantWorkspace();
   const [loading, setLoading] = useState(!cached);
   const [busyId, setBusyId] = useState("");
   const [selected, setSelected] = useState<Product | null>(null);
@@ -93,6 +101,7 @@ export function MerchantProductsPanel({
 
   const load = useCallback(async () => {
     if (!user) return;
+    const request = ++loadSequence.current;
 
     try {
       const key = `merchant-products:${user.id}`;
@@ -101,6 +110,7 @@ export function MerchantProductsPanel({
         peekLocalCache<ProductsSnapshot>(key) ??
         (await readLocalCache<ProductsSnapshot>(key));
 
+      if (request !== loadSequence.current) return;
       if (saved) {
         setStore(saved.store);
         setProducts(saved.products);
@@ -110,6 +120,7 @@ export function MerchantProductsPanel({
       }
 
       const ownStore = await getMerchantStore(user.id);
+      if (request !== loadSequence.current) return;
       setStore(ownStore);
 
       if (!ownStore) return;
@@ -136,6 +147,7 @@ export function MerchantProductsPanel({
           .order("display_order"),
       ]);
 
+      if (request !== loadSequence.current) return;
       if (productResult.error || categoryResult.error || mediaResult.error) {
         throw productResult.error ?? categoryResult.error ?? mediaResult.error;
       }
@@ -153,32 +165,24 @@ export function MerchantProductsPanel({
 
       await writeLocalCache(key, next);
     } catch {
+      if (request !== loadSequence.current) return;
       setError("تعذر تحميل المنتجات. تأكد من تنفيذ ترحيل المتجر والمنتجات.");
     } finally {
-      setLoading(false);
+      if (request === loadSequence.current) setLoading(false);
     }
   }, [user]);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     const timer = setTimeout(() => void load(), 0);
-
-    return () => clearTimeout(timer);
-  }, [load]);
+    return () => { clearTimeout(timer); loadSequence.current += 1; };
+  }, [load]));
 
   const categoryNames = useMemo(
     () => new Map(categories.map((category) => [category.id, category.name])),
     [categories],
   );
 
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-
-  const filtered = useMemo(
-    () =>
-      products.filter((product) =>
-        product.title.toLocaleLowerCase().includes(normalizedQuery),
-      ),
-    [products, normalizedQuery],
-  );
+  const filtered = useMemo(() => filterMerchantProducts(products, query, availability), [products, query, availability]);
 
   const availableCount = useMemo(
     () => products.filter((product) => product.is_available).length,
@@ -195,95 +199,25 @@ export function MerchantProductsPanel({
   };
 
   const toggleAvailability = async (product: Product, nextValue: boolean) => {
+    if (!store || mutationLock.current) return;
+    mutationLock.current = true;
+    loadSequence.current += 1;
     setBusyId(product.id);
     setError("");
-
-    const { error: updateError } = await supabase
-      .from("products")
-      .update({
-        is_available: nextValue,
-      })
-      .eq("id", product.id)
-      .eq("store_id", store?.id ?? "");
-
-    setBusyId("");
-
-    if (updateError) {
-      setError("تعذر تحديث حالة المنتج.");
-      return;
-    }
-
-    const nextProducts = products.map((item) =>
-      item.id === product.id
-        ? {
-            ...item,
-            is_available: nextValue,
-          }
-        : item,
-    );
-
-    setProducts(nextProducts);
-
-    if (cacheKey) {
-      await writeLocalCache(cacheKey, {
-        store,
-        products: nextProducts,
-        categories,
-        media,
-      } satisfies ProductsSnapshot);
-    }
-  };
-
-  const deleteProduct = async () => {
-    if (!selected || !store) return;
-
-    setBusyId(selected.id);
-    setError("");
-
-    const productMedia = media.filter(
-      (item) => item.product_id === selected.id,
-    );
-
-    const { error: deleteError } = await supabase
-      .from("products")
-      .delete()
-      .eq("id", selected.id)
-      .eq("store_id", store.id);
-
-    if (deleteError) {
+    try {
+      await setMerchantProductAvailability(product.id, store.id, nextValue);
+      setProducts((current) => current.map((item) => item.id === product.id ? { ...item, is_available: nextValue } : item));
+      setSelected(null);
+      if (cacheKey) await invalidateLocalCache(cacheKey);
+      await refreshProductAvailability(product.id);
+      setNotice(nextValue ? "أصبح المنتج متاحًا للطلب." : "تم إيقاف عرض المنتج للعملاء.");
+    } catch {
+      setError("تعذر تحديث حالة المنتج. تحقق من الاتصال وصلاحية إدارة المتجر ثم أعد المحاولة.");
+    } finally {
+      mutationLock.current = false;
       setBusyId("");
-      setError("تعذر حذف المنتج. ربما يرتبط بطلبات أو عروض سابقة.");
-      return;
-    }
-
-    if (productMedia.length) {
-      await supabase.storage
-        .from("store-media")
-        .remove(productMedia.map((item) => item.storage_path));
-    }
-
-    const nextProducts = products.filter(
-      (product) => product.id !== selected.id,
-    );
-
-    const nextMedia = media.filter((item) => item.product_id !== selected.id);
-
-    setProducts(nextProducts);
-    setMedia(nextMedia);
-    setSelected(null);
-    setBusyId("");
-    setNotice("تم حذف المنتج.");
-
-    if (cacheKey) {
-      await writeLocalCache(cacheKey, {
-        store,
-        products: nextProducts,
-        categories,
-        media: nextMedia,
-      } satisfies ProductsSnapshot);
     }
   };
-
   if (loading && !cached) {
     return (
       <View
@@ -308,7 +242,7 @@ export function MerchantProductsPanel({
         },
       ]}
     >
-      {!embedded ? <AppHeader title="منتجات المتجر" mode="business" /> : null}
+
 
       <ScrollView
         contentContainerStyle={styles.container}
@@ -509,6 +443,9 @@ export function MerchantProductsPanel({
           </View>
         </View>
 
+        <View style={{ flexDirection: "row-reverse", flexWrap: "wrap", gap: Spacing.two }}>
+          {([["all", "الكل"], ["available", "المعروضة"], ["paused", "الموقوفة"]] as const).map(([value, label]) => <AppButton key={value} title={label} variant={availability === value ? "primary" : "outline"} fullWidth={false} onPress={() => setAvailability(value)} />)}
+        </View>
         <View style={styles.searchSection}>
           <AppTextField
             label="البحث"
@@ -617,14 +554,14 @@ export function MerchantProductsPanel({
                 },
               ]}
             >
-              لم نجد منتجًا يطابق «{query.trim()}».
+              {query.trim() ? `لم نجد منتجًا يطابق «${query.trim()}».` : "لا توجد منتجات ضمن الفلتر المختار."}
             </Text>
 
             <AppButton
-              title="مسح البحث"
+              title={query.trim() ? "مسح البحث" : "عرض جميع المنتجات"}
               variant="outline"
               fullWidth={false}
-              onPress={() => setQuery("")}
+              onPress={() => { if (query.trim()) setQuery(""); else setAvailability("all"); }}
             />
           </View>
         ) : null}
@@ -838,9 +775,9 @@ export function MerchantProductsPanel({
                 <Switch
                   value={product.is_available}
                   onValueChange={(value) =>
-                    void toggleAvailability(product, value)
+                    value ? void toggleAvailability(product, true) : setSelected(product)
                   }
-                  disabled={busyId === product.id}
+                  disabled={Boolean(busyId)}
                   trackColor={{
                     false: colors.border,
                     true: colors.primaryLight,
@@ -908,6 +845,7 @@ export function MerchantProductsPanel({
 
                 <Pressable
                   onPress={() => setSelected(product)}
+                  disabled={Boolean(busyId) || !product.is_available}
                   style={[
                     styles.deleteAction,
                     {
@@ -916,7 +854,7 @@ export function MerchantProductsPanel({
                   ]}
                 >
                   <AppIcon
-                    name="trash-outline"
+                    name="eye-off-outline"
                     size={18}
                     color={colors.error}
                   />
@@ -929,7 +867,7 @@ export function MerchantProductsPanel({
                       },
                     ]}
                   >
-                    حذف
+                    {product.is_available ? "إيقاف عرض المنتج" : "العرض متوقف"}
                   </Text>
                 </Pressable>
               </View>
@@ -948,14 +886,14 @@ export function MerchantProductsPanel({
 
       <AppConfirmModal
         visible={Boolean(selected)}
-        title="حذف المنتج؟"
-        message={`سيتم حذف «${selected?.title ?? ""}» وصوره وفيديوهاته. إذا كان مرتبطًا بعرض محفوظ فحدّث العرض أولًا.`}
-        confirmText="حذف المنتج"
-        cancelText="إبقاء المنتج"
+        title="إيقاف عرض المنتج؟"
+        message={`سيتوقف عرض «${selected?.title ?? ""}» للعملاء، مع الاحتفاظ بصوره وسجلاته. يمكنك إعادة تفعيله لاحقًا.`}
+        confirmText="إيقاف العرض"
+        cancelText="إلغاء"
         destructive
         busy={Boolean(busyId)}
-        onCancel={() => setSelected(null)}
-        onConfirm={() => void deleteProduct()}
+        onCancel={() => { if (!mutationLock.current) setSelected(null); }}
+        onConfirm={() => { if (selected) void toggleAvailability(selected, false); }}
       />
 
       <AppModal

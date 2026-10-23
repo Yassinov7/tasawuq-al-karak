@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { AppIcon } from "@/components/ui/AppIcon";
+import { ProductMediaPreview } from "@/components/marketplace/ProductMediaPreview";
 import type { CustomerOffer } from "@/lib/customer-offers";
 import { getOfferPriceSummary } from "@/lib/offer-presentation";
 import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
@@ -29,6 +31,21 @@ export function OfferCard({
   const bundleDescription = offer.items
     .map((item) => `${item.product.name} × ${item.quantity}`)
     .join("، ");
+  const endsAt = offer.ends_at ? new Date(offer.ends_at) : null;
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
+  const hasValidEndDate = endsAt !== null && !Number.isNaN(endsAt.getTime()) && endsAt.getTime() > currentTime;
+  const previewMedia = offer.items[0]?.product.media?.find((item) => item.type === "image");
+
+  useEffect(() => {
+    if (!offer.ends_at) return;
+    const endTime = new Date(offer.ends_at).getTime();
+    if (Number.isNaN(endTime)) return;
+    const timeout = setTimeout(
+      () => setCurrentTime(Date.now()),
+      Math.max(0, endTime - Date.now()),
+    );
+    return () => clearTimeout(timeout);
+  }, [offer.ends_at]);
 
   return (
     <Pressable
@@ -48,15 +65,13 @@ export function OfferCard({
     >
       <View style={styles.header}>
         <View style={[styles.offerIcon, { backgroundColor: colors.accentLight }]}>
-          <AppIcon name="pricetag-outline" size={featured ? 24 : 21} color={colors.accent} />
+          {previewMedia ? <ProductMediaPreview media={previewMedia} width={42} height={42} fallbackIcon="pricetag-outline" /> : <AppIcon name="pricetag-outline" size={featured ? 24 : 21} color={colors.accent} />}
         </View>
         <View style={styles.headerText}>
           <Text style={[styles.rule, { color: colors.accent }]} numberOfLines={1}>
             {summary.rule}
           </Text>
-          <Text style={[styles.store, { color: colors.textMuted }]} numberOfLines={1}>
-            {store?.name ?? "متجر محلي"}
-          </Text>
+          {store ? <Text style={[styles.store, { color: colors.textMuted }]} numberOfLines={1}>{store.name}</Text> : null}
         </View>
         {added ? (
           <View style={[styles.addedBadge, { backgroundColor: colors.primaryLight }]}>
@@ -84,6 +99,13 @@ export function OfferCard({
           {bundleDescription}
         </Text>
       </View>
+
+      {hasValidEndDate ? (
+        <View style={styles.expiryRow}>
+          <AppIcon name="time-outline" size={14} color={colors.textMuted} />
+          <Text style={[styles.expiryText, { color: colors.textMuted }]}>ينتهي {endsAt?.toLocaleDateString("ar")}</Text>
+        </View>
+      ) : null}
 
       <View style={styles.footer}>
         <View>
@@ -129,6 +151,8 @@ const styles = StyleSheet.create({
   bundle: { borderRadius: Radius.md, gap: Spacing.one, minHeight: 62, padding: Spacing.two },
   bundleLabel: { fontFamily: Fonts.medium, fontSize: FontSizes.xs, textAlign: "right" },
   bundleContents: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, lineHeight: 18, textAlign: "right" },
+  expiryRow: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.one },
+  expiryText: { fontFamily: Fonts.medium, fontSize: FontSizes.xs },
   footer: { alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between" },
   savings: { fontFamily: Fonts.medium, fontSize: FontSizes.xs },
   originalPrice: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, textDecorationLine: "line-through" },

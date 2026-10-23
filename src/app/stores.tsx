@@ -291,6 +291,7 @@ export default function StoresScreen() {
                   key={store.id}
                   store={store}
                   compact
+                  grid
                   onPress={() => handleStorePress(store.id)}
                 />
               ))}

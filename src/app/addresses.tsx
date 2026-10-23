@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -15,7 +16,7 @@ import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { AppTextField } from "@/components/ui/AppTextField";
-import { Radius, Spacing } from "@/constants/theme";
+import { FontSizes, Fonts, Radius, Shadows, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
 import { useTheme } from "@/context/ThemeContext";
 import {
@@ -55,14 +56,17 @@ export default function AddressesScreen() {
   const [zones, setZones] = useState<DeliveryZone[]>([]);
   const [form, setForm] = useState<AddressForm>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [formVisible, setFormVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [busyAddressId, setBusyAddressId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CustomerAddress | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const refresh = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     setError(null);
     try {
       const [nextAddresses, nextZones] = await Promise.all([
@@ -71,12 +75,13 @@ export default function AddressesScreen() {
       ]);
       setAddresses(nextAddresses);
       setZones(nextZones);
+      setFormVisible((current) => current || nextAddresses.length === 0);
       return true;
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تحميل عناوينك.");
       return false;
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, []);
 
@@ -90,6 +95,7 @@ export default function AddressesScreen() {
     setEditingId(null);
     setNotice(null);
     setError(null);
+    setFormVisible(false);
   };
 
   const startEditing = (address: CustomerAddress) => {
@@ -105,6 +111,7 @@ export default function AddressesScreen() {
     });
     setNotice(null);
     setError(null);
+    setFormVisible(true);
   };
 
   const handleSave = async () => {
@@ -139,12 +146,11 @@ export default function AddressesScreen() {
         id: editingId,
         ...cleanForm,
       });
-      const refreshed = await refresh();
+      const refreshed = await refresh(false);
       if (refreshed) {
         resetForm();
         setNotice(editingId ? "تم تحديث العنوان." : "تم حفظ العنوان.");
       } else {
-        resetForm();
         setError("تم حفظ العنوان، لكن تعذر تحديث القائمة. أعد فتح الصفحة للتحقق من التغيير.");
       }
     } catch (cause) {
@@ -159,8 +165,10 @@ export default function AddressesScreen() {
     setError(null);
     try {
       await setDefaultCustomerAddress(addressId);
-      await refresh();
-      setNotice("تم تعيين العنوان الافتراضي.");
+      const refreshed = await refresh(false);
+      if (refreshed) {
+        setNotice("تم تعيين العنوان الافتراضي.");
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تعيين العنوان الافتراضي.");
     } finally {
@@ -168,24 +176,37 @@ export default function AddressesScreen() {
     }
   };
 
+  const confirmDelete = async () => {
+    if (!deleteTarget || busyAddressId) return;
+
+    setBusyAddressId(deleteTarget.id);
+    setDeleteError(null);
+    setError(null);
+    setNotice(null);
+    try {
+      await deleteCustomerAddress(deleteTarget.id);
+      const refreshed = await refresh(false);
+      if (refreshed) {
+        setNotice("تم حذف العنوان.");
+      }
+      setDeleteTarget(null);
+    } catch (cause) {
+      setDeleteError(cause instanceof Error ? cause.message : "تعذر حذف العنوان.");
+    } finally {
+      setBusyAddressId(null);
+    }
+  };
+
   const handleDelete = (address: CustomerAddress) => {
-    Alert.alert("حذف العنوان", `هل تريد حذف «${address.title}»؟`, [
-      { text: "إلغاء", style: "cancel" },
-      {
-        text: "حذف",
-        style: "destructive",
-        onPress: () => {
-          setBusyAddressId(address.id);
-          setError(null);
-          void deleteCustomerAddress(address.id)
-            .then(refresh)
-            .catch((cause: unknown) => {
-              setError(cause instanceof Error ? cause.message : "تعذر حذف العنوان.");
-            })
-            .finally(() => setBusyAddressId(null));
-        },
-      },
-    ]);
+    if (busyAddressId) return;
+    setDeleteError(null);
+    setDeleteTarget(address);
+  };
+
+  const closeDeleteModal = () => {
+    if (busyAddressId) return;
+    setDeleteError(null);
+    setDeleteTarget(null);
   };
 
   const handleOpenMaps = async (url: string) => {
@@ -208,117 +229,120 @@ export default function AddressesScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.content}
         >
-          <View style={styles.intro}>
-            <Text style={[styles.title, { color: colors.text }]}>عناوينك المحفوظة</Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              اختر منطقة التوصيل واحفظ بيانات المستلم لتسريع طلباتك القادمة.
-            </Text>
+          <View style={styles.introRow}>
+            <View style={styles.introCopy}>
+              <Text style={[styles.title, { color: colors.text }]}>عناوينك المحفوظة</Text>
+              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>احفظ عنوانك وبيانات المستلم لتسريع إتمام طلباتك القادمة.</Text>
+            </View>
+            <Pressable
+              onPress={() => {
+                resetForm();
+                setFormVisible(true);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="إضافة عنوان جديد"
+              style={({ pressed }) => [styles.addButton, { backgroundColor: colors.primary }, pressed && styles.pressed]}
+            >
+              <AppIcon name="add" size={20} color={colors.surface} />
+              <Text style={[styles.addButtonText, { color: colors.surface }]}>إضافة</Text>
+            </Pressable>
           </View>
 
+          {error ? (
+            <View accessibilityRole="alert" style={[styles.feedbackCard, { backgroundColor: colors.surface, borderColor: colors.error }]}>
+              <AppIcon name="alert-circle-outline" size={20} color={colors.error} />
+              <Text style={[styles.feedbackText, { color: colors.error }]}>{error}</Text>
+              {!formVisible ? (
+                <Pressable onPress={() => void refresh()} accessibilityRole="button" accessibilityLabel="إعادة تحميل العناوين">
+                  <Text style={[styles.retryText, { color: colors.primary }]}>إعادة المحاولة</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+          {notice ? <Text accessibilityLiveRegion="polite" style={[styles.notice, { color: colors.primary }]}>{notice}</Text> : null}
+
           {loading ? (
-            <Text style={[styles.message, { color: colors.textSecondary }]}>جارٍ تحميل العناوين...</Text>
+            <View style={[styles.statusCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={[styles.message, { color: colors.textSecondary }]}>جارٍ تحميل العناوين...</Text>
+            </View>
           ) : addresses.length === 0 ? (
             <View style={[styles.empty, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <AppIcon name="location-outline" size={28} color={colors.primary} />
-              <Text style={{ color: colors.text, textAlign: "center" }}>
-                لم تحفظ عنوانًا بعد. أضف عنوانك الأول أدناه.
-              </Text>
+              <View style={[styles.emptyIcon, { backgroundColor: colors.primaryLight }]}>
+                <AppIcon name="location-outline" size={25} color={colors.primary} />
+              </View>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>لا توجد عناوين محفوظة</Text>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>أضف عنوان التوصيل الأول لاستخدامه عند إتمام طلبك.</Text>
             </View>
           ) : (
             <View style={styles.list}>
-              {addresses.map((address) => (
-                <View
-                  key={address.id}
-                  style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
-                >
-                  <View style={styles.cardHeader}>
-                    <View style={[styles.addressIcon, { backgroundColor: colors.primaryLight }]}>
-                      <AppIcon name="location-outline" size={21} color={colors.primary} />
-                    </View>
-                    <View style={styles.cardInfo}>
-                      <View style={styles.titleLine}>
-                        <Text style={[styles.cardTitle, { color: colors.text }]}>{address.title}</Text>
-                        {address.is_default ? (
-                          <Text style={[styles.defaultBadge, { color: colors.primary, backgroundColor: colors.primaryLight }]}>
-                            افتراضي
-                          </Text>
-                        ) : null}
+              {addresses.map((address) => {
+                const busy = busyAddressId === address.id;
+                const zoneDescription = address.zone
+                  ? `${address.zone.name}${address.zone.is_active ? ` · ${address.zone.fixed_fee.toLocaleString("ar")} ل.س` : " · منطقة غير متاحة"}`
+                  : "منطقة التوصيل غير متاحة";
+
+                return (
+                  <View key={address.id} style={[styles.card, Shadows.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <View style={styles.cardHeader}>
+                      <View style={[styles.addressIcon, { backgroundColor: colors.primaryLight }]}>
+                        <AppIcon name="location-outline" size={21} color={colors.primary} />
                       </View>
-                      <Text style={[styles.detail, { color: colors.textSecondary }]}>
-                        {address.recipient_name} · {address.contact_phone}
-                      </Text>
-                      <Text style={[styles.detail, { color: colors.textSecondary }]}>
-                        {address.delivery_address}
-                      </Text>
-                      <Text style={[styles.zone, { color: address.zone?.is_active ? colors.primary : colors.error }]}>
-                        {address.zone
-                          ? `${address.zone.name}${address.zone.is_active ? ` · ${address.zone.fixed_fee.toLocaleString("ar")} ل.س` : " · منطقة غير متاحة"}`
-                          : "منطقة التوصيل غير متاحة"}
-                      </Text>
+                      <View style={styles.cardInfo}>
+                        <View style={styles.titleLine}>
+                          <Text numberOfLines={1} style={[styles.cardTitle, { color: colors.text }]}>{address.title}</Text>
+                          {address.is_default ? <Text style={[styles.defaultBadge, { color: colors.primary, backgroundColor: colors.primaryLight }]}>افتراضي</Text> : null}
+                        </View>
+                        <Text numberOfLines={1} style={[styles.recipient, { color: colors.textSecondary }]}>{address.recipient_name} · {address.contact_phone}</Text>
+                        <Text numberOfLines={2} style={[styles.detail, { color: colors.textSecondary }]}>{address.delivery_address}</Text>
+                        <Text numberOfLines={1} style={[styles.zone, { color: address.zone?.is_active ? colors.primary : colors.error }]}>{zoneDescription}</Text>
+                      </View>
+                    </View>
+
+                    <View style={[styles.cardFooter, { borderTopColor: colors.border }]}>
+                      {address.maps_url ? (
+                        <Pressable onPress={() => void handleOpenMaps(address.maps_url)} accessibilityRole="button" accessibilityLabel={`فتح موقع ${address.title}`} style={styles.mapAction}>
+                          <AppIcon name="map-outline" size={17} color={colors.primary} />
+                          <Text style={[styles.compactActionText, { color: colors.primary }]}>الموقع</Text>
+                        </Pressable>
+                      ) : null}
+                      {!address.is_default ? (
+                        <Pressable disabled={busy} onPress={() => void handleSetDefault(address.id)} accessibilityRole="button" accessibilityLabel={`تعيين ${address.title} عنوانًا افتراضيًا`} style={({ pressed }) => [styles.compactAction, { borderColor: colors.border }, (busy || pressed) && styles.pressed]}>
+                          {busy ? <ActivityIndicator size="small" color={colors.primary} /> : <AppIcon name="checkmark-circle-outline" size={18} color={colors.primary} />}
+                          <Text style={[styles.compactActionText, { color: colors.primary }]}>افتراضي</Text>
+                        </Pressable>
+                      ) : null}
+                      <Pressable disabled={busy} onPress={() => startEditing(address)} accessibilityRole="button" accessibilityLabel={`تعديل ${address.title}`} style={({ pressed }) => [styles.iconAction, { borderColor: colors.border }, (busy || pressed) && styles.pressed]}>
+                        <AppIcon name="create-outline" size={18} color={colors.primary} />
+                      </Pressable>
+                      <Pressable disabled={busy} onPress={() => handleDelete(address)} accessibilityRole="button" accessibilityLabel={`حذف ${address.title}`} style={({ pressed }) => [styles.iconAction, { borderColor: colors.border }, (busy || pressed) && styles.pressed]}>
+                        <AppIcon name="trash-outline" size={18} color={colors.error} />
+                      </Pressable>
                     </View>
                   </View>
-                  {address.maps_url ? (
-                    <Pressable
-                      onPress={() => void handleOpenMaps(address.maps_url)}
-                      accessibilityRole="button"
-                      style={styles.linkButton}
-                    >
-                      <AppIcon name="map-outline" size={16} color={colors.primary} />
-                      <Text style={{ color: colors.primary }}>فتح الموقع</Text>
-                    </Pressable>
-                  ) : null}
-                  <View style={styles.actions}>
-                    {!address.is_default ? (
-                      <AppButton
-                        title="تعيين افتراضي"
-                        icon="checkmark-circle-outline"
-                        variant="outline"
-                        fullWidth={false}
-                        disabled={busyAddressId === address.id}
-                        onPress={() => void handleSetDefault(address.id)}
-                      />
-                    ) : null}
-                    <AppButton
-                      title="تعديل"
-                      icon="create-outline"
-                      variant="secondary"
-                      fullWidth={false}
-                      disabled={busyAddressId === address.id}
-                      onPress={() => startEditing(address)}
-                    />
-                    <AppButton
-                      title="حذف"
-                      icon="trash-outline"
-                      variant="danger"
-                      fullWidth={false}
-                      loading={busyAddressId === address.id}
-                      onPress={() => handleDelete(address)}
-                    />
-                  </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           )}
 
-          <View style={styles.formHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              {editingId ? "تعديل العنوان" : "إضافة عنوان"}
-            </Text>
-            {editingId ? (
-              <Pressable onPress={resetForm} accessibilityRole="button">
-                <Text style={{ color: colors.primary }}>إلغاء التعديل</Text>
-              </Pressable>
-            ) : null}
-          </View>
-
-          <View style={[styles.form, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <AppTextField label="اسم العنوان" value={form.title} onChangeText={(title) => setForm((current) => ({ ...current, title }))} placeholder="المنزل أو العمل" maxLength={80} />
-            <AppTextField label="اسم المستلم" value={form.recipientName} onChangeText={(recipientName) => setForm((current) => ({ ...current, recipientName }))} maxLength={120} />
-            <AppTextField label="رقم الهاتف" value={form.contactPhone} onChangeText={(contactPhone) => setForm((current) => ({ ...current, contactPhone }))} keyboardType="phone-pad" maxLength={32} />
-            <AppTextField label="العنوان بالتفصيل" value={form.deliveryAddress} onChangeText={(deliveryAddress) => setForm((current) => ({ ...current, deliveryAddress }))} placeholder="الحي، الشارع، أقرب علامة مميزة" multiline maxLength={1000} />
+          {formVisible ? (
+            <View style={[styles.form, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <View style={styles.formHeader}>
+                <View style={styles.formTitleArea}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>{editingId ? "تعديل العنوان" : "إضافة عنوان جديد"}</Text>
+                  <Text style={[styles.formSubtitle, { color: colors.textSecondary }]}>الحقول المعلّمة بـ * مطلوبة لإتمام الطلب.</Text>
+                </View>
+                <Pressable onPress={resetForm} accessibilityRole="button" accessibilityLabel="إلغاء نموذج العنوان" style={({ pressed }) => [styles.closeButton, { backgroundColor: colors.surfaceSecondary }, pressed && styles.pressed]}>
+                  <AppIcon name="close" size={19} color={colors.textSecondary} />
+                </Pressable>
+              </View>
+            <AppTextField label="اسم العنوان *" value={form.title} onChangeText={(title) => setForm((current) => ({ ...current, title }))} placeholder="المنزل أو العمل" maxLength={80} />
+            <AppTextField label="اسم المستلم *" value={form.recipientName} onChangeText={(recipientName) => setForm((current) => ({ ...current, recipientName }))} maxLength={120} />
+            <AppTextField label="رقم الهاتف *" value={form.contactPhone} onChangeText={(contactPhone) => setForm((current) => ({ ...current, contactPhone }))} keyboardType="phone-pad" maxLength={32} />
+            <AppTextField label="العنوان بالتفصيل *" value={form.deliveryAddress} onChangeText={(deliveryAddress) => setForm((current) => ({ ...current, deliveryAddress }))} placeholder="الحي، الشارع، أقرب علامة مميزة" multiline maxLength={1000} />
             <AppTextField label="رابط الموقع (اختياري)" value={form.mapsUrl} onChangeText={(mapsUrl) => setForm((current) => ({ ...current, mapsUrl }))} placeholder="https://maps.google.com/..." keyboardType="url" autoCapitalize="none" maxLength={1000} />
 
-            <Text style={[styles.fieldLabel, { color: colors.text }]}>منطقة التوصيل</Text>
+            <Text style={[styles.fieldLabel, { color: colors.text }]}>منطقة التوصيل *</Text>
             {zones.length === 0 ? (
               <Text style={{ color: colors.textMuted, textAlign: "right" }}>لا توجد مناطق توصيل متاحة حاليًا.</Text>
             ) : zones.map((zone) => {
@@ -338,8 +362,8 @@ export default function AddressesScreen() {
                   ]}
                 >
                   <View style={styles.zoneInfo}>
-                    <Text style={{ color: colors.text, fontWeight: "600" }}>{zone.name}</Text>
-                    <Text style={{ color: colors.textSecondary }}>
+                    <Text style={[styles.zoneName, { color: colors.text }]}>{zone.name}</Text>
+                    <Text style={[styles.zoneFee, { color: colors.textSecondary }]}>
                       {zone.fixed_fee.toLocaleString("ar")} ل.س رسوم توصيل
                     </Text>
                   </View>
@@ -355,21 +379,75 @@ export default function AddressesScreen() {
               style={styles.defaultToggle}
             >
               <AppIcon name={form.isDefault ? "checkbox" : "square-outline"} size={21} color={colors.primary} />
-              <Text style={{ color: colors.text }}>تعيين هذا العنوان افتراضيًا</Text>
+              <Text style={[styles.defaultToggleText, { color: colors.text }]}>تعيين هذا العنوان افتراضيًا</Text>
             </Pressable>
 
-            {error ? <Text accessibilityRole="alert" style={[styles.feedback, { color: colors.error }]}>{error}</Text> : null}
-            {notice ? <Text accessibilityLiveRegion="polite" style={[styles.feedback, { color: colors.primary }]}>{notice}</Text> : null}
-            <AppButton
-              title={editingId ? "حفظ التعديلات" : "حفظ العنوان"}
-              icon="checkmark-outline"
-              loading={saving}
-              disabled={zones.length === 0}
-              onPress={() => void handleSave()}
-            />
-          </View>
+              <View style={styles.formActions}>
+                <Pressable onPress={resetForm} disabled={saving} accessibilityRole="button" style={({ pressed }) => [styles.cancelButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }, (saving || pressed) && styles.pressed]}>
+                  <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>إلغاء</Text>
+                </Pressable>
+                <View style={styles.saveButton}>
+                  <AppButton
+                    title={editingId ? "حفظ التعديلات" : "حفظ العنوان"}
+                    icon="checkmark-outline"
+                    loading={saving}
+                    disabled={zones.length === 0}
+                    onPress={() => void handleSave()}
+                  />
+                </View>
+              </View>
+            </View>
+          ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={Boolean(deleteTarget)}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={closeDeleteModal}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            disabled={Boolean(busyAddressId)}
+            onPress={closeDeleteModal}
+            accessibilityLabel="إغلاق تأكيد حذف العنوان"
+          />
+          <View style={[styles.deleteModalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.deleteModalIcon, { backgroundColor: colors.accentLight }]}>
+              <AppIcon name="trash-outline" size={25} color={colors.error} />
+            </View>
+            <Text style={[styles.deleteModalTitle, { color: colors.text }]}>حذف العنوان؟</Text>
+            <Text style={[styles.deleteModalMessage, { color: colors.textSecondary }]}>
+              سيُحذف عنوان «{deleteTarget?.title ?? ""}» نهائيًا، ولا يمكن التراجع عن هذه العملية.
+            </Text>
+            {deleteError ? (
+              <Text accessibilityRole="alert" style={[styles.deleteModalError, { color: colors.error }]}>{deleteError}</Text>
+            ) : null}
+            <View style={styles.deleteModalActions}>
+              <Pressable
+                disabled={Boolean(busyAddressId)}
+                onPress={closeDeleteModal}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.deleteModalButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }, (busyAddressId || pressed) && styles.pressed]}
+              >
+                <Text style={[styles.deleteModalCancelText, { color: colors.textSecondary }]}>إبقاء العنوان</Text>
+              </Pressable>
+              <Pressable
+                disabled={Boolean(busyAddressId)}
+                onPress={() => void confirmDelete()}
+                accessibilityRole="button"
+                accessibilityLabel="تأكيد حذف العنوان"
+                style={({ pressed }) => [styles.deleteModalButton, { backgroundColor: colors.error }, (busyAddressId || pressed) && styles.pressed]}
+              >
+                {busyAddressId ? <ActivityIndicator color={colors.surface} /> : <Text style={[styles.deleteModalConfirmText, { color: colors.surface }]}>حذف العنوان</Text>}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -378,29 +456,64 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   keyboard: { flex: 1 },
   content: { gap: Spacing.four, padding: Spacing.four, paddingBottom: Spacing.eight },
-  intro: { gap: Spacing.one },
-  title: { fontSize: 22, fontWeight: "700", textAlign: "right" },
-  subtitle: { lineHeight: 22, textAlign: "right" },
-  message: { paddingVertical: Spacing.three, textAlign: "center" },
-  empty: { alignItems: "center", borderRadius: Radius.lg, borderWidth: 1, gap: Spacing.two, padding: Spacing.four },
+  introRow: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.three },
+  introCopy: { alignItems: "flex-end", flex: 1, gap: Spacing.one },
+  title: { fontFamily: Fonts.bold, fontSize: FontSizes.xl, textAlign: "right" },
+  subtitle: { fontFamily: Fonts.regular, fontSize: FontSizes.sm, lineHeight: 22, textAlign: "right" },
+  addButton: { alignItems: "center", borderRadius: Radius.md, flexDirection: "row-reverse", gap: Spacing.one, minHeight: 44, paddingHorizontal: Spacing.three },
+  addButtonText: { fontFamily: Fonts.semiBold, fontSize: FontSizes.sm },
+  feedbackCard: { alignItems: "center", borderRadius: Radius.md, borderWidth: 1, flexDirection: "row-reverse", gap: Spacing.two, padding: Spacing.three },
+  feedbackText: { flex: 1, fontFamily: Fonts.regular, fontSize: FontSizes.sm, lineHeight: 20, textAlign: "right" },
+  retryText: { fontFamily: Fonts.semiBold, fontSize: FontSizes.sm },
+  notice: { fontFamily: Fonts.medium, fontSize: FontSizes.sm, lineHeight: 20, textAlign: "right" },
+  statusCard: { alignItems: "center", borderRadius: Radius.lg, borderWidth: 1, flexDirection: "row-reverse", gap: Spacing.two, justifyContent: "center", minHeight: 96, padding: Spacing.four },
+  message: { fontFamily: Fonts.regular, fontSize: FontSizes.sm, textAlign: "center" },
+  empty: { alignItems: "center", borderRadius: Radius.lg, borderWidth: 1, gap: Spacing.two, padding: Spacing.five },
+  emptyIcon: { alignItems: "center", borderRadius: Radius.full, height: 52, justifyContent: "center", width: 52 },
+  emptyTitle: { fontFamily: Fonts.semiBold, fontSize: FontSizes.md, textAlign: "center" },
+  emptyText: { fontFamily: Fonts.regular, fontSize: FontSizes.sm, lineHeight: 21, textAlign: "center" },
   list: { gap: Spacing.three },
-  card: { borderRadius: Radius.lg, borderWidth: 1, gap: Spacing.three, padding: Spacing.three },
-  cardHeader: { alignItems: "flex-start", flexDirection: "row-reverse", gap: Spacing.three },
+  card: { borderRadius: Radius.lg, borderWidth: 1, overflow: "hidden" },
+  cardHeader: { alignItems: "flex-start", flexDirection: "row-reverse", gap: Spacing.three, padding: Spacing.three },
   addressIcon: { alignItems: "center", borderRadius: Radius.md, height: 42, justifyContent: "center", width: 42 },
   cardInfo: { flex: 1, gap: Spacing.one },
   titleLine: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.two, flexWrap: "wrap" },
-  cardTitle: { fontSize: 16, fontWeight: "700" },
-  defaultBadge: { borderRadius: Radius.full, fontSize: 11, overflow: "hidden", paddingHorizontal: Spacing.two, paddingVertical: 3 },
-  detail: { lineHeight: 21, textAlign: "right" },
-  zone: { fontSize: 12, textAlign: "right" },
-  linkButton: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.one, minHeight: 36 },
-  actions: { flexDirection: "row-reverse", flexWrap: "wrap", gap: Spacing.two },
-  formHeader: { alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between" },
-  sectionTitle: { fontSize: 17, fontWeight: "700", textAlign: "right" },
+  cardTitle: { flexShrink: 1, fontFamily: Fonts.bold, fontSize: FontSizes.md, textAlign: "right" },
+  defaultBadge: { borderRadius: Radius.full, fontFamily: Fonts.semiBold, fontSize: 11, overflow: "hidden", paddingHorizontal: Spacing.two, paddingVertical: 3 },
+  recipient: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "right" },
+  detail: { fontFamily: Fonts.regular, fontSize: FontSizes.sm, lineHeight: 21, textAlign: "right" },
+  zone: { fontFamily: Fonts.medium, fontSize: FontSizes.xs, textAlign: "right" },
+  cardFooter: { alignItems: "center", borderTopWidth: 1, flexDirection: "row-reverse", flexWrap: "wrap", gap: Spacing.two, justifyContent: "flex-start", paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
+  mapAction: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.one, minHeight: 38, paddingHorizontal: Spacing.one },
+  compactAction: { alignItems: "center", borderRadius: Radius.md, borderWidth: 1, flexDirection: "row-reverse", gap: Spacing.one, minHeight: 38, paddingHorizontal: Spacing.two },
+  compactActionText: { fontFamily: Fonts.semiBold, fontSize: FontSizes.xs },
+  iconAction: { alignItems: "center", borderRadius: Radius.md, borderWidth: 1, height: 38, justifyContent: "center", width: 38 },
+  formHeader: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.three, justifyContent: "space-between" },
+  formTitleArea: { alignItems: "flex-end", flex: 1 },
+  sectionTitle: { fontFamily: Fonts.bold, fontSize: FontSizes.lg, textAlign: "right" },
+  formSubtitle: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, lineHeight: 19, marginTop: 2, textAlign: "right" },
+  closeButton: { alignItems: "center", borderRadius: Radius.full, height: 38, justifyContent: "center", width: 38 },
   form: { borderRadius: Radius.lg, borderWidth: 1, gap: Spacing.three, padding: Spacing.three },
-  fieldLabel: { fontWeight: "600", textAlign: "right" },
+  fieldLabel: { fontFamily: Fonts.semiBold, fontSize: FontSizes.sm, textAlign: "right" },
   zoneOption: { alignItems: "center", borderRadius: Radius.md, borderWidth: 1, flexDirection: "row-reverse", justifyContent: "space-between", minHeight: 56, padding: Spacing.three },
-  zoneInfo: { gap: 4 },
+  zoneInfo: { alignItems: "flex-end", flex: 1, gap: Spacing.one },
+  zoneName: { fontFamily: Fonts.semiBold, fontSize: FontSizes.sm, textAlign: "right" },
+  zoneFee: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "right" },
   defaultToggle: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.two, minHeight: 44 },
-  feedback: { lineHeight: 21, textAlign: "right" },
+  defaultToggleText: { flex: 1, fontFamily: Fonts.medium, fontSize: FontSizes.sm, textAlign: "right" },
+  formActions: { flexDirection: "row-reverse", gap: Spacing.two, marginTop: Spacing.one },
+  cancelButton: { alignItems: "center", borderRadius: Radius.md, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: 50, paddingHorizontal: Spacing.three },
+  cancelButtonText: { fontFamily: Fonts.semiBold, fontSize: FontSizes.sm },
+  saveButton: { flex: 1.5 },
+  modalOverlay: { alignItems: "center", backgroundColor: "rgba(13, 16, 14, 0.42)", flex: 1, justifyContent: "center", paddingHorizontal: Spacing.four, paddingVertical: Spacing.six },
+  deleteModalCard: { borderRadius: Radius.xl, borderWidth: 1, maxWidth: 420, padding: Spacing.five, width: "100%" },
+  deleteModalIcon: { alignItems: "center", alignSelf: "center", borderRadius: Radius.full, height: 54, justifyContent: "center", width: 54 },
+  deleteModalTitle: { fontFamily: Fonts.bold, fontSize: FontSizes.lg, marginTop: Spacing.three, textAlign: "center" },
+  deleteModalMessage: { fontFamily: Fonts.regular, fontSize: FontSizes.sm, lineHeight: 22, marginTop: Spacing.two, textAlign: "center" },
+  deleteModalError: { fontFamily: Fonts.medium, fontSize: FontSizes.xs, lineHeight: 19, marginTop: Spacing.two, textAlign: "center" },
+  deleteModalActions: { flexDirection: "row-reverse", gap: Spacing.two, marginTop: Spacing.five },
+  deleteModalButton: { alignItems: "center", borderRadius: Radius.md, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: 48, paddingHorizontal: Spacing.two },
+  deleteModalCancelText: { fontFamily: Fonts.semiBold, fontSize: FontSizes.sm },
+  deleteModalConfirmText: { fontFamily: Fonts.bold, fontSize: FontSizes.sm },
+  pressed: { opacity: 0.72 },
 });

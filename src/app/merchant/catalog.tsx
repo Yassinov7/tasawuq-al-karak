@@ -3,7 +3,6 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { MerchantOffersPanel } from "@/app/merchant/offers";
 import { MerchantProductsPanel } from "@/app/merchant/products";
-import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { Fonts, FontSizes, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
@@ -50,7 +49,6 @@ export default function MerchantCatalogScreen() {
         },
       ]}
     >
-      <AppHeader title="كاتالوج المتجر" mode="business" />
 
       <View style={styles.tabsWrapper}>
         <View

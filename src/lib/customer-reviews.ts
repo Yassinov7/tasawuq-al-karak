@@ -6,6 +6,19 @@ export type PublicReview = { id: string; rating: number; comment: string | null;
 export type OwnReview = { id: string; rating: number; comment: string | null };
 export type EligibleStoreOrder = Pick<Tables<"store_orders">, "id" | "delivered_at">;
 
+export async function getRatingSummaries() {
+  const [storesResult, productsResult] = await Promise.all([
+    supabase.from("store_rating_summaries").select("store_id,average_rating,rating_count"),
+    supabase.from("product_rating_summaries").select("product_id,average_rating,rating_count"),
+  ]);
+  if (storesResult.error) throw storesResult.error;
+  if (productsResult.error) throw productsResult.error;
+  return {
+    stores: new Map((storesResult.data ?? []).map((item) => [item.store_id, { averageRating: item.average_rating, ratingCount: item.rating_count }])),
+    products: new Map((productsResult.data ?? []).map((item) => [item.product_id, { averageRating: item.average_rating, ratingCount: item.rating_count }])),
+  };
+}
+
 export async function getStoreRatings(storeId: string) {
   const [summaryResult, reviewsResult] = await Promise.all([
     supabase.from("store_rating_summaries").select("average_rating,rating_count").eq("store_id", storeId).maybeSingle(),

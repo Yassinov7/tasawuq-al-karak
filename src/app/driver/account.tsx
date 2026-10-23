@@ -95,6 +95,17 @@ export default function DriverAccountScreen() {
 
   const accountSections: { title: string; actions: DriverAccountAction[] }[] = [
     {
+      title: "الحساب المالي",
+      actions: [
+        {
+          title: "حساب التوصيل",
+          subtitle: "أجور التوصيل والعهدة النقدية التي أكد المكتب استلامها",
+          icon: "cash-outline",
+          onPress: () => router.push("/driver/cash-account"),
+        },
+      ],
+    },
+    {
       title: "الحساب والأمان",
       actions: [
         {

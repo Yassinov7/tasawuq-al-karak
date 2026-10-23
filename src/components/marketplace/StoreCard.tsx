@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { AppIcon } from "@/components/ui/AppIcon";
+import { RatingStars } from "@/components/marketplace/RatingStars";
 import { type Store } from "@/constants/catalog";
 import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
@@ -10,6 +11,7 @@ type StoreCardProps = {
   store: Store;
   onPress: () => void;
   compact?: boolean;
+  grid?: boolean;
   showFeatured?: boolean;
 };
 
@@ -17,10 +19,12 @@ export function StoreCard({
   store,
   onPress,
   compact = false,
+  grid = false,
   showFeatured = true,
 }: StoreCardProps) {
   const { colors } = useTheme();
-  const { storeCategories: categories, products } = useCustomerCatalog();
+  const { width } = useWindowDimensions();
+  const { storeCategories: categories, products, storeRatings } = useCustomerCatalog();
 
   const category = categories.find((item) =>
     store.categoryIds.includes(item.id),
@@ -29,6 +33,7 @@ export function StoreCard({
   const productCount = products.filter(
     (product) => product.storeId === store.id,
   ).length;
+  const rating = storeRatings.get(store.id);
 
   return (
     <Pressable
@@ -37,7 +42,7 @@ export function StoreCard({
       accessibilityLabel={store.name}
       style={({ pressed }) => [
         styles.card,
-        compact ? styles.compactCard : styles.normalCard,
+        grid ? (width < 360 ? styles.singleColumnCard : styles.gridCard) : (compact ? styles.compactCard : styles.normalCard),
         {
           backgroundColor: colors.surface,
           borderColor: colors.border,
@@ -111,22 +116,12 @@ export function StoreCard({
         </Text>
       ) : null}
 
-      {store.deliveryTime ? <View style={styles.meta}>
-        <View style={styles.metaItem}>
-          <AppIcon name="time-outline" size={13} color={colors.textSecondary} />
-
-          <Text
-            style={[
-              styles.metaText,
-              {
-                color: colors.textSecondary,
-              },
-            ]}
-          >
-            {store.deliveryTime}
-          </Text>
+      {rating && rating.averageRating !== null && rating.ratingCount > 0 ? (
+        <View style={styles.ratingRow}>
+          <RatingStars rating={Math.round(rating.averageRating)} size={14} />
+          <Text style={[styles.ratingText, { color: colors.textSecondary }]}>{rating.averageRating.toFixed(1)} · {rating.ratingCount}</Text>
         </View>
-      </View> : null}
+      ) : null}
 
       <View style={[styles.bottom, { borderTopColor: colors.border }]}>
         <Text
@@ -162,6 +157,14 @@ const styles = StyleSheet.create({
 
   compactCard: {
     width: 205,
+  },
+
+  gridCard: {
+    width: "48.5%",
+  },
+
+  singleColumnCard: {
+    width: "100%",
   },
 
   header: {
@@ -224,20 +227,14 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
 
-  meta: {
+  ratingRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "flex-end",
     marginTop: Spacing.two,
   },
 
-  metaItem: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 3,
-  },
-
-  metaText: {
+  ratingText: {
     fontFamily: Fonts.medium,
     fontSize: FontSizes.xs,
   },

@@ -1,3 +1,4 @@
+import { useMerchantWorkspace } from "@/context/MerchantWorkspaceContext";
 import { useLocalSearchParams, useRouter, type Href } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -12,7 +13,6 @@ import {
   View,
 } from "react-native";
 
-import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { AppTextField } from "@/components/ui/AppTextField";
@@ -78,10 +78,12 @@ const offerTypes: {
 
 export default function MerchantOfferEditorScreen() {
   const router = useRouter();
+  const { headerHeight } = useMerchantWorkspace();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const offerId = Array.isArray(id) ? id[0] : id;
 
   const { user } = useAuth();
+  const userId = user?.id;
   const { colors } = useTheme();
 
   const [store, setStore] = useState<MerchantStore | null>(null);
@@ -118,13 +120,13 @@ export default function MerchantOfferEditorScreen() {
   const [rewardQuantity, setRewardQuantity] = useState("1");
 
   const load = useCallback(async () => {
-    if (!user) return;
+    if (!userId) return;
 
     try {
       setLoading(true);
       setError("");
 
-      const ownStore = await getMerchantStore(user.id);
+      const ownStore = await getMerchantStore(userId!);
 
       if (!ownStore) {
         router.replace("/application-status" as Href);
@@ -230,7 +232,7 @@ export default function MerchantOfferEditorScreen() {
     } finally {
       setLoading(false);
     }
-  }, [user, offerId, router]);
+  }, [userId, offerId, router]);
 
   useEffect(() => {
     const timer = setTimeout(() => void load(), 0);
@@ -439,12 +441,8 @@ export default function MerchantOfferEditorScreen() {
         },
       ]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={headerHeight}
     >
-      <AppHeader
-        title={offerId ? "تعديل العرض" : "إنشاء عرض"}
-        mode="business"
-        showBack
-      />
       <ScrollView
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"

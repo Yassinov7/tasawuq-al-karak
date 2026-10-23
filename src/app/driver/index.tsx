@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -23,6 +23,7 @@ import {
 } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
+import { useOrderRealtime } from "@/hooks/useOrderRealtime";
 import {
   acceptDeliveryTask,
   getAvailableDeliveryTasks,
@@ -48,7 +49,7 @@ export default function DriverHomeScreen() {
   const [notice, setNotice] = useState("");
 
   const loadData = useCallback(
-    async (refresh = false) => {
+    async (refresh = false, background = false) => {
       if (authLoading) return;
       if (!user) {
         router.replace("/login");
@@ -57,7 +58,7 @@ export default function DriverHomeScreen() {
       }
 
       if (refresh) setRefreshing(true);
-      else setLoading(true);
+      else if (!background) setLoading(true);
       setError("");
 
       try {
@@ -84,7 +85,7 @@ export default function DriverHomeScreen() {
       } catch {
         setError("تعذر تحميل المهام أو حالة التوفر. تحقق من اتصالك ثم أعد المحاولة.");
       } finally {
-        setLoading(false);
+        if (!background) setLoading(false);
         setRefreshing(false);
       }
     },
@@ -95,6 +96,20 @@ export default function DriverHomeScreen() {
     const timer = setTimeout(() => void loadData(), 0);
     return () => clearTimeout(timer);
   }, [loadData]);
+
+  const realtimeSubscriptions = useMemo(
+    () => [{ table: "delivery_tasks" as const }],
+    [],
+  );
+  const refreshFromRealtime = useCallback(() => {
+    void loadData(false, true);
+  }, [loadData]);
+  useOrderRealtime({
+    channelName: `driver-delivery-tasks:${user?.id ?? "guest"}`,
+    enabled: Boolean(user && !authLoading),
+    subscriptions: realtimeSubscriptions,
+    onChange: refreshFromRealtime,
+  });
 
   const changeAvailability = async (nextValue: boolean) => {
     setAvailabilityBusy(true);

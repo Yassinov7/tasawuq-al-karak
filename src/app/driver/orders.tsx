@@ -22,6 +22,7 @@ import {
 } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
+import { useOrderRealtime } from "@/hooks/useOrderRealtime";
 import {
   getDriverApplication,
   getDriverAssignedTasks,
@@ -52,7 +53,7 @@ export default function DriverOrdersScreen() {
   const [error, setError] = useState("");
 
   const loadTasks = useCallback(
-    async (refresh = false) => {
+    async (refresh = false, background = false) => {
       if (authLoading) return;
       if (!user) {
         router.replace("/login");
@@ -61,7 +62,7 @@ export default function DriverOrdersScreen() {
       }
 
       if (refresh) setRefreshing(true);
-      else setLoading(true);
+      else if (!background) setLoading(true);
       setError("");
 
       try {
@@ -74,7 +75,7 @@ export default function DriverOrdersScreen() {
       } catch {
         setError("تعذر تحميل توصيلاتك. تحقق من الاتصال ثم حاول مرة أخرى.");
       } finally {
-        setLoading(false);
+        if (!background) setLoading(false);
         setRefreshing(false);
       }
     },
@@ -85,6 +86,20 @@ export default function DriverOrdersScreen() {
     const timer = setTimeout(() => void loadTasks(), 0);
     return () => clearTimeout(timer);
   }, [loadTasks]);
+
+  const realtimeSubscriptions = useMemo(
+    () => user ? [{ table: "delivery_tasks" as const, filter: `driver_id=eq.${user.id}` }] : [],
+    [user],
+  );
+  const refreshFromRealtime = useCallback(() => {
+    void loadTasks(false, true);
+  }, [loadTasks]);
+  useOrderRealtime({
+    channelName: `driver-assigned-deliveries:${user?.id ?? "guest"}`,
+    enabled: Boolean(user && !authLoading),
+    subscriptions: realtimeSubscriptions,
+    onChange: refreshFromRealtime,
+  });
 
   const visibleTasks = useMemo(
     () =>

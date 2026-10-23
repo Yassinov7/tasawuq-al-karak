@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { AppHeader } from "@/components/navigation/AppHeader";
@@ -8,17 +8,22 @@ import { AppIcon } from "@/components/ui/AppIcon";
 import { AppModal } from "@/components/ui/AppModal";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
+import { useAuth } from "@/context/AuthContext";
 import {
   AppNotification,
   NotificationType,
   useNotifications,
 } from "@/context/NotificationContext";
 import { useTheme } from "@/context/ThemeContext";
+import { isAccountRole, type AccountRole } from "@/lib/account-routing";
+import { resolveNotificationDestination } from "@/lib/notification-routing";
+import { supabase } from "@/lib/supabase";
 
 export default function NotificationsScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { itemCount } = useCart();
+  const { user } = useAuth();
 
   const {
     notifications,
@@ -32,50 +37,122 @@ export default function NotificationsScreen() {
   } = useNotifications();
 
   const [modal, setModal] = useState<"delete" | "clear" | null>(null);
-
   const [selectedNotificationId, setSelectedNotificationId] = useState<
     string | null
   >(null);
+  const [modalBusy, setModalBusy] = useState(false);
+  const [markingAll, setMarkingAll] = useState(false);
+  const [returning, setReturning] = useState(false);
+  const openingNotificationIdRef = useRef<string | null>(null);
+
+  const handleBack = async () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    if (returning) return;
+
+    setReturning(true);
+    try {
+      const { data: profile, error } = user
+        ? await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle()
+        : { data: null, error: null };
+      if (error) throw error;
+
+      switch (profile?.role) {
+        case "merchant":
+          router.replace("/merchant/account");
+          return;
+        case "driver":
+          router.replace("/driver/account");
+          return;
+        case "admin":
+          router.replace("/admin");
+          return;
+        case "customer":
+          router.replace("/home/account");
+          return;
+        default:
+          router.replace("/");
+      }
+    } catch {
+      router.replace("/");
+    } finally {
+      setReturning(false);
+    }
+  };
 
   const handleNotificationPress = async (notification: AppNotification) => {
-    try {
-      await markAsRead(notification.id);
-    } catch (cause) {
-      Alert.alert("تعذر تحديث الإشعار", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
+    if (openingNotificationIdRef.current) return;
+    if (!user) {
+      Alert.alert("انتهت جلسة الدخول", "سجّل الدخول لفتح الإشعار.");
       return;
     }
 
-    const { orderId, productId, storeId, offerId, url } = notification.data ?? {};
-    const route = url?.split("?")[0];
-    if (route === "/merchant/orders") {
-      router.push("/merchant/orders");
-      return;
+    openingNotificationIdRef.current = notification.id;
+    try {
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!profile || !isAccountRole(profile.role)) {
+        throw new Error("تعذر التحقق من صلاحيات الحساب.");
+      }
+
+      const destination = resolveNotificationDestination(
+        profile.role as AccountRole,
+        notification.data,
+      );
+      await markAsRead(notification.id);
+
+      switch (destination.type) {
+        case "none":
+          return;
+        case "customer-order":
+          router.push({ pathname: "/order-details", params: { id: destination.orderId } });
+          return;
+        case "product":
+          router.push({ pathname: "/product-details", params: { id: destination.productId } });
+          return;
+        case "store":
+          router.push({ pathname: "/store-details", params: { id: destination.storeId } });
+          return;
+        case "offers":
+          router.push("/home/offers");
+          return;
+        case "merchant-orders":
+          router.push("/merchant/orders");
+          return;
+        case "merchant-home":
+          router.push("/merchant");
+          return;
+        case "merchant-finance":
+          router.push("/merchant/finance");
+          return;
+        case "driver-orders":
+          router.push("/driver/orders");
+          return;
+        case "driver-home":
+          router.push("/driver");
+          return;
+        case "admin-home":
+          router.push("/admin");
+          return;
+        case "customer-home":
+          router.push("/home");
+          return;
+      }
+    } catch (cause) {
+      Alert.alert("تعذر فتح الإشعار", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
+    } finally {
+      setTimeout(() => {
+        if (openingNotificationIdRef.current === notification.id) {
+          openingNotificationIdRef.current = null;
+        }
+      }, 400);
     }
-    if (route === "/driver/orders") {
-      Alert.alert("الوجهة غير متاحة", "لا تتضمن نسخة التطبيق الحالية شاشة طلبات السائق.");
-      return;
-    }
-    if (orderId) {
-      router.push({ pathname: "/order-details", params: { id: orderId } });
-      return;
-    }
-    if (productId) {
-      router.push({ pathname: "/product-details", params: { id: productId } });
-      return;
-    }
-    if (storeId) {
-      router.push({ pathname: "/store-details", params: { id: storeId } });
-      return;
-    }
-    if (offerId) {
-      router.push("/home/offers");
-      return;
-    }
-    if (route === "/home/offers") {
-      router.push("/home/offers");
-      return;
-    }
-    Alert.alert("الإشعار غير مرتبط بصفحة", "لا يتضمن هذا الإشعار وجهة صالحة للفتح.");
   };
 
   const handleDelete = (notification: AppNotification) => {
@@ -91,26 +168,41 @@ export default function NotificationsScreen() {
     setModal("clear");
   };
 
-  const handleModalConfirm = () => {
-    if (modal === "delete" && selectedNotificationId) {
-      void removeNotification(selectedNotificationId).catch((cause: unknown) => {
-        Alert.alert("تعذر حذف الإشعار", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
-      });
+  const handleModalConfirm = async () => {
+    if (modalBusy) return;
+    setModalBusy(true);
+    try {
+      if (modal === "delete" && selectedNotificationId) {
+        await removeNotification(selectedNotificationId);
+      }
+      if (modal === "clear") {
+        await clearNotifications();
+      }
+      setModal(null);
+      setSelectedNotificationId(null);
+    } catch (cause) {
+      Alert.alert("تعذر حذف الإشعار", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
+    } finally {
+      setModalBusy(false);
     }
+  };
 
-    if (modal === "clear") {
-      void clearNotifications().catch((cause: unknown) => {
-        Alert.alert("تعذر حذف الإشعارات", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
-      });
-    }
-
+  const handleModalCancel = () => {
+    if (modalBusy) return;
     setModal(null);
     setSelectedNotificationId(null);
   };
 
-  const handleModalCancel = () => {
-    setModal(null);
-    setSelectedNotificationId(null);
+  const handleMarkAllAsRead = async () => {
+    if (markingAll) return;
+    setMarkingAll(true);
+    try {
+      await markAllAsRead();
+    } catch (cause) {
+      Alert.alert("تعذر تحديث الإشعارات", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
+    } finally {
+      setMarkingAll(false);
+    }
   };
 
   return (
@@ -122,7 +214,14 @@ export default function NotificationsScreen() {
         },
       ]}
     >
-      <AppHeader title="الإشعارات" showBack cartCount={itemCount} mode="shared" />
+      <AppHeader
+        title="الإشعارات"
+        showBack
+        onBack={() => void handleBack()}
+        showNotifications={false}
+        cartCount={itemCount}
+        mode="shared"
+      />
 
       <FlatList
         data={notifications}
@@ -173,9 +272,8 @@ export default function NotificationsScreen() {
               <View style={styles.headerButtons}>
                 {unreadCount > 0 ? (
                   <Pressable
-                    onPress={() => void markAllAsRead().catch((cause: unknown) => {
-                      Alert.alert("تعذر تحديث الإشعارات", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
-                    })}
+                    onPress={() => void handleMarkAllAsRead()}
+                    disabled={markingAll}
                     style={({ pressed }) => [
                       styles.smallAction,
                       pressed && styles.pressed,
@@ -183,11 +281,7 @@ export default function NotificationsScreen() {
                     accessibilityRole="button"
                     accessibilityLabel="تحديد الكل كمقروء"
                   >
-                    <AppIcon
-                      name="checkmark-done-outline"
-                      size={17}
-                      color={colors.primary}
-                    />
+                    {markingAll ? <AppIcon name="hourglass-outline" size={17} color={colors.primary} /> : <AppIcon name="checkmark-done-outline" size={17} color={colors.primary} />}
 
                     <Text
                       style={[
@@ -294,7 +388,8 @@ export default function NotificationsScreen() {
         confirmText={modal === "clear" ? "حذف الكل" : "حذف"}
         cancelText="إلغاء"
         destructive
-        onConfirm={handleModalConfirm}
+        busy={modalBusy}
+        onConfirm={() => void handleModalConfirm()}
         onCancel={handleModalCancel}
       />
     </View>

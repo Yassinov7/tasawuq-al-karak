@@ -1,10 +1,12 @@
-import { Href, usePathname, useRouter } from "expo-router";
+import { Href, useGlobalSearchParams, usePathname, useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppIcon } from "@/components/ui/AppIcon";
 import { FontSizes, Fonts, Radius, Shadows, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
+
+import { merchantNavigation } from "@/lib/merchant-navigation";
 
 type AppIconName = React.ComponentProps<typeof AppIcon>["name"];
 
@@ -61,6 +63,7 @@ const merchantNavItems: NavItem[] = [
     activeIcon: "receipt",
     route: "/merchant/orders",
   },
+  { label: "المالية", icon: "wallet-outline", activeIcon: "wallet", route: "/merchant/finance" },
   {
     label: "حسابي",
     icon: "person-outline",
@@ -101,25 +104,25 @@ const adminNavItems: NavItem[] = [
     label: "الطلبات",
     icon: "receipt-outline",
     activeIcon: "receipt",
-    route: "/admin/requests" as Href,
+    route: "/admin/orders" as Href,
   },
   {
-    label: "السائقون",
-    icon: "bicycle-outline",
-    activeIcon: "bicycle",
-    route: "/admin/drivers" as Href,
-  },
-  {
-    label: "المتاجر",
-    icon: "storefront-outline",
-    activeIcon: "storefront",
-    route: "/admin/stores" as Href,
+    label: "الانضمام",
+    icon: "person-add-outline",
+    activeIcon: "person-add",
+    route: "/admin/applications" as Href,
   },
   {
     label: "المالية",
     icon: "wallet-outline",
     activeIcon: "wallet",
     route: "/admin/finance" as Href,
+  },
+  {
+    label: "المزيد",
+    icon: "grid-outline",
+    activeIcon: "grid",
+    route: "/admin/more" as Href,
   },
 ];
 
@@ -142,6 +145,7 @@ function getNavigationMode(pathname: string) {
 export function AppBottomNav() {
   const router = useRouter();
   const pathname = usePathname();
+  const { from } = useGlobalSearchParams<{ from?: string }>();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -157,6 +161,7 @@ export function AppBottomNav() {
         : customerNavItems;
 
   const isActive = (route: Href) => {
+    if (mode === "merchant") return merchantNavigation(pathname).section === route;
     if (typeof route === "string") {
       if (route === "/merchant") {
         return pathname === "/merchant";
@@ -164,6 +169,18 @@ export function AppBottomNav() {
 
       if (route === ("/driver" as Href)) {
         return pathname === "/driver";
+      }
+
+      if (route === ("/admin/more" as Href)) {
+        return ["/admin/more", "/admin/stores", "/admin/drivers"].includes(pathname) || ((pathname === "/admin/plans" || pathname === "/admin/plan-form") && from === "more");
+      }
+
+      if (route === ("/admin/orders" as Href)) {
+        return pathname === "/admin/orders" || pathname === "/admin/requests" || pathname.startsWith("/admin/order-details");
+      }
+
+      if (route === ("/admin/finance" as Href)) {
+        return pathname === "/admin/finance" || pathname.startsWith("/admin/merchant-finance") || ((pathname === "/admin/plans" || pathname === "/admin/plan-form") && from !== "more") || pathname === "/admin/financial-indicators" || pathname === "/admin/invoices" || pathname.startsWith("/admin/invoice-details") || pathname === "/admin/payments" || pathname.startsWith("/admin/payment-details") || pathname === "/admin/subscriptions" || pathname.startsWith("/admin/subscription-details") || pathname === "/admin/credit" || pathname.startsWith("/admin/credit-details") || pathname === "/admin/commissions" || pathname.startsWith("/admin/commission-details") || pathname === "/admin/ledger" || pathname.startsWith("/admin/ledger-details") || pathname === "/admin/driver-custody" || pathname.startsWith("/admin/driver-custody-details");
       }
 
       return pathname === route;
@@ -194,7 +211,7 @@ export function AppBottomNav() {
             <Pressable
               key={item.label}
               onPress={() => {
-                if (!active) {
+                if (!active || (mode === "merchant" && pathname !== item.route)) {
                   router.replace(item.route);
                 }
               }}

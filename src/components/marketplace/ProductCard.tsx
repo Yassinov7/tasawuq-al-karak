@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-na
 import { AppBadge } from "@/components/ui/AppBadge";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { ProductMediaPreview } from "@/components/marketplace/ProductMediaPreview";
+import { RatingStars } from "@/components/marketplace/RatingStars";
 import type { Product } from "@/constants/catalog";
 import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
@@ -24,12 +25,13 @@ export function ProductCard({
   showOffer = false,
 }: ProductCardProps) {
   const { colors } = useTheme();
-  const { categories, stores } = useCustomerCatalog();
+  const { categories, stores, productRatings } = useCustomerCatalog();
   const { width } = useWindowDimensions();
 
   const category = categories.find((item) => item.id === product.categoryId);
 
   const store = stores.find((item) => item.id === product.storeId);
+  const rating = productRatings.get(product.id);
 
   const iconSize = compact ? 30 : 34;
   const media = product.media?.find((item) => item.type === "image");
@@ -47,7 +49,7 @@ export function ProductCard({
       accessibilityLabel={product.name}
       style={({ pressed }) => [
         styles.card,
-        compact ? styles.compactCard : styles.normalCard,
+        compact ? (width < 360 ? styles.singleColumnCard : styles.compactCard) : styles.normalCard,
         {
           backgroundColor: colors.surface,
           borderColor: colors.border,
@@ -100,7 +102,13 @@ export function ProductCard({
         {product.name}
       </Text>
 
-      {showStore ? (
+      {!product.available ? (
+        <View style={[styles.unavailableBadge, { backgroundColor: colors.error + "18" }]}>
+          <Text style={[styles.unavailableText, { color: colors.error }]}>غير متوفر</Text>
+        </View>
+      ) : null}
+
+      {showStore && store ? (
         <Text
           style={[
             styles.store,
@@ -110,7 +118,7 @@ export function ProductCard({
           ]}
           numberOfLines={1}
         >
-          {store?.name ?? "متجر محلي"}
+          {store.name}
         </Text>
       ) : null}
 
@@ -148,6 +156,13 @@ export function ProductCard({
       >
         {product.unit}
       </Text>
+
+      {rating && rating.averageRating !== null && rating.ratingCount > 0 ? (
+        <View style={styles.ratingRow}>
+          <RatingStars rating={Math.round(rating.averageRating)} size={13} />
+          <Text style={[styles.ratingText, { color: colors.textMuted }]}>{rating.averageRating.toFixed(1)} · {rating.ratingCount}</Text>
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -165,6 +180,10 @@ const styles = StyleSheet.create({
 
   compactCard: {
     width: "48.5%",
+  },
+
+  singleColumnCard: {
+    width: "100%",
   },
 
   image: {
@@ -226,5 +245,30 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: 10,
     textAlign: "right",
+  },
+
+  unavailableBadge: {
+    alignSelf: "flex-end",
+    borderRadius: Radius.full,
+    marginTop: Spacing.two,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 3,
+  },
+
+  unavailableText: {
+    fontFamily: Fonts.medium,
+    fontSize: 10,
+  },
+
+  ratingRow: {
+    alignItems: "center",
+    flexDirection: "row-reverse",
+    gap: Spacing.one,
+    marginTop: Spacing.two,
+  },
+
+  ratingText: {
+    fontFamily: Fonts.medium,
+    fontSize: 10,
   },
 });

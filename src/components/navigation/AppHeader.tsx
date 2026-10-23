@@ -10,6 +10,8 @@ import { useTheme } from "@/context/ThemeContext";
 type AppHeaderProps = {
   title?: string;
   showBack?: boolean;
+  onBack?: () => void;
+  showNotifications?: boolean;
   cartCount?: number;
   mode?: "customer" | "business" | "shared";
 };
@@ -31,6 +33,8 @@ function getHeaderMode(pathname: string): HeaderMode {
 export function AppHeader({
   title = "تسوق",
   showBack = false,
+  onBack,
+  showNotifications = true,
   cartCount = 0,
   mode,
 }: AppHeaderProps) {
@@ -80,7 +84,7 @@ export function AppHeader({
         <View style={styles.side}>
           {showBack ? (
             <Pressable
-              onPress={() => router.back()}
+              onPress={onBack ?? (() => router.back())}
               style={({ pressed }) => [
                 styles.iconButton,
                 pressed && {
@@ -125,46 +129,48 @@ export function AppHeader({
             (isBusinessMode || !isCustomerMode) && styles.businessActions,
           ]}
         >
-          <Pressable
-            onPress={handleNotificationsPress}
-            style={({ pressed }) => [
-              styles.iconButton,
-              pressed && {
-                backgroundColor: colors.primaryLight,
-              },
-            ]}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="الإشعارات"
-          >
-            <AppIcon
-              name="notifications-outline"
-              size={22}
-              color={colors.text}
-            />
+          {showNotifications ? (
+            <Pressable
+              onPress={handleNotificationsPress}
+              style={({ pressed }) => [
+                styles.iconButton,
+                pressed && {
+                  backgroundColor: colors.primaryLight,
+                },
+              ]}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="الإشعارات"
+            >
+              <AppIcon
+                name="notifications-outline"
+                size={22}
+                color={colors.text}
+              />
 
-            {unreadCount > 0 ? (
-              <View
-                style={[
-                  styles.badge,
-                  {
-                    backgroundColor: colors.error,
-                  },
-                ]}
-              >
-                <Text
+              {unreadCount > 0 ? (
+                <View
                   style={[
-                    styles.badgeText,
+                    styles.badge,
                     {
-                      color: colors.surface,
+                      backgroundColor: colors.error,
                     },
                   ]}
                 >
-                  {unreadCount > 9 ? "9+" : unreadCount}
-                </Text>
-              </View>
-            ) : null}
-          </Pressable>
+                  <Text
+                    style={[
+                      styles.badgeText,
+                      {
+                        color: colors.surface,
+                      },
+                    ]}
+                  >
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </Text>
+                </View>
+              ) : null}
+            </Pressable>
+          ) : null}
 
           {isCustomerMode ? (
             <>

@@ -1,0 +1,76 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocalSearchParams } from "expo-router";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+
+import { AppButton } from "@/components/ui/AppButton";
+import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
+import { useTheme } from "@/context/ThemeContext";
+import { getAdminOrderDetail, getCachedAdminOrder, isCachedAdminOrderFresh, type AdminOrderDetail } from "@/lib/admin-orders";
+
+const orderStatusLabels: Record<string, string> = { submitted: "تم إرسال الطلب", in_progress: "قيد المعالجة", ready_for_delivery: "جاهز للتوصيل", out_for_delivery: "قيد التوصيل", delivered: "تم التسليم", partially_cancelled: "أُلغي جزء من الطلب", cancelled: "ملغى" };
+const storeStatusLabels: Record<string, string> = { awaiting_review: "بانتظار مراجعة المتجر", preparing: "قيد التحضير", ready_for_pickup: "جاهز للاستلام", handed_to_driver: "سُلّم للسائق", delivered: "تم التسليم", rejected: "مرفوض", cancelled: "ملغى" };
+const deliveryStatusLabels: Record<string, string> = { pending_stores: "بانتظار المتاجر", available: "متاح للاستلام", accepted: "مقبول من سائق", picked_up: "قيد التوصيل", delivered: "تم التسليم", cancelled: "ملغى" };
+const formatDate = (value: string | null) => value ? new Date(value).toLocaleString("ar-SY") : "—";
+const formatAmount = (value: number, currency: string) => `${Number(value).toLocaleString("ar-SY", { maximumFractionDigits: 2 })} ${currency === "USD" ? "دولار" : "ل.س"}`;
+
+export default function AdminOrderDetailsScreen() {
+  const { orderId } = useLocalSearchParams<{ orderId?: string }>();
+  const { colors } = useTheme();
+  const cached = orderId ? getCachedAdminOrder(orderId)?.data ?? null : null;
+  const [data, setData] = useState<AdminOrderDetail | null>(cached);
+  const [loading, setLoading] = useState(!cached);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+
+  const refresh = useCallback(async (manual = false) => {
+    if (!orderId) { setError("معرّف الطلب غير صالح."); setLoading(false); return; }
+    const existing = getCachedAdminOrder(orderId)?.data ?? null;
+    if (existing) setData(existing);
+    if (!manual && isCachedAdminOrderFresh(orderId)) { setLoading(false); return; }
+    if (existing) setRefreshing(true); else setLoading(true);
+    setError("");
+    try { setData(await getAdminOrderDetail(orderId, manual)); }
+    catch { setError("تعذّر تحميل تفاصيل الطلب. احتفظنا بالبيانات السابقة إن كانت متاحة."); }
+    finally { setLoading(false); setRefreshing(false); }
+  }, [orderId]);
+
+  useEffect(() => { const timer = setTimeout(() => void refresh(), 0); return () => clearTimeout(timer); }, [refresh]);
+  if (loading && !data) return <View style={[styles.center, { backgroundColor: colors.background }]}><ActivityIndicator color={colors.primary} /></View>;
+  return <View style={[styles.screen, { backgroundColor: colors.background }]}><ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh(true)} tintColor={colors.primary} colors={[colors.primary]} />}>
+    {refreshing ? <Text style={[styles.refreshText, { color: colors.textSecondary }]}>يتم تحديث التفاصيل في الخلفية…</Text> : null}
+    {error ? <View style={[styles.error, { backgroundColor: colors.surfaceSecondary }]}><Text style={[styles.meta, { color: colors.error }]}>{error}</Text><AppButton title="إعادة المحاولة" variant="outline" onPress={() => void refresh(true)} /></View> : null}
+    {!data && !loading ? <EmptyState onRetry={() => void refresh(true)} /> : null}
+    {data ? <OrderContent data={data} /> : null}
+  </ScrollView></View>;
+}
+
+function OrderContent({ data }: { data: AdminOrderDetail }) {
+  const { colors } = useTheme();
+  const historyEntries = useMemo(() => data.stores.flatMap(({ storeName, statusHistory }) => statusHistory.map((entry) => ({ ...entry, storeName }))).sort((left, right) => left.created_at.localeCompare(right.created_at)), [data.stores]);
+  const { order } = data;
+  const orderStatusColor = order.status === "cancelled" ? colors.error : order.status === "delivered" ? colors.success : colors.accentText;
+  const orderStatusBackground = order.status === "delivered" ? colors.primaryLight : order.status === "cancelled" ? colors.surfaceSecondary : colors.accentLight;
+  return <>
+    <Section title={`ملخص طلب #${order.order_number}`}><View style={styles.statusRow}><Text style={[styles.status, { color: orderStatusColor, backgroundColor: orderStatusBackground }]}>{orderStatusLabels[order.status] ?? order.status}</Text><Text style={[styles.meta, { color: colors.textSecondary }]}>{formatDate(order.created_at)}</Text></View><InfoLine label="عدد المتاجر" value={`${data.stores.length}`} />{data.totals.length ? data.totals.map((total) => <View key={`${total.customer_order_id}-${total.currency}`} style={[styles.summaryCard, { borderColor: colors.border }]}><InfoLine label="مجموع المنتجات" value={formatAmount(total.items_subtotal, total.currency)} /><InfoLine label="رسوم التوصيل" value={formatAmount(total.delivery_fee, total.currency)} /><View style={[styles.divider, { backgroundColor: colors.border }]} /><InfoLine label="الإجمالي" value={formatAmount(total.total, total.currency)} strong /></View>) : <Text style={[styles.meta, { color: colors.textSecondary }]}>لا تتوفر مجاميع محفوظة لهذا الطلب.</Text>}</Section>
+    <Section title="العميل وعنوان التوصيل"><InfoLine label="المستلم" value={order.recipient_name} /><InfoLine label="الهاتف" value={order.contact_phone} />{data.customer ? <InfoLine label="حساب العميل" value={[data.customer.full_name, data.customer.email].filter(Boolean).join(" · ")} /> : null}<InfoLine label="عنوان التوصيل" value={[order.delivery_zone_name_snapshot, order.delivery_address].filter(Boolean).join(" · ")} multiline />{order.customer_note ? <InfoLine label="ملاحظة العميل" value={order.customer_note} multiline /> : null}</Section>
+    <Section title="المتاجر وحالة كل متجر">{data.stores.length ? data.stores.map(({ storeOrder, storeName }) => <View key={storeOrder.id} style={[styles.storeCard, { borderColor: colors.border }]}><View style={styles.storeTitleRow}><View style={styles.storeTitle}><Text style={[styles.storeName, { color: colors.text }]}>{storeName}</Text><Text style={[styles.meta, { color: colors.textSecondary }]}>{storeStatusLabels[storeOrder.status] ?? storeOrder.status}</Text></View><Text style={[styles.storeStatus, { color: colors.primary, backgroundColor: colors.primaryLight }]}>{storeStatusLabels[storeOrder.status] ?? storeOrder.status}</Text></View>{storeOrder.rejection_reason ? <InfoLine label="سبب الرفض" value={storeOrder.rejection_reason} multiline /> : null}{storeOrder.customer_note ? <InfoLine label="ملاحظة العميل للمتجر" value={storeOrder.customer_note} multiline /> : null}</View>) : <Text style={[styles.meta, { color: colors.textSecondary }]}>لا توجد طلبات متاجر مرتبطة بهذا الطلب.</Text>}</Section>
+    <Section title="المنتجات والمبالغ">{data.stores.length ? data.stores.map(({ storeOrder, storeName, items, totals }) => <View key={storeOrder.id} style={[styles.storeCard, { borderColor: colors.border }]}><Text style={[styles.storeName, { color: colors.text }]}>{storeName}</Text>{items.length ? items.map((item) => <View key={item.id} style={styles.itemRow}><View style={styles.itemText}><Text style={[styles.itemName, { color: colors.text }]} numberOfLines={2}>{item.product_title_snapshot}</Text><Text style={[styles.meta, { color: colors.textSecondary }]}>{`${item.quantity} ${item.selling_unit_snapshot}`}</Text></View><View style={styles.amountColumn}><Text style={[styles.itemAmount, { color: colors.text }]}>{formatAmount(item.line_total, item.currency)}</Text><Text style={[styles.itemUnitPrice, { color: colors.textSecondary }]}>{formatAmount(item.unit_price_snapshot, item.currency)} للوحدة</Text></View></View>) : <Text style={[styles.meta, { color: colors.textSecondary }]}>لا توجد عناصر محفوظة لهذا المتجر.</Text>}{totals.map((total) => <View key={`${total.store_order_id}-${total.currency}`} style={styles.totalRow}><Text style={[styles.value, { color: colors.text }]}>مجموع المتجر</Text><Text style={[styles.value, { color: colors.primary }]}>{formatAmount(total.items_subtotal, total.currency)}</Text></View>)}</View>) : null}</Section>
+    <Section title="التوصيل والسائق">{data.deliveryTask ? <><InfoLine label="حالة التوصيل" value={deliveryStatusLabels[data.deliveryTask.status] ?? data.deliveryTask.status} />{data.driver ? <InfoLine label="السائق المكلّف" value={[data.driver.full_name, data.driver.email].filter(Boolean).join(" · ")} /> : <InfoLine label="السائق" value="لم تُسند المهمة إلى سائق بعد" />}{data.deliveryTask.accepted_at ? <InfoLine label="وقت القبول" value={formatDate(data.deliveryTask.accepted_at)} /> : null}{data.deliveryTask.picked_up_at ? <InfoLine label="وقت الاستلام" value={formatDate(data.deliveryTask.picked_up_at)} /> : null}{data.deliveryTask.delivered_at ? <InfoLine label="وقت التسليم" value={formatDate(data.deliveryTask.delivered_at)} /> : null}</> : <Text style={[styles.meta, { color: colors.textSecondary }]}>لم تُنشأ مهمة توصيل لهذا الطلب بعد.</Text>}</Section>
+    <Section title="سجل الحالات"><OrderHistory entries={historyEntries} /></Section>
+  </>;
+}
+
+function OrderHistory({ entries }: { entries: (AdminOrderDetail["stores"][number]["statusHistory"][number] & { storeName: string })[] }) {
+  const { colors } = useTheme(); const [expanded, setExpanded] = useState(false);
+  if (!entries.length) return <Text style={[styles.meta, { color: colors.textSecondary }]}>لا يتوفر سجل حالات محفوظ لهذا الطلب.</Text>;
+  const visible = expanded ? entries : entries.slice(-4);
+  return <View style={styles.history}><Pressable onPress={() => setExpanded((value) => !value)} style={styles.historyHeader}><Text style={[styles.value, { color: colors.text }]}>تحديثات المتاجر ({entries.length})</Text><Text style={[styles.expand, { color: colors.primary }]}>{expanded ? "إخفاء" : "عرض الكل"}</Text></Pressable>{visible.map((entry) => <View key={entry.id} style={styles.historyRow}><View style={[styles.timelineDot, { backgroundColor: colors.primary }]} /><View style={styles.historyBody}><Text style={[styles.meta, { color: colors.text }]}>{entry.storeName} · {storeStatusLabels[entry.to_status] ?? entry.to_status}</Text><Text style={[styles.historyMeta, { color: colors.textSecondary }]}>{formatDate(entry.created_at)}{entry.actor ? ` · ${entry.actor.full_name}` : ""}</Text>{entry.note ? <Text style={[styles.historyMeta, { color: colors.textSecondary }]}>{entry.note}</Text> : null}</View></View>)}</View>;
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) { const { colors } = useTheme(); return <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}><Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>{children}</View>; }
+function InfoLine({ label, value, strong = false, multiline = false }: { label: string; value: string; strong?: boolean; multiline?: boolean }) { const { colors } = useTheme(); return <View style={[styles.infoLine, multiline && styles.infoLineMultiline]}><Text style={[strong ? styles.value : styles.meta, { color: colors.text }]}>{label}</Text><Text style={[strong ? styles.value : styles.infoValue, { color: strong ? colors.primary : colors.textSecondary }]}>{value}</Text></View>; }
+function EmptyState({ onRetry }: { onRetry: () => void }) { const { colors } = useTheme(); return <View style={[styles.empty, { backgroundColor: colors.surface, borderColor: colors.border }]}><Text style={[styles.sectionTitle, { color: colors.text }]}>الطلب غير متاح</Text><Text style={[styles.meta, { color: colors.textSecondary }]}>قد يكون الرابط غير صحيح أو لم تعد لديك صلاحية لقراءة هذا الطلب.</Text><AppButton title="إعادة المحاولة" variant="outline" onPress={onRetry} /></View>; }
+
+const styles = StyleSheet.create({
+  screen: { flex: 1 }, center: { flex: 1, justifyContent: "center" }, content: { width: "100%", maxWidth: 800, alignSelf: "center", padding: Spacing.five, paddingBottom: Spacing.ten, gap: Spacing.three }, refreshText: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "right" }, error: { borderRadius: Radius.md, padding: Spacing.three, gap: Spacing.two }, empty: { borderWidth: 1, borderRadius: Radius.lg, padding: Spacing.four, gap: Spacing.three }, section: { borderWidth: 1, borderRadius: Radius.lg, padding: Spacing.four, gap: Spacing.three }, sectionTitle: { fontFamily: Fonts.bold, fontSize: FontSizes.md, textAlign: "right" }, meta: { fontFamily: Fonts.regular, fontSize: FontSizes.sm, textAlign: "right", lineHeight: 22 }, value: { fontFamily: Fonts.bold, fontSize: FontSizes.sm, textAlign: "right" }, statusRow: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center", gap: Spacing.two }, status: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.one, borderRadius: Radius.full, fontFamily: Fonts.semiBold, fontSize: FontSizes.xs, textAlign: "center" }, infoLine: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "flex-start", gap: Spacing.three }, infoLineMultiline: { alignItems: "flex-start" }, infoValue: { flex: 1, fontFamily: Fonts.regular, fontSize: FontSizes.sm, textAlign: "left", lineHeight: 22 }, divider: { height: StyleSheet.hairlineWidth }, summaryCard: { borderTopWidth: 1, paddingTop: Spacing.three, gap: Spacing.two }, storeCard: { borderTopWidth: 1, paddingTop: Spacing.three, gap: Spacing.two }, storeTitleRow: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "flex-start", gap: Spacing.two }, storeTitle: { flex: 1, gap: Spacing.one }, storeName: { fontFamily: Fonts.bold, fontSize: FontSizes.md, textAlign: "right" }, storeStatus: { maxWidth: "46%", paddingHorizontal: Spacing.two, paddingVertical: Spacing.one, borderRadius: Radius.full, fontFamily: Fonts.semiBold, fontSize: FontSizes.xs, textAlign: "center" }, itemRow: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "flex-start", gap: Spacing.three, paddingVertical: Spacing.two }, itemText: { flex: 1, gap: 2 }, itemName: { fontFamily: Fonts.medium, fontSize: FontSizes.sm, textAlign: "right", lineHeight: 22 }, amountColumn: { alignItems: "flex-end", maxWidth: "43%", gap: 2 }, itemAmount: { fontFamily: Fonts.bold, fontSize: FontSizes.sm, textAlign: "left" }, itemUnitPrice: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "left" }, totalRow: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center", paddingTop: Spacing.two }, history: { gap: Spacing.two }, historyHeader: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center" }, expand: { fontFamily: Fonts.semiBold, fontSize: FontSizes.xs }, historyRow: { flexDirection: "row-reverse", gap: Spacing.two, alignItems: "flex-start" }, timelineDot: { width: 8, height: 8, borderRadius: 4, marginTop: 7 }, historyBody: { flex: 1, gap: 1 }, historyMeta: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "right", lineHeight: 20 },
+});

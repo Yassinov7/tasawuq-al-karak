@@ -1,5 +1,5 @@
-import { useRouter, type Href } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useFocusEffect, useRouter, type Href } from "expo-router";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -9,7 +9,6 @@ import {
   View,
 } from "react-native";
 
-import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { AppConfirmModal, AppModal } from "@/components/ui/AppModal";
@@ -180,11 +179,11 @@ export function MerchantOffersPanel({
     }
   }, [user]);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     const timer = setTimeout(() => void load(), 0);
 
     return () => clearTimeout(timer);
-  }, [load]);
+  }, [load]));
 
   const openEditor = (offerId?: string) => {
     router.push({
@@ -290,7 +289,7 @@ export function MerchantOffersPanel({
         },
       ]}
     >
-      {!embedded ? <AppHeader title="عروض المتجر" mode="business" /> : null}
+
 
       <ScrollView
         contentContainerStyle={styles.container}

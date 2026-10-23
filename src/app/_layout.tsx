@@ -35,11 +35,6 @@ const MAIN_ROUTES = [
   "/driver",
   "/driver/orders",
   "/driver/account",
-  "/admin",
-  "/admin/requests",
-  "/admin/drivers",
-  "/admin/stores",
-  "/admin/finance",
 ] as const;
 
 function AppContent() {
@@ -47,7 +42,7 @@ function AppContent() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
-  const showBottomNav = MAIN_ROUTES.includes(
+  const showBottomNav = !pathname.startsWith("/merchant") && MAIN_ROUTES.includes(
     pathname as (typeof MAIN_ROUTES)[number],
   );
 

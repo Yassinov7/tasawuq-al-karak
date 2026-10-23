@@ -5,15 +5,18 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
 import type { Category, IconName, Product, ProductMedia, Store } from "@/constants/catalog";
 import type { CustomerOffer } from "@/lib/customer-offers";
 import { getStoreMediaUrl } from "@/lib/merchant-store";
+import { getRatingSummaries, type RatingSummary } from "@/lib/customer-reviews";
 import {
   getCachedPublicCatalog,
   getPublicCatalog,
+  invalidatePublicCatalog,
   type PublicCatalog,
 } from "@/lib/public-catalog";
 
@@ -23,9 +26,12 @@ type CatalogState = {
   products: Product[];
   stores: Store[];
   offers: CustomerOffer[];
+  storeRatings: Map<string, RatingSummary>;
+  productRatings: Map<string, RatingSummary>;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  refreshProductAvailability: (productId: string) => Promise<void>;
 };
 
 const CustomerCatalogContext = createContext<CatalogState | null>(null);
@@ -82,7 +88,7 @@ function toCatalogState(catalog: PublicCatalog): Pick<
   }
 
   const productById = new Map<string, Product>();
-  const products: Product[] = catalog.products.map((product) => ({
+  const products: Product[] = catalog.products.filter((product) => product.is_available).map((product) => ({
     id: product.id,
     storeId: product.store_id,
     categoryId: product.category_id,
@@ -117,38 +123,57 @@ function toCatalogState(catalog: PublicCatalog): Pick<
       : [];
   });
 
-  return { categories: productCategories, storeCategories, products, stores, offers };
+  const offerProductIds = new Set(offers.flatMap((offer) => offer.items.map((item) => item.product.id)));
+  return { categories: productCategories, storeCategories, products: products.map((product) => ({ ...product, offer: offerProductIds.has(product.id) })), stores, offers };
 }
 
 export function CustomerCatalogProvider({ children }: PropsWithChildren) {
   const [catalogState, setCatalogState] = useState<
     Pick<CatalogState, "categories" | "storeCategories" | "products" | "stores" | "offers">
   >({ categories: [], storeCategories: [], products: [], stores: [], offers: [] });
+  const [ratings, setRatings] = useState<{ storeRatings: Map<string, RatingSummary>; productRatings: Map<string, RatingSummary> }>({ storeRatings: new Map(), productRatings: new Map() });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const refreshSequence = useRef(0);
 
   const refresh = useCallback(async () => {
+    const request = ++refreshSequence.current;
     setLoading(true);
     setError(null);
 
     try {
       const cached = await getCachedPublicCatalog();
+      if (request !== refreshSequence.current) return;
       if (cached) {
         setCatalogState(toCatalogState(cached));
       }
 
       const catalog = await getPublicCatalog();
+      if (request !== refreshSequence.current) return;
       setCatalogState(toCatalogState(catalog));
+      void getRatingSummaries().then((result) => setRatings({ storeRatings: result.stores, productRatings: result.products })).catch(() => setRatings({ storeRatings: new Map(), productRatings: new Map() }));
     } catch (cause) {
+      if (request !== refreshSequence.current) return;
       setError(
         cause instanceof Error
           ? cause.message
           : "تعذر تحميل بيانات المتاجر والمنتجات.",
       );
     } finally {
-      setLoading(false);
+      if (request === refreshSequence.current) setLoading(false);
     }
   }, []);
+
+  const refreshProductAvailability = useCallback(async (productId: string) => {
+    refreshSequence.current += 1;
+    setCatalogState((current) => {
+      const offers = current.offers.filter((offer) => !offer.items.some((item) => item.product.id === productId));
+      const offeredIds = new Set(offers.flatMap((offer) => offer.items.map((item) => item.product.id)));
+      return { ...current, offers, products: current.products.filter((product) => product.id !== productId).map((product) => ({ ...product, offer: offeredIds.has(product.id) })) };
+    });
+    await invalidatePublicCatalog();
+    await refresh();
+  }, [refresh]);
 
   useEffect(() => {
     const timer = setTimeout(() => void refresh(), 0);
@@ -156,8 +181,8 @@ export function CustomerCatalogProvider({ children }: PropsWithChildren) {
   }, [refresh]);
 
   const value = useMemo(
-    () => ({ ...catalogState, loading, error, refresh }),
-    [catalogState, loading, error, refresh],
+    () => ({ ...catalogState, ...ratings, loading, error, refresh, refreshProductAvailability }),
+    [catalogState, ratings, loading, error, refresh, refreshProductAvailability],
   );
 
   return (

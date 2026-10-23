@@ -1,14 +1,16 @@
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
+import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { formatCurrency, getCustomerOrders, type CustomerOrderView } from "@/lib/customer-orders";
+import { useOrderRealtime } from "@/hooks/useOrderRealtime";
 import { groupOrderItems } from "@/lib/order-item-groups";
 
 type OrderStatus = CustomerOrderView["status"];
@@ -49,14 +51,16 @@ export default function OrdersScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { itemCount } = useCart();
+  const { user } = useAuth();
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<OrderFilter>("all");
+  const [refreshing, setRefreshing] = useState(false);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const refresh = useCallback(async (background = false) => {
+    if (!background) setLoading(true);
     setError(null);
     try {
       const rows = await getCustomerOrders();
@@ -72,14 +76,36 @@ export default function OrdersScreen() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تحميل طلباتك.");
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   }, []);
+
+  const handlePullRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refresh(true);
+    setRefreshing(false);
+  }, [refresh]);
 
   useEffect(() => {
     const timer = setTimeout(() => void refresh(), 0);
     return () => clearTimeout(timer);
   }, [refresh]);
+
+  const realtimeSubscriptions = useMemo(
+    () => user ? [
+      { table: "customer_orders" as const, filter: `customer_id=eq.${user.id}` },
+    ] : [],
+    [user],
+  );
+  const refreshFromRealtime = useCallback(() => {
+    void refresh(true);
+  }, [refresh]);
+  useOrderRealtime({
+    channelName: `customer-orders:${user?.id ?? "guest"}`,
+    enabled: Boolean(user),
+    subscriptions: realtimeSubscriptions,
+    onChange: refreshFromRealtime,
+  });
 
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
@@ -139,8 +165,9 @@ export default function OrdersScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handlePullRefresh()} tintColor={colors.primary} />}
       >
-        <View style={styles.intro}>
+        <View style={[styles.intro, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
           <Text
             style={[
               styles.title,
@@ -275,15 +302,6 @@ export default function OrdersScreen() {
                       </Text>
                     </View>
                   </View>
-
-                  <View
-                    style={[
-                      styles.orderDivider,
-                      {
-                        backgroundColor: colors.border,
-                      },
-                    ]}
-                  />
 
                   <View style={styles.orderDetails}>
                     <View style={styles.detailItem}>
@@ -479,6 +497,9 @@ const styles = StyleSheet.create({
 
   intro: {
     alignItems: "flex-end",
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    padding: Spacing.four,
   },
 
   title: {
@@ -498,7 +519,7 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     flexWrap: "wrap",
     gap: Spacing.two,
-    marginTop: Spacing.four,
+    marginTop: Spacing.three,
     marginBottom: Spacing.four,
   },
 
@@ -519,9 +540,10 @@ const styles = StyleSheet.create({
   },
 
   orderCard: {
-    padding: Spacing.four,
+    gap: Spacing.three,
+    padding: Spacing.three,
     borderWidth: 1,
-    borderRadius: Radius.xl,
+    borderRadius: Radius.lg,
   },
 
   orderTop: {
@@ -566,8 +588,8 @@ const styles = StyleSheet.create({
 
   orderDetails: {
     flexDirection: "row-reverse",
-    justifyContent: "flex-start",
-    gap: Spacing.five,
+    flexWrap: "wrap",
+    gap: Spacing.three,
   },
 
   detailItem: {
@@ -585,7 +607,7 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     alignItems: "flex-end",
     justifyContent: "space-between",
-    marginTop: Spacing.four,
+    marginTop: Spacing.one,
   },
 
   totalContainer: {

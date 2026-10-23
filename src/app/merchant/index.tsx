@@ -11,7 +11,6 @@ import {
   View,
 } from "react-native";
 
-import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { Fonts, FontSizes, Radius, Shadows, Spacing } from "@/constants/theme";
@@ -440,7 +439,6 @@ export default function MerchantHomeScreen() {
           },
         ]}
       >
-        <AppHeader title="لوحة تحكم المتجر" mode="business" />
 
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -470,7 +468,6 @@ export default function MerchantHomeScreen() {
           },
         ]}
       >
-        <AppHeader title="لوحة التاجر" />
 
         <View style={styles.errorContainer}>
           <View
@@ -526,7 +523,6 @@ export default function MerchantHomeScreen() {
         },
       ]}
     >
-      <AppHeader title="لوحة التاجر" />
 
       <ScrollView
         contentContainerStyle={styles.content}

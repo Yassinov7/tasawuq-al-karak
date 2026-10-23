@@ -1,6 +1,6 @@
-import { useRouter } from "expo-router";
-import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppButton } from "@/components/ui/AppButton";
@@ -9,7 +9,7 @@ import { AppModal } from "@/components/ui/AppModal";
 import { CustomerCatalogStatus } from "@/components/marketplace/CustomerCatalogStatus";
 import type { Product } from "@/constants/catalog";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
-import { useCart } from "@/context/CartContext";
+import { type CartItem, useCart } from "@/context/CartContext";
 import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { useTheme } from "@/context/ThemeContext";
 import { calculateCustomerOffer, describeCustomerOffer } from "@/lib/customer-offers";
@@ -34,7 +34,8 @@ type DeleteModal =
 export default function CartScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { products, offers, loading: catalogLoading } = useCustomerCatalog();
+  const { products, offers, loading: catalogLoading, refresh } = useCustomerCatalog();
+  useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
 
   const {
     items,
@@ -61,7 +62,7 @@ export default function CartScreen() {
         (productItem) => productItem.id === item.productId,
       );
 
-      if (!product) {
+      if (!product || !product.available) {
         return null;
       }
 
@@ -79,7 +80,7 @@ export default function CartScreen() {
       } => Boolean(value),
     );
   const unavailableItems = items.filter(
-    (item) => !products.some((product) => product.id === item.productId),
+    (item) => !products.some((product) => product.id === item.productId && product.available),
   );
   const cartOffers = selectedOfferIds.flatMap((offerId) => {
     const offer = offers.find((candidate) => candidate.id === offerId);
@@ -104,6 +105,11 @@ export default function CartScreen() {
     const calculation = calculateCustomerOffer(offer);
     return sum + calculation.originalTotal - calculation.finalTotal;
   }, 0);
+  const cartItemsByStore = cartProducts.reduce<Map<string, typeof cartProducts>>((groups, entry) => {
+    const key = entry.product.storeId;
+    groups.set(key, [...(groups.get(key) ?? []), entry]);
+    return groups;
+  }, new Map());
 
   const handleClearCart = () => {
     if (items.length === 0 && selectedOfferIds.length === 0) {
@@ -270,15 +276,15 @@ export default function CartScreen() {
                 <AppButton title="حذف" variant="outline" onPress={() => void removeItem(item.productId)} />
               </View>
             ))}
-            {cartProducts.map(({ item, product }) => (
-              <CartItemCard
-                key={product.id}
-                product={product}
-                quantity={item.quantity}
+            {Array.from(cartItemsByStore.entries()).map(([storeId, storeItems]) => (
+              <CartStoreGroup
+                key={storeId}
+                storeId={storeId}
+                entries={storeItems}
                 isSharedCart={isSharedCart}
-                onIncrease={() => increaseItem(product.id)}
-                onDecrease={() => decreaseItem(product.id)}
-                onRemove={() => handleRemoveItem(product.id, product.name)}
+                onIncrease={increaseItem}
+                onDecrease={decreaseItem}
+                onRemove={handleRemoveItem}
               />
             ))}
             {cartOffers.map((offer) => (
@@ -740,6 +746,41 @@ type CartItemCardProps = {
   onRemove: () => void;
 };
 
+type CartStoreGroupProps = {
+  storeId: string;
+  entries: { item: CartItem; product: Product }[];
+  isSharedCart: boolean;
+  onIncrease: (productId: string) => Promise<void>;
+  onDecrease: (productId: string) => Promise<void>;
+  onRemove: (productId: string, productName: string) => void;
+};
+
+function CartStoreGroup({ storeId, entries, isSharedCart, onIncrease, onDecrease, onRemove }: CartStoreGroupProps) {
+  const { colors } = useTheme();
+  const { stores } = useCustomerCatalog();
+  const storeName = stores.find((store) => store.id === storeId)?.name ?? "متجر";
+  return (
+    <View style={styles.storeGroup}>
+      <View style={styles.storeGroupHeader}>
+        <View style={[styles.storeGroupIcon, { backgroundColor: colors.primaryLight }]}><AppIcon name="storefront-outline" size={17} color={colors.primary} /></View>
+        <Text style={[styles.storeGroupTitle, { color: colors.text }]} numberOfLines={1}>{storeName}</Text>
+        <Text style={[styles.storeGroupCount, { color: colors.textMuted }]}>{entries.length} عناصر</Text>
+      </View>
+      {entries.map(({ item, product }) => (
+        <CartItemCard
+          key={product.id}
+          product={product}
+          quantity={item.quantity}
+          isSharedCart={isSharedCart}
+          onIncrease={() => onIncrease(product.id)}
+          onDecrease={() => onDecrease(product.id)}
+          onRemove={() => onRemove(product.id, product.name)}
+        />
+      ))}
+    </View>
+  );
+}
+
 function CartItemCard({
   product,
   quantity,
@@ -750,10 +791,21 @@ function CartItemCard({
 }: CartItemCardProps) {
   const { colors } = useTheme();
   const { stores } = useCustomerCatalog();
+  const [updating, setUpdating] = useState(false);
 
   const store = stores.find((item) => item.id === product.storeId);
 
   const itemTotal = product.price * quantity;
+  const image = product.media?.find((media) => media.type === "image")?.uri;
+  const runUpdate = async (action: () => void | Promise<void>) => {
+    if (updating) return;
+    setUpdating(true);
+    try {
+      await action();
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   return (
     <View
@@ -769,22 +821,10 @@ function CartItemCard({
       ]}
     >
       <View style={styles.itemTop}>
-        <View
-          style={[
-            styles.itemVisual,
-            {
-              backgroundColor: colors.primaryLight,
-            },
-            isSharedCart && {
-              backgroundColor: colors.accentLight,
-            },
-          ]}
-        >
-          <AppIcon
-            name="cube-outline"
-            size={31}
-            color={isSharedCart ? colors.accent : colors.primary}
-          />
+        <View style={[styles.itemVisual, { backgroundColor: colors.primaryLight }, isSharedCart && { backgroundColor: colors.accentLight }]}>
+          {image ? <Image source={{ uri: image }} style={styles.itemImage} resizeMode="cover" /> : (
+            <AppIcon name="cube-outline" size={31} color={isSharedCart ? colors.accent : colors.primary} />
+          )}
         </View>
 
         <View style={styles.itemInfo}>
@@ -828,7 +868,8 @@ function CartItemCard({
         </View>
 
         <Pressable
-          onPress={onRemove}
+          disabled={updating}
+          onPress={() => void runUpdate(onRemove)}
           style={({ pressed }) => [
             styles.removeButton,
             pressed && styles.pressed,
@@ -863,7 +904,8 @@ function CartItemCard({
           ]}
         >
           <Pressable
-            onPress={onDecrease}
+            disabled={updating}
+            onPress={() => void runUpdate(onDecrease)}
             style={({ pressed }) => [
               styles.quantityButton,
               pressed && styles.pressed,
@@ -886,7 +928,8 @@ function CartItemCard({
           </Text>
 
           <Pressable
-            onPress={onIncrease}
+            disabled={updating}
+            onPress={() => void runUpdate(onIncrease)}
             style={({ pressed }) => [
               styles.quantityButton,
               pressed && styles.pressed,
@@ -1246,7 +1289,7 @@ const styles = StyleSheet.create({
 
   title: {
     fontFamily: Fonts.bold,
-    fontSize: FontSizes.xl,
+    fontSize: FontSizes.xxl,
     textAlign: "right",
   },
 
@@ -1302,7 +1345,7 @@ const styles = StyleSheet.create({
   singleCartText: {
     marginTop: 2,
     fontFamily: Fonts.regular,
-    fontSize: 10,
+    fontSize: FontSizes.xs,
     lineHeight: 18,
     textAlign: "right",
   },
@@ -1359,7 +1402,7 @@ const styles = StyleSheet.create({
   sharedCartText: {
     marginTop: 2,
     fontFamily: Fonts.regular,
-    fontSize: 10,
+    fontSize: FontSizes.xs,
     lineHeight: 18,
     textAlign: "right",
   },
@@ -1440,10 +1483,15 @@ const styles = StyleSheet.create({
   },
 
   itemCard: {
-    padding: Spacing.four,
+    padding: Spacing.three,
     borderWidth: 1,
-    borderRadius: Radius.xl,
+    borderRadius: Radius.lg,
   },
+  storeGroup: { gap: Spacing.two },
+  storeGroupHeader: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.two, paddingHorizontal: Spacing.one },
+  storeGroupIcon: { alignItems: "center", borderRadius: Radius.full, height: 30, justifyContent: "center", width: 30 },
+  storeGroupTitle: { flex: 1, fontFamily: Fonts.semiBold, fontSize: FontSizes.sm, textAlign: "right" },
+  storeGroupCount: { fontFamily: Fonts.regular, fontSize: FontSizes.xs },
 
   itemTop: {
     flexDirection: "row-reverse",
@@ -1456,6 +1504,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: Radius.lg,
+  },
+  itemImage: {
+    borderRadius: Radius.md,
+    height: "100%",
+    width: "100%",
   },
 
   itemInfo: {
@@ -1481,7 +1534,7 @@ const styles = StyleSheet.create({
   itemUnit: {
     marginTop: 2,
     fontFamily: Fonts.regular,
-    fontSize: 10,
+    fontSize: FontSizes.xs,
     textAlign: "right",
   },
 
@@ -1571,7 +1624,7 @@ const styles = StyleSheet.create({
   deliveryText: {
     marginTop: 2,
     fontFamily: Fonts.regular,
-    fontSize: 10,
+    fontSize: FontSizes.xs,
     lineHeight: 18,
     textAlign: "right",
   },
@@ -1667,7 +1720,7 @@ const styles = StyleSheet.create({
   note: {
     marginTop: Spacing.two,
     fontFamily: Fonts.regular,
-    fontSize: 10,
+    fontSize: FontSizes.xs,
     textAlign: "center",
   },
 

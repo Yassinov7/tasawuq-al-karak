@@ -1,5 +1,5 @@
 import { useRouter, type Href } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -18,6 +18,9 @@ import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { supabase } from "@/lib/supabase";
 
+import { peekLocalCache, writeLocalCache, invalidateLocalCache } from "@/lib/local-cache";
+
+type ApplicationDraft = { planId: string; categoryId: string; phone: string; store: string; description: string; address: string };
 type Plan = {
   id: string;
   name: string;
@@ -25,6 +28,9 @@ type Plan = {
   duration_months: number;
   price: number;
   currency: "SYP" | "USD";
+  commission_rate: number | null;
+  product_limit: number | null;
+  features: string[] | null;
 };
 
 type StoreCategory = {
@@ -48,20 +54,35 @@ const getDurationLabel = (months: number) => {
   return `${months} أشهر`;
 };
 
+const isPlanReady = (plan: Plan) =>
+  plan.commission_rate !== null &&
+  plan.product_limit !== null &&
+  Array.isArray(plan.features) &&
+  plan.features.length > 0;
+
 export default function MerchantApplicationScreen() {
+  const { user } = useAuth();
+  return <MerchantApplicationForm key={user?.id ?? "guest"} />;
+}
+
+function MerchantApplicationForm() {
   const router = useRouter();
   const { user } = useAuth();
   const { colors } = useTheme();
 
+  const userId = user?.id;
+  const draftKey = userId ? `merchant-application-draft:${userId}` : "";
+  const draft = draftKey ? peekLocalCache<ApplicationDraft>(draftKey) : undefined;
+  const submitLock = useRef(false);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [categories, setCategories] = useState<StoreCategory[]>([]);
-  const [planId, setPlanId] = useState("");
-  const [categoryId, setCategoryId] = useState("");
+  const [planId, setPlanId] = useState(draft?.planId ?? "");
+  const [categoryId, setCategoryId] = useState(draft?.categoryId ?? "");
 
-  const [phone, setPhone] = useState("");
-  const [store, setStore] = useState("");
-  const [description, setDescription] = useState("");
-  const [address, setAddress] = useState("");
+  const [phone, setPhone] = useState(draft?.phone ?? "");
+  const [store, setStore] = useState(draft?.store ?? "");
+  const [description, setDescription] = useState(draft?.description ?? "");
+  const [address, setAddress] = useState(draft?.address ?? "");
 
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [refreshing, setRefreshing] = useState(false);
@@ -71,7 +92,7 @@ export default function MerchantApplicationScreen() {
 
   const loadData = useCallback(
     async (isRefresh = false) => {
-      if (!user) {
+      if (!userId) {
         setLoadState("ready");
         return;
       }
@@ -88,7 +109,7 @@ export default function MerchantApplicationScreen() {
         const [planResult, categoryResult, appResult] = await Promise.all([
           supabase
             .from("subscription_plans")
-            .select("id,name,description,duration_months,price,currency")
+            .select("id,name,description,duration_months,price,currency,commission_rate,product_limit,features")
             .eq("is_active", true)
             .order("duration_months"),
 
@@ -101,7 +122,7 @@ export default function MerchantApplicationScreen() {
           supabase
             .from("merchant_applications")
             .select("id,status")
-            .eq("user_id", user.id)
+            .eq("user_id", userId)
             .maybeSingle(),
         ]);
 
@@ -128,20 +149,8 @@ export default function MerchantApplicationScreen() {
         setPlans(loadedPlans);
         setCategories(loadedCategories);
 
-        if (
-          loadedCategories.length > 0 &&
-          !loadedCategories.some((category) => category.id === categoryId)
-        ) {
-          setCategoryId(loadedCategories[0].id);
-        }
-
-        if (
-          loadedPlans.length > 0 &&
-          !loadedPlans.some((plan) => plan.id === planId)
-        ) {
-          setPlanId(loadedPlans[0].id);
-        }
-
+        setCategoryId((previous) => loadedCategories.some((item) => item.id === previous) ? previous : loadedCategories[0]?.id ?? "");
+        setPlanId((previous) => loadedPlans.some((item) => item.id === previous && isPlanReady(item)) ? previous : "");
         setLoadState("ready");
       } catch {
         setLoadState("error");
@@ -152,7 +161,7 @@ export default function MerchantApplicationScreen() {
         setRefreshing(false);
       }
     },
-    [categoryId, planId, router, user],
+    [router, userId],
   );
 
   useEffect(() => {
@@ -160,17 +169,21 @@ export default function MerchantApplicationScreen() {
     return () => clearTimeout(timer);
   }, [loadData]);
 
+  useEffect(() => {
+    if (draftKey) void writeLocalCache(draftKey, { planId, categoryId, phone, store, description, address });
+  }, [draftKey, planId, categoryId, phone, store, description, address]);
+
   const validateForm = () => {
     setError("");
     setFieldError("");
 
-    if (!phone.trim()) {
-      setFieldError("أدخل رقم الهاتف للتواصل.");
+    if (!/^[+\d٠-٩۰-۹\s()-]{5,32}$/.test(phone.trim()) || phone.replace(/[^\d٠-٩۰-۹]/g, "").length < 5) {
+      setFieldError("أدخل رقم هاتف صحيحًا من 5 إلى 32 محرفًا.");
       return false;
     }
 
-    if (!store.trim()) {
-      setFieldError("أدخل اسم المتجر.");
+    if (store.trim().length < 2 || store.trim().length > 120) {
+      setFieldError("أدخل اسم متجر من حرفين إلى 120 حرفًا.");
       return false;
     }
 
@@ -179,12 +192,12 @@ export default function MerchantApplicationScreen() {
       return false;
     }
 
-    if (!address.trim()) {
-      setFieldError("أدخل عنوان المتجر.");
+    if (address.trim().length < 3 || address.trim().length > 300) {
+      setFieldError("أدخل عنوانًا من 3 إلى 300 حرف.");
       return false;
     }
 
-    if (!planId) {
+    if (!plans.some((plan) => plan.id === planId && isPlanReady(plan))) {
       setFieldError("اختر خطة الاشتراك.");
       return false;
     }
@@ -193,6 +206,7 @@ export default function MerchantApplicationScreen() {
   };
 
   const submit = async () => {
+    if (submitLock.current) return;
     if (!user) {
       setError("سجّل الدخول أولًا.");
       return;
@@ -202,30 +216,33 @@ export default function MerchantApplicationScreen() {
       return;
     }
 
+    submitLock.current = true;
     setBusy(true);
     setError("");
     setFieldError("");
 
-    const { error: submitError } = await supabase.rpc(
-      "submit_merchant_application",
-      {
-        selected_plan: planId,
-        input_contact_phone: phone.trim(),
-        input_store_name: store.trim(),
-        input_store_description: description.trim(),
-        input_store_address: address.trim(),
-        selected_store_category: categoryId,
-      },
-    );
+    try {
+      const { error: submitError } = await supabase.rpc(
+        "submit_merchant_application",
+        {
+          selected_plan: planId,
+          input_contact_phone: phone.trim(),
+          input_store_name: store.trim(),
+          input_store_description: description.trim(),
+          input_store_address: address.trim(),
+          selected_store_category: categoryId,
+        },
+      );
 
-    setBusy(false);
+      if (submitError) {
+        setError("تعذر إرسال طلب المتجر. تحقق من البيانات وحاول مرة أخرى.");
+        return;
+      }
 
-    if (submitError) {
-      setError("تعذر إرسال طلب المتجر. تحقق من البيانات وحاول مرة أخرى.");
-      return;
-    }
-
-    router.replace("/application-status" as Href);
+      await invalidateLocalCache(draftKey);
+      router.replace("/application-status" as Href);
+    } catch { setError("تعذر إرسال الطلب. احتفظنا ببياناتك؛ تحقق من الاتصال وحاول مجددًا."); }
+    finally { submitLock.current = false; setBusy(false); }
   };
 
   if (loadState === "loading") {
@@ -278,10 +295,10 @@ export default function MerchantApplicationScreen() {
     Boolean(store.trim()) &&
     Boolean(categoryId) &&
     Boolean(address.trim()) &&
-    Boolean(planId) &&
-    Boolean(plans.length) &&
+    Boolean(plans.some((plan) => plan.id === planId && isPlanReady(plan))) &&
     Boolean(categories.length) &&
     !busy;
+  const selectedPlan = plans.find((plan) => plan.id === planId && isPlanReady(plan));
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
@@ -679,6 +696,7 @@ export default function MerchantApplicationScreen() {
             <View style={styles.planList}>
               {plans.map((plan) => {
                 const selected = planId === plan.id;
+                const ready = isPlanReady(plan);
 
                 return (
                   <Pressable
@@ -686,8 +704,11 @@ export default function MerchantApplicationScreen() {
                     accessibilityRole="button"
                     accessibilityState={{
                       selected,
+                      disabled: !ready,
                     }}
+                    disabled={!ready}
                     onPress={() => {
+                      if (!ready) return;
                       setPlanId(plan.id);
                       setFieldError("");
                     }}
@@ -698,6 +719,7 @@ export default function MerchantApplicationScreen() {
                           ? colors.primaryLight
                           : colors.surfaceSecondary,
                         borderColor: selected ? colors.primary : colors.border,
+                        opacity: ready ? 1 : 0.55,
                       },
                     ]}
                   >
@@ -764,12 +786,33 @@ export default function MerchantApplicationScreen() {
                       >
                         {money(plan.price, plan.currency)}
                       </Text>
+
+                      <Text style={[styles.planTerms, { color: colors.textSecondary }]}>
+                        {ready
+                          ? `العمولة ${plan.commission_rate}% · حد المنتجات ${plan.product_limit} · ${plan.features?.length ?? 0} مزايا`
+                          : "هذه الخطة غير مهيأة بالكامل ولا يمكن اختيارها حاليًا."}
+                      </Text>
+
+                      {ready && plan.features?.length ? (
+                        <Text style={[styles.planFeatures, { color: colors.textMuted }]}>
+                          {plan.features.join(" · ")}
+                        </Text>
+                      ) : null}
                     </View>
                   </Pressable>
                 );
               })}
             </View>
           )}
+
+          {selectedPlan ? (
+            <View style={[styles.selectedPlanSummary, { backgroundColor: colors.primaryLight, borderColor: colors.primary }]}>
+              <Text style={[styles.selectedPlanTitle, { color: colors.primary }]}>الخطة المختارة: {selectedPlan.name}</Text>
+              <Text style={[styles.selectedPlanText, { color: colors.textSecondary }]}>
+                {money(selectedPlan.price, selectedPlan.currency)} · {getDurationLabel(selectedPlan.duration_months)} · عمولة {selectedPlan.commission_rate}%
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         {fieldError ? (
@@ -843,6 +886,10 @@ export default function MerchantApplicationScreen() {
             </Text>
           </View>
         </View>
+
+        <Text style={[styles.submitHint, { color: colors.textSecondary }]}>
+          يبدأ الاشتراك وتصدر فاتورته بعد موافقة الإدارة، وليس عند إرسال الطلب.
+        </Text>
 
         <View style={styles.submitArea}>
           <AppButton
@@ -1187,6 +1234,44 @@ const styles = StyleSheet.create({
     marginTop: Spacing.two,
     fontFamily: Fonts.bold,
     fontSize: FontSizes.lg,
+    textAlign: "right",
+  },
+
+  planTerms: {
+    width: "100%",
+    marginTop: Spacing.one,
+    fontFamily: Fonts.semiBold,
+    fontSize: FontSizes.xs,
+    lineHeight: 20,
+    textAlign: "right",
+  },
+
+  planFeatures: {
+    width: "100%",
+    marginTop: Spacing.one,
+    fontFamily: Fonts.regular,
+    fontSize: FontSizes.xs,
+    lineHeight: 20,
+    textAlign: "right",
+  },
+
+  selectedPlanSummary: {
+    marginTop: Spacing.three,
+    padding: Spacing.three,
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    gap: Spacing.one,
+  },
+
+  selectedPlanTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: FontSizes.sm,
+    textAlign: "right",
+  },
+
+  selectedPlanText: {
+    fontFamily: Fonts.regular,
+    fontSize: FontSizes.xs,
     textAlign: "right",
   },
 

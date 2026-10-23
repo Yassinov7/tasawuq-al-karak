@@ -1,10 +1,13 @@
 import { supabase } from "@/lib/supabase";
+import { purchaseAvailabilityMessage } from "@/lib/purchase-availability";
 import type { Tables } from "@/types/database";
 
 export type CustomerOrder = Tables<"customer_orders">;
 export type CustomerOrderTotal = Tables<"customer_order_totals">;
 export type CustomerStoreOrder = Tables<"store_orders">;
 export type CustomerOrderItem = Tables<"store_order_items">;
+export type CustomerStoreOrderStatusHistory = Tables<"store_order_status_history">;
+export type CustomerDeliveryTask = Tables<"delivery_tasks">;
 export type DeliveryZone = Tables<"delivery_zones">;
 export type CustomerAddress = Tables<"customer_addresses"> & {
   zone: DeliveryZone | null;
@@ -16,7 +19,9 @@ export type CustomerOrderView = CustomerOrder & {
     storeOrder: CustomerStoreOrder;
     storeName: string;
     items: CustomerOrderItem[];
+    statusHistory: CustomerStoreOrderStatusHistory[];
   }[];
+  deliveryTask: CustomerDeliveryTask | null;
 };
 
 export function formatCurrency(amount: number, currency: "SYP" | "USD") {
@@ -46,16 +51,30 @@ async function attachOrderDetails(
   const storeOrders = storeOrdersResult.data ?? [];
   const storeIds = [...new Set(storeOrders.map((item) => item.store_id))];
   const storeOrderIds = storeOrders.map((item) => item.id);
-  const [storesResult, itemsResult] = await Promise.all([
+  const [storesResult, itemsResult, historyResult, deliveryTasksResult] = await Promise.all([
     storeIds.length > 0
       ? supabase.from("stores").select("id,name").in("id", storeIds)
       : Promise.resolve({ data: [], error: null }),
     storeOrderIds.length > 0
       ? supabase.from("store_order_items").select("*").in("store_order_id", storeOrderIds)
       : Promise.resolve({ data: [], error: null }),
+    storeOrderIds.length > 0
+      ? supabase
+        .from("store_order_status_history")
+        .select("*")
+        .in("store_order_id", storeOrderIds)
+        .order("created_at", { ascending: true })
+      : Promise.resolve({ data: [], error: null }),
+    supabase
+      .from("delivery_tasks")
+      .select("*")
+      .in("customer_order_id", orderIds)
+      .order("created_at", { ascending: false }),
   ]);
   if (storesResult.error) throw storesResult.error;
   if (itemsResult.error) throw itemsResult.error;
+  if (historyResult.error) throw historyResult.error;
+  if (deliveryTasksResult.error) throw deliveryTasksResult.error;
 
   const storeNames = new Map((storesResult.data ?? []).map((store) => [store.id, store.name]));
   const itemsByStoreOrder = new Map<string, CustomerOrderItem[]>();
@@ -63,6 +82,18 @@ async function attachOrderDetails(
     const current = itemsByStoreOrder.get(item.store_order_id) ?? [];
     current.push(item);
     itemsByStoreOrder.set(item.store_order_id, current);
+  }
+  const historyByStoreOrder = new Map<string, CustomerStoreOrderStatusHistory[]>();
+  for (const entry of historyResult.data ?? []) {
+    const current = historyByStoreOrder.get(entry.store_order_id) ?? [];
+    current.push(entry);
+    historyByStoreOrder.set(entry.store_order_id, current);
+  }
+  const deliveryTaskByOrder = new Map<string, CustomerDeliveryTask>();
+  for (const task of deliveryTasksResult.data ?? []) {
+    if (!deliveryTaskByOrder.has(task.customer_order_id)) {
+      deliveryTaskByOrder.set(task.customer_order_id, task);
+    }
   }
 
   return orders.map((order) => ({
@@ -74,7 +105,9 @@ async function attachOrderDetails(
         storeOrder,
         storeName: storeNames.get(storeOrder.store_id) ?? "متجر",
         items: itemsByStoreOrder.get(storeOrder.id) ?? [],
+        statusHistory: historyByStoreOrder.get(storeOrder.id) ?? [],
       })),
+    deliveryTask: deliveryTaskByOrder.get(order.id) ?? null,
   }));
 }
 
@@ -183,7 +216,11 @@ export async function createCustomerOrder(input: {
     input_delivery_zone: input.deliveryZoneId,
     input_customer_note: input.customerNote,
   });
-  if (error) throw error;
+  if (error) {
+    const availabilityError = purchaseAvailabilityMessage(error);
+    if (availabilityError) throw new Error(availabilityError);
+    throw error;
+  }
   return data;
 }
 

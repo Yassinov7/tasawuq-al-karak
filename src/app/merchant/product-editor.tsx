@@ -15,21 +15,24 @@ import {
   View,
 } from "react-native";
 
-import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { AppModal } from "@/components/ui/AppModal";
+import { useMerchantWorkspace } from "@/context/MerchantWorkspaceContext";
+import { SellingUnitSelect } from "@/components/merchant/SellingUnitSelect";
 import { AppTextField } from "@/components/ui/AppTextField";
 import { Fonts, FontSizes, Radius, Spacing } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
+import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { useTheme } from "@/context/ThemeContext";
 import {
   getMediaExtension,
   getMerchantStore,
   getStoreMediaUrl,
+  setMerchantProductAvailability,
   type MerchantStore,
 } from "@/lib/merchant-store";
 import { supabase } from "@/lib/supabase";
+import { invalidateLocalCache } from "@/lib/local-cache";
 
 type Category = {
   id: string;
@@ -73,14 +76,16 @@ export default function MerchantProductEditorScreen() {
   const productId = Array.isArray(id) ? id[0] : id;
 
   const { user } = useAuth();
+  const userId = user?.id;
   const { colors } = useTheme();
+  const { refreshProductAvailability } = useCustomerCatalog();
 
   const [store, setStore] = useState<MerchantStore | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [alert, setAlert] = useState("");
+  const { setNotice, headerHeight } = useMerchantWorkspace();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -96,16 +101,17 @@ export default function MerchantProductEditorScreen() {
   const [originalMedia, setOriginalMedia] = useState<StoredMedia[]>([]);
 
   const saveLock = useRef(false);
+  const draftProduct = useRef<{ id: string; storeId: string } | null>(null);
 
   const load = useCallback(async () => {
-    if (!user) return;
+    if (!userId) return;
 
     try {
       setLoading(true);
       setError("");
 
       const [ownStore, categoryResult] = await Promise.all([
-        getMerchantStore(user.id),
+        getMerchantStore(userId!),
         supabase
           .from("product_categories")
           .select("id,name")
@@ -189,7 +195,7 @@ export default function MerchantProductEditorScreen() {
     } finally {
       setLoading(false);
     }
-  }, [user, productId, router]);
+  }, [userId, productId, router]);
 
   useEffect(() => {
     const timer = setTimeout(() => void load(), 0);
@@ -371,12 +377,13 @@ export default function MerchantProductEditorScreen() {
       selling_unit: unit.trim(),
       minimum_quantity: minValue,
       quantity_step: stepValue,
-      is_available: available,
+      // Keep a new draft out of checkout until its media has been verified.
+      is_available: productId ? available : false,
     };
 
-    let savedProductId = productId;
+    let savedProductId = productId ?? (draftProduct.current?.storeId === store.id ? draftProduct.current.id : undefined);
+    let productSaved = false;
     const uploadedPaths: string[] = [];
-    let createdProduct = false;
     let successMessage = "";
 
     const newMedia = media.filter((item) => !item.existing);
@@ -406,8 +413,9 @@ export default function MerchantProductEditorScreen() {
         }
 
         savedProductId = data.id;
-        createdProduct = true;
+        draftProduct.current = { id: data.id, storeId: store.id };
       }
+      productSaved = true;
 
       for (const [index, item] of newMedia.entries()) {
         const localFile = new File(item.uri);
@@ -501,22 +509,9 @@ export default function MerchantProductEditorScreen() {
         throw new Error("saved media count did not match the editor");
       }
 
-      const projectRef =
-        process.env.EXPO_PUBLIC_SUPABASE_URL?.match(
-          /^https?:\/\/([^.]+)/,
-        )?.[1] ?? "غير معروف";
+      if (!productId) await setMerchantProductAvailability(savedProductId, store.id, available);
 
-      const mediaSummary = newMedia.length
-        ? ` وتم التحقق من رفع ${newMedia.length} وسيط وربطه.`
-        : " ولم تُرفق وسائط جديدة.";
-
-      successMessage = `${
-        productId ? "تم تحديث المنتج." : "تمت إضافة المنتج إلى متجرك."
-      }${mediaSummary}${
-        __DEV__
-          ? `\nمرجع المنتج: ${savedProductId}\nمشروع Supabase: ${projectRef}`
-          : ""
-      }`;
+      successMessage = productId ? "تم تحديث المنتج." : "تمت إضافة المنتج إلى متجرك.";
     } catch (failure) {
       if (uploadedPaths.length) {
         await supabase
@@ -527,13 +522,8 @@ export default function MerchantProductEditorScreen() {
         await supabase.storage.from("store-media").remove(uploadedPaths);
       }
 
-      if (createdProduct && savedProductId) {
-        await supabase
-          .from("products")
-          .delete()
-          .eq("id", savedProductId)
-          .eq("store_id", store.id);
-      }
+      // A failed new product stays as an inactive draft. Retain its ID so a
+      // retry updates the same row instead of deleting it or making a duplicate.
 
       const details =
         failure && typeof failure === "object"
@@ -554,9 +544,9 @@ export default function MerchantProductEditorScreen() {
         .join(" · ");
 
       const message = /bucket not found|nosuchbucket/i.test(reason)
-        ? "مخزن الوسائط غير موجود. نفّذ ترحيل إنشاء مخزن store-media وسياساته في Supabase."
+        ? "رفع الصور غير متاح حاليًا. تواصل مع فريق الدعم."
         : /row\.level security|not authorized|permission/i.test(reason)
-          ? "رفضت صلاحيات التخزين رفع الملف. تأكد من تطبيق سياسات store-media ثم سجّل الخروج والدخول."
+          ? "تعذر رفع الصور بصلاحيات حسابك. سجّل الدخول مجددًا أو تواصل مع الدعم."
           : /mime|content.type|file type/i.test(reason)
             ? "صيغة الملف غير مدعومة. استخدم JPEG أو PNG أو WebP للصور، وMP4 أو MOV أو WebM للفيديو."
             : /too large|exceeded|payload/i.test(reason)
@@ -565,17 +555,23 @@ export default function MerchantProductEditorScreen() {
                     reason,
                   )
                 ? "تعذر قراءة الملف المختار من الجهاز. أعد اختياره من معرض الصور أو الفيديو."
-                : `تعذر حفظ المنتج أو ربط وسائطه. لم تُضف نسخة مكررة. (${reason})`;
+                : "تعذر حفظ المنتج أو وسائطه. احتفظنا ببياناتك؛ تحقق من الاتصال وحاول مجددًا.";
 
-      setError(`${message}${__DEV__ ? `\nتفاصيل Supabase: ${reason}` : ""}`);
+      setError(message);
 
       return;
     } finally {
+      if (productSaved && savedProductId) {
+        if (user) await invalidateLocalCache(`merchant-products:${user.id}`);
+        await refreshProductAvailability(savedProductId).catch(() => undefined);
+      }
       setBusy(false);
       saveLock.current = false;
     }
 
-    setAlert(successMessage);
+    setNotice(successMessage);
+    if (router.canGoBack()) router.back();
+    else router.replace({ pathname: "/merchant/catalog", params: { tab: "products" } } as Href);
   };
 
   if (loading) {
@@ -602,12 +598,8 @@ export default function MerchantProductEditorScreen() {
         },
       ]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={headerHeight}
     >
-      <AppHeader
-        title={productId ? "تعديل المنتج" : "إضافة منتج"}
-        mode="business"
-        showBack
-      />
       <ScrollView
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
@@ -843,13 +835,7 @@ export default function MerchantProductEditorScreen() {
 
           <View style={styles.row}>
             <View style={styles.fieldHalf}>
-              <AppTextField
-                label="وحدة البيع"
-                value={unit}
-                onChangeText={setUnit}
-                placeholder="قطعة، كغ، لتر"
-                maxLength={32}
-              />
+              <SellingUnitSelect value={unit} onChange={setUnit} disabled={busy} />
             </View>
 
             <View style={styles.fieldHalf}>
@@ -1129,19 +1115,6 @@ export default function MerchantProductEditorScreen() {
           />
         </View>
       </ScrollView>
-
-      <AppModal
-        visible={Boolean(alert)}
-        title="تم الحفظ"
-        message={alert}
-        onCancel={() => {
-          setAlert("");
-          router.replace({
-            pathname: "/merchant/catalog",
-            params: { tab: "products" },
-          } as Href);
-        }}
-      />
     </KeyboardAvoidingView>
   );
 }

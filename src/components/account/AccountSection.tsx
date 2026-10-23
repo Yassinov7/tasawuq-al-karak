@@ -1,0 +1,49 @@
+import type { ComponentProps, ReactNode } from "react";
+import { StyleSheet, Text, View } from "react-native";
+
+import { AppIcon } from "@/components/ui/AppIcon";
+import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
+import { useTheme } from "@/context/ThemeContext";
+
+type AccountSectionProps = {
+  title: string;
+  subtitle?: string;
+  icon?: ComponentProps<typeof AppIcon>["name"];
+  children: ReactNode;
+};
+
+/** Shared titled container for a role's account actions. */
+export function AccountSection({ title, subtitle, icon, children }: AccountSectionProps) {
+  const { colors } = useTheme();
+
+  return (
+    <View style={styles.section}>
+      {icon || subtitle ? (
+        <View style={[styles.headerWithDetails, { borderBottomColor: colors.border }]}>
+          {icon ? (
+            <View style={[styles.headerIcon, { backgroundColor: colors.primaryLight }]}>
+              <AppIcon name={icon} size={18} color={colors.primary} />
+            </View>
+          ) : null}
+          <View style={styles.headerText}>
+            <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+            {subtitle ? <Text style={[styles.subtitle, { color: colors.textMuted }]}>{subtitle}</Text> : null}
+          </View>
+        </View>
+      ) : (
+        <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+      )}
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>{children}</View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  section: { gap: Spacing.two, marginTop: Spacing.four },
+  headerWithDetails: { alignItems: "center", borderBottomWidth: 1, flexDirection: "row-reverse", gap: Spacing.two, paddingBottom: Spacing.two },
+  headerIcon: { alignItems: "center", borderRadius: Radius.md, height: 36, justifyContent: "center", width: 36 },
+  headerText: { alignItems: "flex-end", flex: 1 },
+  title: { fontFamily: Fonts.bold, fontSize: FontSizes.lg, textAlign: "right" },
+  subtitle: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, marginTop: 2, textAlign: "right" },
+  card: { borderRadius: Radius.xl, borderWidth: 1, overflow: "hidden" },
+});

@@ -1,6 +1,7 @@
 import type { Tables } from "@/types/database";
 
 import {
+    invalidateLocalCache,
     peekLocalCache,
     readLocalCache,
     writeLocalCache,
@@ -24,7 +25,13 @@ type PublicCatalogCache = {
   productMedia: PublicProductMedia[];
 };
 
-const PUBLIC_CATALOG_CACHE_KEY = "public-catalog:v3";
+const PUBLIC_CATALOG_CACHE_KEY = "public-catalog:v4";
+
+let catalogVersion = 0;
+export const invalidatePublicCatalog = () => {
+  catalogVersion += 1;
+  return invalidateLocalCache(PUBLIC_CATALOG_CACHE_KEY);
+};
 
 export type PublicCatalog = PublicCatalogCache;
 
@@ -131,6 +138,7 @@ async function fetchProductMedia(products: PublicProduct[]): Promise<PublicProdu
 }
 
 export async function getPublicCatalog(): Promise<PublicCatalog> {
+  const version = ++catalogVersion;
   const stores = await fetchAcceptedStores();
   const acceptedStoreIds = stores.map((store) => store.id);
 
@@ -155,7 +163,7 @@ export async function getPublicCatalog(): Promise<PublicCatalog> {
     offers,
   };
 
-  await writeLocalCache(PUBLIC_CATALOG_CACHE_KEY, {
+  if (version === catalogVersion) await writeLocalCache(PUBLIC_CATALOG_CACHE_KEY, {
     stores,
     storeCategories,
     productCategories,

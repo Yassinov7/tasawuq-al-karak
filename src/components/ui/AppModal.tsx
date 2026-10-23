@@ -1,5 +1,13 @@
 import { ReactNode } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import { AppIcon } from "@/components/ui/AppIcon";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
@@ -14,6 +22,7 @@ type AppModalProps = {
   cancelText?: string;
   destructive?: boolean;
   busy?: boolean;
+  showCloseButton?: boolean;
   onConfirm?: () => void;
   onCancel: () => void;
   children?: ReactNode;
@@ -28,6 +37,7 @@ export function AppModal({
   cancelText,
   destructive = false,
   busy = false,
+  showCloseButton = false,
   onConfirm,
   onCancel,
   children,
@@ -52,15 +62,40 @@ export function AppModal({
       >
         <Pressable style={StyleSheet.absoluteFill} onPress={() => { if (!busy) onCancel(); }} />
 
-        <View
-          style={[
-            styles.card,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-            },
-          ]}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.keyboardContainer}
         >
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+          {showCloseButton ? (
+            <Pressable
+              disabled={busy}
+              hitSlop={8}
+              onPress={onCancel}
+              style={({ pressed }) => [
+                styles.closeButton,
+                { backgroundColor: colors.surfaceSecondary },
+                pressed && styles.pressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="إغلاق"
+            >
+              <AppIcon
+                name="close-outline"
+                size={19}
+                color={colors.textSecondary}
+              />
+            </Pressable>
+          ) : null}
+
           <View
             style={[
               styles.iconContainer,
@@ -148,7 +183,8 @@ export function AppModal({
               </Text>
             </Pressable>
           </View>
-        </View>
+          </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -170,12 +206,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.five,
   },
 
+  keyboardContainer: {
+    width: "100%",
+  },
+
   card: {
     width: "100%",
     maxWidth: 420,
     padding: Spacing.five,
     borderWidth: 1,
     borderRadius: Radius.xl,
+  },
+
+  closeButton: {
+    alignItems: "center",
+    borderRadius: Radius.full,
+    height: 34,
+    justifyContent: "center",
+    left: Spacing.three,
+    position: "absolute",
+    top: Spacing.three,
+    width: 34,
+    zIndex: 1,
   },
 
   iconContainer: {

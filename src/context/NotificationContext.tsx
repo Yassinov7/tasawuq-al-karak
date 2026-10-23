@@ -9,9 +9,11 @@ export type NotificationType = "order" | "offer" | "promotion" | "system";
 export type NotificationData = {
   orderId?: string;
   storeOrderId?: string;
+  deliveryTaskId?: string;
   productId?: string;
   storeId?: string;
   offerId?: string;
+  route?: string;
   url?: string;
 };
 export type AppNotification = {
@@ -49,10 +51,12 @@ type NotificationRow = {
 
 const NotificationContext = createContext<NotificationContextValue | null>(null);
 
+let nextNotificationChannelInstance = 0;
+
 function parseNotificationData(value: Json | null): NotificationData | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const data: NotificationData = {};
-  for (const key of ["orderId", "storeOrderId", "productId", "storeId", "offerId", "url"] as const) {
+  for (const key of ["orderId", "storeOrderId", "deliveryTaskId", "productId", "storeId", "offerId", "route", "url"] as const) {
     const candidate = value[key];
     if (typeof candidate === "string") data[key] = candidate;
   }
@@ -102,15 +106,19 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       void refresh().catch(() => undefined);
     }, 0);
     if (!user) return () => clearTimeout(timer);
+    let active = true;
     const channel = supabase
-      .channel(`user-notifications:${user.id}`)
+      .channel(`user-notifications:${user.id}:${++nextNotificationChannelInstance}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
-        () => void refresh().catch(() => undefined),
+        () => {
+          if (active) void refresh().catch(() => undefined);
+        },
       )
       .subscribe();
     return () => {
+      active = false;
       clearTimeout(timer);
       void supabase.removeChannel(channel);
     };

@@ -518,9 +518,12 @@ export type Database = {
           created_at: string
           id: string
           plan_currency_snapshot: Database["public"]["Enums"]["currency_code"]
+          plan_commission_rate_snapshot: number | null
           plan_duration_months_snapshot: number
+          plan_features_snapshot: Json | null
           plan_id: string
           plan_name_snapshot: string
+          plan_product_limit_snapshot: number | null
           plan_price_snapshot: number
           review_note: string | null
           reviewed_at: string | null
@@ -539,9 +542,12 @@ export type Database = {
           created_at?: string
           id?: string
           plan_currency_snapshot: Database["public"]["Enums"]["currency_code"]
+          plan_commission_rate_snapshot?: number | null
           plan_duration_months_snapshot: number
+          plan_features_snapshot?: Json | null
           plan_id: string
           plan_name_snapshot: string
+          plan_product_limit_snapshot?: number | null
           plan_price_snapshot: number
           review_note?: string | null
           reviewed_at?: string | null
@@ -560,9 +566,12 @@ export type Database = {
           created_at?: string
           id?: string
           plan_currency_snapshot?: Database["public"]["Enums"]["currency_code"]
+          plan_commission_rate_snapshot?: number | null
           plan_duration_months_snapshot?: number
+          plan_features_snapshot?: Json | null
           plan_id?: string
           plan_name_snapshot?: string
+          plan_product_limit_snapshot?: number | null
           plan_price_snapshot?: number
           review_note?: string | null
           reviewed_at?: string | null
@@ -1438,34 +1447,43 @@ export type Database = {
         Row: {
           created_at: string
           currency: Database["public"]["Enums"]["currency_code"]
+          commission_rate: number | null
           description: string
           duration_months: number
           id: string
           is_active: boolean
+          features: Json | null
           name: string
           price: number
+          product_limit: number | null
           updated_at: string
         }
         Insert: {
           created_at?: string
           currency?: Database["public"]["Enums"]["currency_code"]
+          commission_rate?: number | null
           description?: string
           duration_months: number
           id?: string
           is_active?: boolean
+          features?: Json | null
           name: string
           price: number
+          product_limit?: number | null
           updated_at?: string
         }
         Update: {
           created_at?: string
           currency?: Database["public"]["Enums"]["currency_code"]
+          commission_rate?: number | null
           description?: string
           duration_months?: number
           id?: string
           is_active?: boolean
+          features?: Json | null
           name?: string
           price?: number
+          product_limit?: number | null
           updated_at?: string
         }
         Relationships: []

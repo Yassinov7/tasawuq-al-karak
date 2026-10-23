@@ -2,16 +2,17 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
 
+import { AccountMenuItem } from "@/components/account/AccountMenuItem";
+import { AccountProfileHeader } from "@/components/account/AccountProfileHeader";
+import { AccountSection } from "@/components/account/AccountSection";
+import { AccountShell } from "@/components/account/AccountShell";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
@@ -292,108 +293,15 @@ export default function AccountTab() {
   const displayPhone = savedPhone || "أضف رقم هاتفك لإدارة حسابك";
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: colors.background,
-        },
-      ]}
+    <AccountShell
+      header={<AppHeader title="حسابي" cartCount={itemCount} mode="customer" />}
+      keyboardAware
     >
-      <AppHeader title="حسابي" cartCount={itemCount} mode="customer" />
-
-      <KeyboardAvoidingView
-        style={styles.keyboardContainer}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-      >
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={styles.content}
-        >
-          <View
-            style={[
-              styles.profileCard,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-              },
-            ]}
-          >
-            <View
-              style={[
-                styles.avatar,
-                {
-                  backgroundColor: colors.primaryLight,
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              <AppIcon name="person-outline" size={30} color={colors.primary} />
-
-              <View
-                style={[
-                  styles.avatarDot,
-                  {
-                    backgroundColor: colors.primary,
-                    borderColor: colors.surface,
-                  },
-                ]}
-              />
-            </View>
-
-            <View style={styles.profileInfo}>
-              <Text
-                style={[
-                  styles.profileName,
-                  {
-                    color: colors.text,
-                  },
-                ]}
-                numberOfLines={1}
-              >
-                {displayName}
-              </Text>
-
-              <View style={styles.phoneRow}>
-                <AppIcon
-                  name="call-outline"
-                  size={13}
-                  color={colors.textMuted}
-                />
-
-                <Text
-                  style={[
-                    styles.profileSubtitle,
-                    {
-                      color: colors.textSecondary,
-                    },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {displayPhone}
-                </Text>
-              </View>
-            </View>
-
-            <Pressable
-              onPress={handleStartEditing}
-              style={({ pressed }) => [
-                styles.editButton,
-                {
-                  backgroundColor: colors.primaryLight,
-                  borderColor: colors.border,
-                },
-                pressed && styles.pressed,
-              ]}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="تعديل الملف الشخصي"
-            >
-              <AppIcon name="create-outline" size={19} color={colors.primary} />
-            </Pressable>
-          </View>
+          <AccountProfileHeader
+            name={displayName}
+            details={[{ icon: "call-outline", value: displayPhone }]}
+            onEdit={handleStartEditing}
+          />
 
           {profileLoading ? (
             <Text style={{ color: colors.textMuted, fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "center" }}>جارٍ تحميل بيانات الحساب...</Text>
@@ -623,38 +531,18 @@ export default function AccountTab() {
           ) : null}
 
           {menuSections.map((section) => (
-            <View key={section.title} style={styles.accountSection}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>{section.title}</Text>
-              <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                {section.items.map((item, index) => (
-                  <Pressable
-                    key={item.title}
-                    onPress={() => handleItemPress(item)}
-                    style={({ pressed }) => [
-                      styles.sectionMenuItem,
-                      {
-                        borderBottomColor: colors.border,
-                        opacity: pressed ? 0.72 : 1,
-                      },
-                      index === section.items.length - 1 && styles.sectionMenuItemLast,
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel={item.title}
-                  >
-                    <View style={[styles.menuIcon, { backgroundColor: colors.primaryLight }]}>
-                      <AppIcon name={item.icon} size={20} color={colors.primary} />
-                    </View>
-                    <View style={styles.menuContent}>
-                      <Text style={[styles.menuTitle, { color: colors.text }]}>{item.title}</Text>
-                      <Text style={[styles.menuSubtitle, { color: colors.textMuted }]} numberOfLines={1}>
-                        {item.subtitle}
-                      </Text>
-                    </View>
-                    <AppIcon name="chevron-back-outline" size={18} color={colors.textMuted} />
-                  </Pressable>
-                ))}
-              </View>
-            </View>
+            <AccountSection key={section.title} title={section.title}>
+              {section.items.map((item, index) => (
+                <AccountMenuItem
+                  key={item.title}
+                  icon={item.icon}
+                  title={item.title}
+                  subtitle={item.subtitle}
+                  isLast={index === section.items.length - 1}
+                  onPress={() => handleItemPress(item)}
+                />
+              ))}
+            </AccountSection>
           ))}
 
           <Pressable
@@ -742,92 +630,11 @@ export default function AccountTab() {
               الإصدار 1.0.0
             </Text>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </View>
+    </AccountShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-
-  keyboardContainer: {
-    flex: 1,
-  },
-
-  content: {
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.ten,
-  },
-
-  profileCard: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    padding: Spacing.four,
-    borderWidth: 1,
-    borderRadius: Radius.xl,
-  },
-
-  avatar: {
-    width: 62,
-    height: 62,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderRadius: Radius.full,
-    position: "relative",
-  },
-
-  avatarDot: {
-    position: "absolute",
-    width: 12,
-    height: 12,
-    right: 1,
-    bottom: 1,
-    borderWidth: 2,
-    borderRadius: Radius.full,
-  },
-
-  profileInfo: {
-    flex: 1,
-    marginHorizontal: Spacing.three,
-    alignItems: "flex-end",
-  },
-
-  profileName: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.lg,
-    textAlign: "right",
-  },
-
-  phoneRow: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: Spacing.one,
-    marginTop: Spacing.one,
-    maxWidth: "100%",
-  },
-
-  profileSubtitle: {
-    flexShrink: 1,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.xs,
-    lineHeight: 20,
-    textAlign: "right",
-  },
-
-  editButton: {
-    width: 42,
-    height: 42,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderRadius: Radius.full,
-  },
-
   profileForm: {
     marginTop: Spacing.three,
     padding: Spacing.four,
@@ -934,101 +741,6 @@ const styles = StyleSheet.create({
   saveButtonText: {
     fontFamily: Fonts.semiBold,
     fontSize: FontSizes.sm,
-  },
-
-  sectionHeader: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: Spacing.two,
-    marginTop: Spacing.six,
-    marginBottom: Spacing.three,
-    paddingBottom: Spacing.three,
-    borderBottomWidth: 1,
-  },
-
-  sectionIcon: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.md,
-  },
-
-  sectionTitleArea: {
-    flex: 1,
-    alignItems: "flex-end",
-  },
-
-  sectionTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.lg,
-    textAlign: "right",
-  },
-
-  sectionSubtitle: {
-    marginTop: 2,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.xs,
-    textAlign: "right",
-  },
-
-  accountSection: {
-    gap: Spacing.two,
-    marginTop: Spacing.four,
-  },
-
-  sectionCard: {
-    borderWidth: 1,
-    borderRadius: Radius.xl,
-    overflow: "hidden",
-  },
-
-  sectionMenuItem: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    minHeight: 68,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.three,
-    borderBottomWidth: 1,
-    gap: Spacing.three,
-  },
-
-  sectionMenuItemLast: {
-    borderBottomWidth: 0,
-  },
-
-  menuIcon: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.md,
-  },
-
-  menuContent: {
-    flex: 1,
-    alignItems: "flex-end",
-  },
-
-  menuTitle: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.sm,
-    textAlign: "right",
-  },
-
-  menuSubtitle: {
-    marginTop: 2,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.xs,
-    textAlign: "right",
-  },
-
-  menuArrow: {
-    width: 30,
-    height: 30,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.full,
   },
 
   logoutButton: {

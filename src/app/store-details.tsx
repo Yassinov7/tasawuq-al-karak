@@ -452,7 +452,7 @@ export default function StoreDetailsScreen() {
             </View>
           )}
         </View>
-        <RatingsSection kind="store" storeId={store.id} />
+        <RatingsSection kind="store" storeId={store.id} showSummary={false} />
       </ScrollView>
     </View>
   );

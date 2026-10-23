@@ -1,9 +1,11 @@
 import { StyleSheet, Text, View } from "react-native";
 
 import { AppIcon } from "@/components/ui/AppIcon";
+import { RatingSummary } from "@/components/marketplace/RatingStars";
 import type { IconName, Store } from "@/constants/catalog";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
+import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 
 type StoreDetailsHeroProps = {
   store: Store;
@@ -12,6 +14,8 @@ type StoreDetailsHeroProps = {
 
 export function StoreDetailsHero({ store, categoryIcon }: StoreDetailsHeroProps) {
   const { colors } = useTheme();
+  const { storeRatings } = useCustomerCatalog();
+  const rating = storeRatings.get(store.id);
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -32,14 +36,9 @@ export function StoreDetailsHero({ store, categoryIcon }: StoreDetailsHeroProps)
           ) : null}
         </View>
 
-        <Text style={[styles.description, { color: colors.textSecondary }]}>
-          {store.description}
-        </Text>
+        {store.description ? <Text style={[styles.description, { color: colors.textSecondary }]}>{store.description}</Text> : null}
 
-        <View style={styles.locationRow}>
-          <AppIcon name="location-outline" size={15} color={colors.textSecondary} />
-          <Text style={[styles.location, { color: colors.textSecondary }]}>{store.location}</Text>
-        </View>
+        {rating ? <View style={styles.rating}><RatingSummary averageRating={rating.averageRating} ratingCount={rating.ratingCount} /></View> : null}
       </View>
     </View>
   );
@@ -74,6 +73,5 @@ const styles = StyleSheet.create({
   },
   featuredText: { fontFamily: Fonts.bold, fontSize: 10 },
   description: { fontFamily: Fonts.regular, fontSize: FontSizes.sm, lineHeight: 21, marginTop: Spacing.one, textAlign: "right" },
-  locationRow: { alignItems: "center", flexDirection: "row-reverse", gap: 4, marginTop: Spacing.two },
-  location: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "right" },
+  rating: { alignSelf: "flex-end", marginTop: Spacing.two },
 });

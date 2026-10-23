@@ -72,17 +72,21 @@ export default function OfferDetailsScreen() {
               },
             ]}
           >
-            <View style={styles.heroHeader}>
+            <Pressable
+              onPress={() => store && router.push({ pathname: "/store-details", params: { id: store.id } })}
+              disabled={!store}
+              accessibilityRole={store ? "button" : undefined}
+              accessibilityLabel={store ? `فتح متجر ${store.name}` : undefined}
+              style={styles.heroHeader}
+            >
               <View style={[styles.heroIcon, { backgroundColor: colors.accentLight }]}>
                 <AppIcon name="pricetag-outline" size={25} color={colors.accent} />
               </View>
               <View style={styles.heroIdentity}>
-                <Text style={[styles.storeName, { color: colors.textMuted }]}>
-                  {store?.name ?? "متجر محلي"}
-                </Text>
+                {store ? <Text style={[styles.storeName, { color: colors.textMuted }]}>{store.name}</Text> : null}
                 <Text style={[styles.title, { color: colors.text }]}>{offer.title}</Text>
               </View>
-            </View>
+            </Pressable>
             {offer.description ? (
               <Text style={[styles.description, { color: colors.textSecondary }]}>
                 {offer.description}
@@ -123,8 +127,11 @@ export default function OfferDetailsScreen() {
               الكميات المحددة أدناه هي مكونات الباقة الثابتة.
             </Text>
             {summary.items.map((item) => (
-              <View
+              <Pressable
                 key={item.id}
+                onPress={() => router.push({ pathname: "/product-details", params: { id: item.product.id } })}
+                accessibilityRole="button"
+                accessibilityLabel={`فتح المنتج ${item.product.name}`}
                 style={[styles.itemRow, { borderBottomColor: colors.border }]}
               >
                 <View style={styles.itemDetails}>
@@ -151,7 +158,7 @@ export default function OfferDetailsScreen() {
                     </>
                   )}
                 </Text>
-              </View>
+              </Pressable>
             ))}
             <View style={styles.totalRow}>
               <View style={styles.totalLabels}>

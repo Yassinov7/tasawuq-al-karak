@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } fr
 import { ProductCard } from "@/components/marketplace/ProductCard";
 import { ProductMediaGallery } from "@/components/marketplace/ProductMediaGallery";
 import { RatingsSection } from "@/components/marketplace/RatingsSection";
+import { RatingSummary } from "@/components/marketplace/RatingStars";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
@@ -25,7 +26,7 @@ export default function ProductDetailsScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { width: screenWidth } = useWindowDimensions();
-  const { categories, error, loading, products, stores, offers } = useCustomerCatalog();
+  const { categories, error, loading, products, stores, offers, productRatings } = useCustomerCatalog();
 
   const {
     itemCount,
@@ -56,6 +57,7 @@ export default function ProductDetailsScreen() {
     () => stores.find((item) => item.id === product?.storeId),
     [product?.storeId, stores],
   );
+  const productRating = product ? productRatings.get(product.id) : undefined;
 
   const relatedProducts = useMemo(() => {
     if (!product) {
@@ -312,7 +314,7 @@ export default function ProductDetailsScreen() {
             {product.name}
           </Text>
 
-          <Text
+          {product.description ? <Text
             style={[
               styles.description,
               {
@@ -321,7 +323,7 @@ export default function ProductDetailsScreen() {
             ]}
           >
             {product.description}
-          </Text>
+          </Text> : null}
 
           <View style={styles.priceRow}>
             <View style={styles.priceContainer}>
@@ -359,6 +361,7 @@ export default function ProductDetailsScreen() {
               {product.unit}
             </Text>
           </View>
+          {productRating ? <View style={styles.productRating}><RatingSummary averageRating={productRating.averageRating} ratingCount={productRating.ratingCount} /></View> : null}
           {matchingOffers.length > 0 ? (
             <Text style={{ color: colors.textMuted, fontFamily: Fonts.regular, fontSize: FontSizes.xs, lineHeight: 20, textAlign: "right" }}>
               اختر العرض الذي تريده لإضافته إلى السلة؛ لا تُطبّق العروض تلقائيًا.
@@ -753,7 +756,7 @@ export default function ProductDetailsScreen() {
             </ScrollView>
           </View>
         ) : null}
-        <RatingsSection kind="product" storeId={product.storeId} productId={product.id} />
+        <RatingsSection kind="product" storeId={product.storeId} productId={product.id} showSummary={false} />
       </ScrollView>
     </View>
   );
@@ -1022,6 +1025,11 @@ const styles = StyleSheet.create({
     alignItems: "baseline",
     justifyContent: "space-between",
     marginTop: Spacing.four,
+  },
+
+  productRating: {
+    alignSelf: "flex-end",
+    marginTop: Spacing.two,
   },
 
   priceContainer: {

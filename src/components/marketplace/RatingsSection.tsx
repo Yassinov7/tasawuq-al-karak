@@ -7,15 +7,16 @@ import { RatingSummary as RatingSummaryView } from "./RatingStars";
 import { ReviewCard } from "./ReviewCard";
 import { ReviewForm } from "./ReviewForm";
 
-type Props = { kind: "store" | "product"; storeId: string; productId?: string };
+type Props = { kind: "store" | "product"; storeId: string; productId?: string; showSummary?: boolean };
 
-export function RatingsSection({ kind, storeId, productId }: Props) {
+export function RatingsSection({ kind, storeId, productId, showSummary = true }: Props) {
   const { colors } = useTheme();
   const [summary, setSummary] = useState<RatingSummary>({ averageRating: null, ratingCount: 0 });
   const [reviews, setReviews] = useState<PublicReview[]>([]);
   const [orders, setOrders] = useState<{ id: string; delivered_at: string | null }[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [ownReview, setOwnReview] = useState<OwnReview | null>(null);
+  const [reviewOrderId, setReviewOrderId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -25,10 +26,12 @@ export function RatingsSection({ kind, storeId, productId }: Props) {
     try {
       const ratings = kind === "store" ? await getStoreRatings(storeId) : await getProductRatings(productId!);
       setSummary(ratings.summary); setReviews(ratings.reviews);
-      const eligibleOrders = await getEligibleStoreOrders(storeId, kind === "product" ? productId : undefined);
-      setOrders(eligibleOrders); setSelectedOrderId((current) => current && eligibleOrders.some((order) => order.id === current) ? current : (eligibleOrders[0]?.id ?? null));
     } catch { setError(true); }
     finally { setLoading(false); }
+    try {
+      const eligibleOrders = await getEligibleStoreOrders(storeId, kind === "product" ? productId : undefined);
+      setOrders(eligibleOrders); setSelectedOrderId((current) => current && eligibleOrders.some((order) => order.id === current) ? current : (eligibleOrders[0]?.id ?? null));
+    } catch { setOrders([]); setSelectedOrderId(null); }
   }, [kind, productId, storeId]);
 
   useEffect(() => {
@@ -40,8 +43,8 @@ export function RatingsSection({ kind, storeId, productId }: Props) {
     let active = true;
     const timer = setTimeout(() => { if (active) setReviewLoading(true); }, 0);
     const load = async () => {
-      try { const review = kind === "store" ? await getMyStoreReview(selectedOrderId) : await getMyProductReview(selectedOrderId, productId!); if (active) setOwnReview(review); }
-      catch { if (active) setOwnReview(null); }
+      try { const review = kind === "store" ? await getMyStoreReview(selectedOrderId) : await getMyProductReview(selectedOrderId, productId!); if (active) { setOwnReview(review); setReviewOrderId(selectedOrderId); } }
+      catch { if (active) { setOwnReview(null); setReviewOrderId(selectedOrderId); } }
       finally { clearTimeout(timer); if (active) setReviewLoading(false); }
     };
     void load(); return () => { active = false; clearTimeout(timer); };
@@ -49,17 +52,18 @@ export function RatingsSection({ kind, storeId, productId }: Props) {
 
   const save = async (rating: number, comment: string) => {
     if (!selectedOrderId) return;
-    if (kind === "store") await saveStoreReview(selectedOrderId, ownReview, rating, comment);
-    else await saveProductReview(selectedOrderId, productId!, ownReview, rating, comment);
+    const currentReview = reviewOrderId === selectedOrderId ? ownReview : null;
+    if (kind === "store") await saveStoreReview(selectedOrderId, currentReview, rating, comment);
+    else await saveProductReview(selectedOrderId, productId!, currentReview, rating, comment);
     await refresh();
     const updated = kind === "store" ? await getMyStoreReview(selectedOrderId) : await getMyProductReview(selectedOrderId, productId!);
-    setOwnReview(updated);
+    setOwnReview(updated); setReviewOrderId(selectedOrderId);
   };
 
   return <View style={{ gap: Spacing.three, marginTop: Spacing.six }}>
-    <View style={{ alignItems: "flex-end", gap: Spacing.two }}><Text style={{ color: colors.text, fontFamily: Fonts.bold, fontSize: FontSizes.lg }}>التقييمات والمراجعات</Text><RatingSummaryView averageRating={summary.averageRating} ratingCount={summary.ratingCount} /></View>
+    <View style={{ alignItems: "flex-end", gap: Spacing.two }}><Text style={{ color: colors.text, fontFamily: Fonts.bold, fontSize: FontSizes.lg }}>التقييمات والمراجعات</Text>{showSummary ? <RatingSummaryView averageRating={summary.averageRating} ratingCount={summary.ratingCount} /> : null}</View>
     {loading ? <ActivityIndicator color={colors.primary} /> : error ? <Text style={{ color: colors.textMuted, fontFamily: Fonts.regular, textAlign: "right" }}>تعذر تحميل التقييمات الآن.</Text> : reviews.length ? reviews.map((review) => <ReviewCard key={review.id} review={review} />) : <View style={{ backgroundColor: colors.surface, borderColor: colors.border, borderRadius: Radius.lg, borderWidth: 1, padding: Spacing.three }}><Text style={{ color: colors.textMuted, fontFamily: Fonts.regular, textAlign: "right" }}>لا توجد تقييمات بعد.</Text></View>}
     {orders.length > 1 ? <View style={{ alignItems: "flex-end", gap: Spacing.two }}><Text style={{ color: colors.textSecondary, fontFamily: Fonts.medium, fontSize: FontSizes.sm }}>اختر طلبًا مسلّمًا للتقييم</Text><View style={{ flexDirection: "row-reverse", flexWrap: "wrap", gap: Spacing.two }}>{orders.map((order, index) => <Pressable key={order.id} onPress={() => setSelectedOrderId(order.id)} style={{ backgroundColor: selectedOrderId === order.id ? colors.primary : colors.surface, borderColor: colors.primary, borderWidth: 1, borderRadius: Radius.full, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two }}><Text style={{ color: selectedOrderId === order.id ? colors.surface : colors.primary, fontFamily: Fonts.medium }}>طلب {index + 1}</Text></Pressable>)}</View></View> : null}
-    <ReviewForm key={ownReview?.id ?? selectedOrderId ?? "ineligible"} review={ownReview} canReview={Boolean(selectedOrderId)} loading={reviewLoading} onSave={save} />
+    <ReviewForm key={ownReview?.id ?? selectedOrderId ?? "ineligible"} review={reviewOrderId === selectedOrderId ? ownReview : null} canReview={Boolean(selectedOrderId)} loading={reviewLoading} onSave={save} />
   </View>;
 }

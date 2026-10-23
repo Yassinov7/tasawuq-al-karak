@@ -8,7 +8,6 @@ import {
   View,
 } from "react-native";
 
-import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { AppModal } from "@/components/ui/AppModal";
@@ -16,6 +15,7 @@ import { AppTextField } from "@/components/ui/AppTextField";
 import { Fonts, FontSizes, Radius, Spacing } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
+import { useOrderRealtime } from "@/hooks/useOrderRealtime";
 import { getMerchantStore } from "@/lib/merchant-store";
 import { groupOrderItems } from "@/lib/order-item-groups";
 import { supabase } from "@/lib/supabase";
@@ -88,6 +88,7 @@ export default function MerchantOrdersScreen() {
   const { colors } = useTheme();
 
   const [orders, setOrders] = useState<StoreOrder[]>([]);
+  const [storeId, setStoreId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -121,10 +122,12 @@ export default function MerchantOrdersScreen() {
         const store = await getMerchantStore(user.id);
 
         if (!store) {
+          setStoreId(null);
           setOrders([]);
           setLoadError("لم نعثر على متجر مرتبط بحسابك.");
           return;
         }
+        setStoreId(store.id);
 
         const { data, error } = await supabase
           .from("store_orders")
@@ -156,28 +159,24 @@ export default function MerchantOrdersScreen() {
       void loadOrders(true);
     }, 0);
 
-    if (!user) {
-      return () => clearTimeout(timer);
-    }
-
-    const channel = supabase
-      .channel(`merchant-orders:${user.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "store_orders",
-        },
-        () => void loadOrders(),
-      )
-      .subscribe();
-
     return () => {
       clearTimeout(timer);
-      void supabase.removeChannel(channel);
     };
-  }, [loadOrders, user]);
+  }, [loadOrders]);
+
+  const realtimeSubscriptions = useMemo(
+    () => storeId ? [{ table: "store_orders" as const, filter: `store_id=eq.${storeId}` }] : [],
+    [storeId],
+  );
+  const refreshFromRealtime = useCallback(() => {
+    void loadOrders();
+  }, [loadOrders]);
+  useOrderRealtime({
+    channelName: `merchant-orders:${storeId ?? "unknown"}`,
+    enabled: Boolean(user && storeId),
+    subscriptions: realtimeSubscriptions,
+    onChange: refreshFromRealtime,
+  });
 
   const counts = useMemo(
     () => ({
@@ -251,7 +250,6 @@ export default function MerchantOrdersScreen() {
         },
       ]}
     >
-      <AppHeader title="طلبات المتجر" mode="business" />
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}

@@ -1,8 +1,9 @@
+import {readPersonalAccount,savePersonalAccount,assertAccount} from "@/lib/personal-account";
 import { getMerchantStore } from "@/lib/merchant-store";
 import { supabase } from "@/lib/supabase";
 import { invalidateLocalCache } from "@/lib/local-cache";
 import { loadMerchantFinancialAccount } from "@/lib/merchant-financial-account";
-import { profileAgeRanges, type ProfileAgeRange } from "@/types/profile-demographics";
+import {profileGenders, type ProfileAgeRange} from "@/types/profile-demographics";
 
 // Migration 004 exists in the project but these two tables are absent from the
 // checked-in generated types. Keep the read-only bridge limited to those tables.
@@ -21,40 +22,28 @@ const subscriptionReads = supabase as unknown as {
 
 export async function loadMerchantIdentity(userId: string) {
   const [profile, store] = await Promise.all([
-    supabase.from("profiles").select("full_name,email,age_range,gender").eq("id", userId).single(),
+    readPersonalAccount(userId),
     getMerchantStore(userId),
   ]);
-  if (profile.error) throw profile.error;
+  await assertAccount(userId);
   let categoryName = "غير محدد";
   if (store?.category_id) {
     const category = await supabase.from("store_categories").select("name").eq("id", store.category_id).maybeSingle();
     if (category.error) throw category.error;
     categoryName = category.data?.name ?? "غير متاح";
   }
-  return { profile: profile.data, store, categoryName };
+  await assertAccount(userId);
+  return { profile, store, categoryName };
 }
 export type MerchantIdentity = Awaited<ReturnType<typeof loadMerchantIdentity>>;
 
 export async function saveMerchantProfile(userId: string, fullName: string, ageRange: ProfileAgeRange | null, genderChange?: string | null) {
-  const name = fullName.trim();
-  if (name.length < 2 || name.length > 120) throw new Error("أدخل اسمًا من حرفين إلى 120 حرفًا.");
-  if (ageRange !== null && !profileAgeRanges.includes(ageRange)) throw new Error("اختر فئة عمرية صحيحة.");
-  if (genderChange !== undefined && genderChange !== null && !["woman", "man", "non_binary", "another_identity"].includes(genderChange)) throw new Error("اختر قيمة صالحة للبيانات الشخصية.");
-  // The generated gender union predates the actual optional-demographics SQL.
-  // Limit this bridge to the three editable profile fields; never email or role.
-  const profileWriter = supabase as unknown as { from(table: "profiles"): {
-    update(values: { full_name: string; age_range: ProfileAgeRange | null; gender?: string | null }): {
-      eq(column: "id", value: string): { select(columns: "full_name"): {
-        single(): PromiseLike<{ data: { full_name: string } | null; error: { message: string } | null }>
-      } }
-    }
-  } };
-  const result = await profileWriter.from("profiles").update({ full_name: name, age_range: ageRange,
-    ...(genderChange !== undefined ? { gender: genderChange } : {}) }).eq("id", userId).select("full_name").single();
-  if (result.error || !result.data) throw new Error("تعذر حفظ المعلومات الشخصية. بقيت بياناتك في النموذج؛ حاول مجددًا.");
-  await invalidateLocalCache(`merchant-account:${userId}`);
-  return result.data;
+ const base=await readPersonalAccount(userId);
+ const gender=genderChange===undefined?base.gender:genderChange===null?null:profileGenders.find(g=>g===genderChange);
+ if(gender===undefined)throw Error('اختر قيمة صحيحة للجنس.');
+ return savePersonalAccount(userId,base,{full_name:fullName,age_range:ageRange,gender});
 }
+
 export type StoreInfoDraft = { name: string; description: string; phone: string; address: string };
 export async function saveMerchantStoreInfo(userId: string, storeId: string, draft: StoreInfoDraft) {
   const values = { name: draft.name.trim(), description: draft.description.trim(), phone: draft.phone.trim(), address: draft.address.trim() };

@@ -1,3 +1,4 @@
+import { formatSypNumber } from "@/lib/money";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -153,8 +154,8 @@ export default function OfferDetailsScreen() {
                     "مجانًا"
                   ) : (
                     <>
-                      {item.finalLineTotal.toLocaleString("ar")}{" "}
-                      {offer.currency === "USD" ? "$" : "ل.س"}
+                      {formatSypNumber(item.finalLineTotal)}{" "}
+                      {"ل.س"}
                     </>
                   )}
                 </Text>
@@ -167,19 +168,19 @@ export default function OfferDetailsScreen() {
                 </Text>
                 {summary.savings > 0 ? (
                   <Text style={[styles.originalTotal, { color: colors.textMuted }]}>
-                    قبل العرض {summary.originalTotal.toLocaleString("ar")}{" "}
-                    {offer.currency === "USD" ? "$" : "ل.س"}
+                    قبل العرض {formatSypNumber(summary.originalTotal)}{" "}
+                    {"ل.س"}
                   </Text>
                 ) : null}
               </View>
               <Text style={[styles.totalPrice, { color: colors.primary }]}>
-                {summary.finalTotal.toLocaleString("ar")} {offer.currency === "USD" ? "$" : "ل.س"}
+                {formatSypNumber(summary.finalTotal)} {"ل.س"}
               </Text>
             </View>
             {summary.savings > 0 ? (
               <Text style={[styles.savings, { color: colors.success }]}>
-                التوفير {summary.savings.toLocaleString("ar")}{" "}
-                {offer.currency === "USD" ? "$" : "ل.س"}
+                التوفير {formatSypNumber(summary.savings)}{" "}
+                {"ل.س"}
               </Text>
             ) : null}
           </View>

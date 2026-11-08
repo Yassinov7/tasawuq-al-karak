@@ -43,8 +43,8 @@ export function ApplicationStatusEmptyState({
       {error ? (
         <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
       ) : null}
-      <AppButton title="إعادة المحاولة" onPress={onRetry} />
-      <AppButton title="تسجيل الخروج" variant="outline" onPress={onLogout} />
+      <AppButton design="refined" title="إعادة المحاولة" onPress={onRetry} />
+      <AppButton design="refined" title="تسجيل الخروج" variant="outline" onPress={onLogout} />
     </View>
   );
 }

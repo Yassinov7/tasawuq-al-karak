@@ -113,8 +113,7 @@ export function SearchResults(props: Props) {
                 <View style={styles.storeResults}>
                   {visibleResults.stores.map((store) => {
                     const category = storeCategories.find((item) =>
-                      store.categoryIds.includes(item.id),
-                    );
+                      store.categoryIds.includes(item.id));
 
                     return (
                       <Pressable

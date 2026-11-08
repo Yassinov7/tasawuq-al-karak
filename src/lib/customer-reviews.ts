@@ -6,6 +6,16 @@ export type PublicReview = { id: string; rating: number; comment: string | null;
 export type OwnReview = { id: string; rating: number; comment: string | null };
 export type EligibleStoreOrder = Pick<Tables<"store_orders">, "id" | "delivered_at">;
 
+function ratingEntry(id: string | null, row: { average_rating: number | null; rating_count: number | null }): readonly [string, RatingSummary] {
+  if (!id || row.rating_count === null) throw new Error("بيانات ملخص التقييم غير مكتملة.");
+  return [id, { averageRating: row.average_rating, ratingCount: row.rating_count }];
+}
+
+function publicReview(row: { id: string | null; rating: number | null; comment: string | null; created_at: string | null }): PublicReview {
+  if (!row.id || row.rating === null || !row.created_at) throw new Error("بيانات التقييم غير مكتملة.");
+  return { id: row.id, rating: row.rating, comment: row.comment, createdAt: row.created_at };
+}
+
 export async function getRatingSummaries() {
   const [storesResult, productsResult] = await Promise.all([
     supabase.from("store_rating_summaries").select("store_id,average_rating,rating_count"),
@@ -14,8 +24,8 @@ export async function getRatingSummaries() {
   if (storesResult.error) throw storesResult.error;
   if (productsResult.error) throw productsResult.error;
   return {
-    stores: new Map((storesResult.data ?? []).map((item) => [item.store_id, { averageRating: item.average_rating, ratingCount: item.rating_count }])),
-    products: new Map((productsResult.data ?? []).map((item) => [item.product_id, { averageRating: item.average_rating, ratingCount: item.rating_count }])),
+    stores: new Map((storesResult.data ?? []).map((item) => ratingEntry(item.store_id, item))),
+    products: new Map((productsResult.data ?? []).map((item) => ratingEntry(item.product_id, item))),
   };
 }
 
@@ -28,7 +38,7 @@ export async function getStoreRatings(storeId: string) {
   if (reviewsResult.error) throw reviewsResult.error;
   return {
     summary: { averageRating: summaryResult.data?.average_rating ?? null, ratingCount: summaryResult.data?.rating_count ?? 0 },
-    reviews: (reviewsResult.data ?? []).map((review) => ({ id: review.id, rating: review.rating, comment: review.comment, createdAt: review.created_at })),
+    reviews: (reviewsResult.data ?? []).map(publicReview),
   };
 }
 
@@ -41,7 +51,7 @@ export async function getProductRatings(productId: string) {
   if (reviewsResult.error) throw reviewsResult.error;
   return {
     summary: { averageRating: summaryResult.data?.average_rating ?? null, ratingCount: summaryResult.data?.rating_count ?? 0 },
-    reviews: (reviewsResult.data ?? []).map((review) => ({ id: review.id, rating: review.rating, comment: review.comment, createdAt: review.created_at })),
+    reviews: (reviewsResult.data ?? []).map(publicReview),
   };
 }
 

@@ -25,7 +25,7 @@ export function LoginFooter() {
       <View style={styles.infoLinks}>
         <Link href="/terms" asChild>
           <Pressable accessibilityRole="link" style={styles.infoLinkButton}>
-            <Text style={[styles.infoLink, { color: colors.textMuted }]}>
+            <Text style={[styles.infoLink, { color: colors.textSecondary }]}>
               شروط الاستخدام
             </Text>
           </Pressable>
@@ -35,7 +35,7 @@ export function LoginFooter() {
         />
         <Link href="/privacy" asChild>
           <Pressable accessibilityRole="link" style={styles.infoLinkButton}>
-            <Text style={[styles.infoLink, { color: colors.textMuted }]}>
+            <Text style={[styles.infoLink, { color: colors.textSecondary }]}>
               سياسة الخصوصية
             </Text>
           </Pressable>
@@ -45,7 +45,7 @@ export function LoginFooter() {
         />
         <Link href="/about" asChild>
           <Pressable accessibilityRole="link" style={styles.infoLinkButton}>
-            <Text style={[styles.infoLink, { color: colors.textMuted }]}>
+            <Text style={[styles.infoLink, { color: colors.textSecondary }]}>
               معلومات البرنامج
             </Text>
           </Pressable>

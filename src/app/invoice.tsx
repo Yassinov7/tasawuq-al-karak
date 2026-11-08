@@ -80,13 +80,13 @@ export default function InvoiceScreen() {
               accessibilityLabel={`عرض فاتورة الطلب ${item.order_number}`}
             >
               <View style={styles.orderText}>
-                <Text style={[styles.orderNumber, { color: colors.text }]}>طلب رقم TW-{item.order_number}</Text>
+                <Text style={[styles.orderNumber, { color: colors.text }]}>{item.c3?.references[`ORD:${item.id}`] ?? `طلب رقم TW-${item.order_number}`}</Text>
                 <Text style={[styles.orderDate, { color: colors.textMuted }]}>
                   {new Date(item.created_at).toLocaleDateString("ar-SY")}
                 </Text>
               </View>
               <Text style={[styles.orderTotal, { color: colors.primary }]}>
-                {item.totals.map((total) => formatCurrency(total.total, total.currency)).join(" + ")}
+                {item.totals[0] ? formatCurrency(item.totals[0].total, item.totals[0].currency) : "غير متاح"}
               </Text>
               <AppIcon name="chevron-back-outline" size={18} color={colors.textMuted} />
             </Pressable>
@@ -111,7 +111,7 @@ function InvoiceDetails({ order }: { order: CustomerOrderView }) {
           <AppIcon name="document-text-outline" size={27} color={colors.primary} />
         </View>
         <Text style={[styles.heading, { color: colors.text }]}>فاتورة الطلب</Text>
-        <Text style={[styles.invoiceNumber, { color: colors.primary }]}>TW-{order.order_number}</Text>
+        <Text style={[styles.invoiceNumber, { color: colors.primary }]}>{order.c3?.references[`ORD:${order.id}`] ?? `TW-${order.order_number}`}</Text>
         <Text style={[styles.orderDate, { color: colors.textMuted }]}>
           {new Date(order.created_at).toLocaleString("ar-SY")}
         </Text>
@@ -162,13 +162,14 @@ function InvoiceDetails({ order }: { order: CustomerOrderView }) {
 
       <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>ملخص الفاتورة</Text>
+        {order.c3?.pricing ? <Text style={[styles.itemMeta, { color: colors.textSecondary }]}>المبلغ المعتمد الأصلي: {formatCurrency(order.c3.pricing.original.approved_total, "SYP")}؛ الملخص يعرض المبلغ الجاري.{order.c3.pricing.current.review_required ? " الإرسال محظور؛ لم تُطبق زيادة." : ""}</Text> : null}
         {order.totals.map((total) => (
-          <SummaryRow key={total.currency} label={`المنتجات · ${total.currency}`} value={formatCurrency(total.items_subtotal, total.currency)} />
+          <SummaryRow key={total.customer_order_id} label="المنتجات" value={formatCurrency(total.items_subtotal, total.currency)} />
         ))}
         <SummaryRow label="رسوم التوصيل" value={formatCurrency(order.delivery_fee, order.delivery_currency)} />
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
         {order.totals.map((total) => (
-          <SummaryRow key={`total-${total.currency}`} label={`الإجمالي · ${total.currency}`} value={formatCurrency(total.total, total.currency)} total />
+          <SummaryRow key={`total-${total.customer_order_id}`} label="الإجمالي" value={formatCurrency(total.total, total.currency)} total />
         ))}
       </View>
 

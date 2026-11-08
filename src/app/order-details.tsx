@@ -124,7 +124,7 @@ export default function OrderDetailsScreen() {
     onChange: refreshFromRealtime,
   });
 
-  const displayOrderId = order ? `TW-${order.order_number}` : "";
+  const displayOrderId = order ? (order.c3?.references[`ORD:${order.id}`] ?? `TW-${order.order_number}`) : "";
   const canCancel = Boolean(
     order &&
     order.stores.length > 0 &&
@@ -472,10 +472,11 @@ export default function OrderDetailsScreen() {
             ملخص الطلب
           </Text>
 
+          {order.c3?.pricing ? <Text style={{ color: colors.textSecondary, textAlign: "right" }}>المبلغ المعتمد الأصلي: {formatCurrency(order.c3.pricing.original.approved_total, "SYP")}{order.c3.pricing.current.review_required ? " — توقف الإرسال لمراجعة اختلاف المبلغ؛ لم تُطبق زيادة." : " — المعروض أدناه هو المبلغ الجاري بعد تحديث أجزاء الطلب."}</Text> : null}
           {order.totals.map((total) => (
             <SummaryRow
               key={total.currency}
-              label={`المنتجات (${total.currency})`}
+              label="المنتجات"
               value={formatCurrency(total.items_subtotal, total.currency)}
             />
           ))}
@@ -496,7 +497,7 @@ export default function OrderDetailsScreen() {
           {order.totals.map((total) => (
             <SummaryRow
               key={`total-${total.currency}`}
-              label={`الإجمالي (${total.currency})`}
+              label="الإجمالي"
               value={formatCurrency(total.total, total.currency)}
               total
             />

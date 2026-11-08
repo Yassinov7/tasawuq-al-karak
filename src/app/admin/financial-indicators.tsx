@@ -1,3 +1,4 @@
+import { formatSyp } from "@/lib/money";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useFocusEffect } from "expo-router";
 import {
@@ -22,9 +23,8 @@ import {
 const cacheTtlMs = 15_000;
 let indicatorsCache: { data: FinancialIndicators; updatedAt: number } | null = null;
 
-const currencyLabel = (currency: string) => currency === "USD" ? "دولار" : "ل.س";
-const amount = (value: number, currency: string) =>
-  `${Number(value).toLocaleString("ar-SY", { maximumFractionDigits: 2 })} ${currencyLabel(currency)}`;
+const currencyLabel = (currency: string) => "ل.س";
+const amount = (value: number, currency: string) => formatSyp(Number(value), currency);
 
 type IndicatorRow = { label: string; value: number | string };
 
@@ -88,7 +88,7 @@ export default function FinancialIndicatorsScreen() {
         <AppButton title="إعادة المحاولة" variant="outline" onPress={() => void refresh(true)} />
       </View> : null}
       {data ? <>
-        <Section title="نظرة عامة حسب العملة"><CurrencyOverview currencies={data.currencies} /></Section>
+        <Section title="نظرة عامة بالليرة السورية"><CurrencyOverview currencies={data.currencies} /></Section>
         <Section title="الفواتير"><InvoiceIndicators currencies={data.currencies} /></Section>
         <Section title="العمولات"><CommissionIndicators currencies={data.currencies} /></Section>
         <Section title="المدفوعات"><PaymentIndicators currencies={data.currencies} /></Section>

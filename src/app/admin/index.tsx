@@ -1,3 +1,4 @@
+import { formatSypNumber } from "@/lib/money";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import {
@@ -28,9 +29,9 @@ type AdminMerchant = { id: string; owner_user_id: string; status: string };
 type AdminStore = { id: string; merchant_id: string; name: string; phone: string; address: string; status: string };
 type AdminDeliveryTask = { id: string; driver_id: string | null; status: string };
 type AdminStoreOrder = { id: string; customer_order_id: string; store_id: string; status: string; created_at: string };
-type Wallet = { user_id: string; currency: "SYP" | "USD"; balance: number };
-type Plan = { id: string; name: string; duration_months: number; price: number; currency: "SYP" | "USD"; description: string; is_active: boolean };
-type TransactionTarget = { profile: Profile; currency: "SYP" | "USD"; balance: number };
+type Wallet = { user_id: string; currency: "SYP"; balance: number };
+type Plan = { id: string; name: string; duration_months: number; price: number; currency: "SYP"; description: string; is_active: boolean };
+type TransactionTarget = { profile: Profile; currency: "SYP"; balance: number };
 type DashboardData = { merchantRequests: RequestRow[]; driverRequests: RequestRow[]; profiles: Profile[]; wallets: Wallet[]; plans: Plan[]; drivers: AdminDriver[]; merchants: AdminMerchant[]; stores: AdminStore[]; deliveryTasks: AdminDeliveryTask[]; storeOrders: AdminStoreOrder[] };
 type DashboardCache = { userId: string; updatedAt: number; data: DashboardData };
 let dashboardCache: DashboardCache | null = null;
@@ -38,7 +39,7 @@ const dashboardCacheTtlMs = 15_000;
 const statusName: Record<string, string> = { pending: "قيد المراجعة", accepted: "مقبول", rejected: "مرفوض", changes_requested: "معلومات إضافية" };
 const deliveryStatusName: Record<string, string> = { pending_stores: "بانتظار المتاجر", available: "متاح للاستلام", accepted: "مقبول من السائق", picked_up: "قيد التوصيل", delivered: "تم التسليم", cancelled: "ملغي" };
 const storeOrderStatusName: Record<string, string> = { awaiting_review: "بانتظار مراجعة المتجر", preparing: "قيد التحضير", ready_for_pickup: "جاهز للاستلام", handed_to_driver: "سُلّم للسائق" };
-const currencyName = (currency: string) => currency === "USD" ? "دولار" : "ل.س";
+const currencyName = (currency: string) => "ل.س";
 
 export default function AdminScreen() {
   const router = useRouter();
@@ -52,7 +53,7 @@ export default function AdminScreen() {
   const [loading, setLoading] = useState(false); const [refreshing, setRefreshing] = useState(false); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [message, setMessage] = useState("");
   const [selectedRequest, setSelectedRequest] = useState<{ role: Role; row: RequestRow; decision: "accepted" | "rejected" | "changes_requested" } | null>(null); const [reviewNote, setReviewNote] = useState("");
   const [walletTarget, setWalletTarget] = useState<TransactionTarget | null>(null); const [operation, setOperation] = useState<"funding" | "settlement" | "adjustment">("funding"); const [direction, setDirection] = useState<"credit" | "debit">("credit"); const [amount, setAmount] = useState(""); const [note, setNote] = useState("");
-  const [editingPlan, setEditingPlan] = useState<Plan | null>(null); const [planName, setPlanName] = useState(""); const [planDuration, setPlanDuration] = useState("1"); const [planPrice, setPlanPrice] = useState(""); const [planCurrency, setPlanCurrency] = useState<"SYP" | "USD">("SYP"); const [planDescription, setPlanDescription] = useState("");
+  const [editingPlan, setEditingPlan] = useState<Plan | null>(null); const [planName, setPlanName] = useState(""); const [planDuration, setPlanDuration] = useState("1"); const [planPrice, setPlanPrice] = useState("");  const [planDescription, setPlanDescription] = useState("");
   const [planModalOpen, setPlanModalOpen] = useState(false);
 
   const applyDashboardData = useCallback((data: DashboardData) => {
@@ -74,8 +75,8 @@ export default function AdminScreen() {
         supabase.from("merchant_applications").select("id,user_id,contact_phone,store_name,store_address,store_categories(name),plan_name_snapshot,plan_price_snapshot,plan_currency_snapshot,plan_duration_months_snapshot,plan_commission_rate_snapshot,plan_product_limit_snapshot,plan_features_snapshot,status,submitted_at,review_note").order("submitted_at", { ascending: false }),
         supabase.from("driver_applications").select("id,user_id,full_name,contact_phone,vehicle_type,contract_duration_months,available_hours,status,submitted_at,review_note").order("submitted_at", { ascending: false }),
         supabase.from("profiles").select("id,full_name,email,role").order("created_at", { ascending: false }),
-        supabase.from("wallets").select("user_id,currency,balance").order("updated_at", { ascending: false }),
-        supabase.from("subscription_plans").select("id,name,duration_months,price,currency,description,is_active").order("duration_months"),
+        supabase.from("wallets").select("user_id,balance").order("updated_at", { ascending: false }),
+        supabase.from("subscription_plans").select("id,name,duration_months,price,description,is_active").order("duration_months"),
         supabase.from("driver_applications").select("id,user_id,full_name,contact_phone,vehicle_type,is_available,status").eq("status", "accepted").order("updated_at", { ascending: false }),
         supabase.from("merchants").select("id,owner_user_id,status").order("created_at", { ascending: false }),
         supabase.from("stores").select("id,merchant_id,name,phone,address,status").order("created_at", { ascending: false }),
@@ -129,7 +130,7 @@ export default function AdminScreen() {
     if (!Number.isFinite(numericAmount) || numericAmount <= 0 || Math.round(numericAmount * 100) !== numericAmount * 100) { setError("أدخل مبلغًا صحيحًا حتى منزلتين عشريتين."); return; }
     setBusy(true);
     try {
-      const { error: rpcError } = await supabase.rpc("record_wallet_transaction", { target_user: walletTarget.profile.id, target_currency: walletTarget.currency, operation, operation_direction: direction, operation_amount: numericAmount, operation_note: note.trim() || undefined });
+      const { error: rpcError } = await supabase.rpc("record_wallet_transaction", { target_user: walletTarget.profile.id, operation, operation_direction: direction, operation_amount: numericAmount, operation_note: note.trim() || undefined });
       if (rpcError) throw rpcError;
       setWalletTarget(null);
       setAmount("");
@@ -145,13 +146,13 @@ export default function AdminScreen() {
     }
   };
 
-  const beginPlan = (plan?: Plan) => { setEditingPlan(plan ?? null); setPlanName(plan?.name ?? ""); setPlanDuration(String(plan?.duration_months ?? 1)); setPlanPrice(plan ? String(plan.price) : ""); setPlanCurrency(plan?.currency ?? "SYP"); setPlanDescription(plan?.description ?? ""); setPlanModalOpen(true); };
+  const beginPlan = (plan?: Plan) => { setEditingPlan(plan ?? null); setPlanName(plan?.name ?? ""); setPlanDuration(String(plan?.duration_months ?? 1)); setPlanPrice(plan ? String(plan.price) : ""); setPlanDescription(plan?.description ?? ""); setPlanModalOpen(true); };
   const savePlan = async () => {
     const months = Number(planDuration); const cost = Number(planPrice.replace(",", "."));
     if (!planName.trim() || !Number.isInteger(months) || months < 1 || months > 60 || !Number.isFinite(cost) || cost <= 0) { setError("تحقق من اسم الخطة ومدتها وسعرها."); return; }
     setBusy(true);
     try {
-      const query = editingPlan ? supabase.from("subscription_plans").update({ name: planName.trim(), duration_months: months, price: cost, currency: planCurrency, description: planDescription.trim() }).eq("id", editingPlan.id) : supabase.from("subscription_plans").insert({ name: planName.trim(), duration_months: months, price: cost, currency: planCurrency, description: planDescription.trim() });
+      const query = editingPlan ? supabase.from("subscription_plans").update({ name: planName.trim(), duration_months: months, price: cost, description: planDescription.trim() }).eq("id", editingPlan.id) : supabase.from("subscription_plans").insert({ name: planName.trim(), duration_months: months, price: cost, description: planDescription.trim() });
       const { error: planError } = await query;
       if (planError) throw planError;
       setEditingPlan(null);
@@ -303,14 +304,14 @@ export default function AdminScreen() {
       </> : section === "finance" ? <>
         <View style={styles.metrics}><Metric label="المحافظ" value={wallets.length} /><Metric label="خطط الاشتراك" value={plans.filter((plan) => plan.is_active).length} /></View>
         <View style={styles.subTabs}>{([ ["wallets", "المحافظ والعمليات"], ["plans", "خطط المتاجر"] ] as const).map(([key, label]) => <Pressable key={key} onPress={() => setFinanceView(key)} style={[styles.subTab, { borderColor: financeView === key ? colors.primary : colors.border, backgroundColor: financeView === key ? colors.primaryLight : colors.surface }]}><Text style={{ color: financeView === key ? colors.primary : colors.textSecondary, fontFamily: Fonts.semiBold }}>{label}</Text></Pressable>)}</View>
-        {financeView === "wallets" ? <>{wallets.length ? wallets.map((wallet) => { const profile = getProfile(wallet.user_id); if (!profile) return null; return <View key={`${wallet.user_id}-${wallet.currency}`} style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}><View style={styles.row}><View style={{ flex: 1 }}><Text style={[styles.cardTitle, { color: colors.text }]}>{profile.full_name}</Text><Text style={[styles.cardMeta, { color: colors.textSecondary }]}>{profile.role === "merchant" ? "تاجر" : profile.role === "driver" ? "سائق" : profile.role} · {profile.email}</Text></View><Text style={[styles.walletBalance, { color: colors.primary }]}>{Number(wallet.balance).toLocaleString("ar-SY")} {currencyName(wallet.currency)}</Text></View><AppButton title="تسجيل عملية مالية" icon="swap-horizontal-outline" onPress={() => { setError(""); setWalletTarget({ profile, currency: wallet.currency, balance: Number(wallet.balance) }); setOperation("funding"); setDirection("credit"); }} /></View>; }) : <Empty text="لا توجد محافظ حتى الآن. تُنشأ محفظة السائق أو التاجر عند الموافقة على الطلب." />}</> : <><AppButton title="إضافة خطة اشتراك" icon="add-outline" onPress={() => beginPlan()} />{plans.length ? plans.map((plan) => <View key={plan.id} style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}><View style={styles.row}><View style={{ flex: 1 }}><Text style={[styles.cardTitle, { color: colors.text }]}>{plan.name} · {plan.duration_months} شهر</Text><Text style={[styles.cardMeta, { color: colors.textSecondary }]}>{Number(plan.price).toLocaleString("ar-SY")} {currencyName(plan.currency)} · {plan.is_active ? "متاحة" : "متوقفة"}</Text><Text style={[styles.cardMeta, { color: colors.textSecondary }]}>{plan.description || "بدون وصف"}</Text></View></View><View style={styles.actions}><AppButton title="تعديل" variant="outline" onPress={() => beginPlan(plan)} /><AppButton title={plan.is_active ? "إيقاف الخطة" : "تفعيل الخطة"} variant={plan.is_active ? "danger" : "secondary"} onPress={() => void togglePlan(plan)} loading={busy} /></View></View>) : <Empty text="أضف خطة واحدة على الأقل حتى يتمكن التاجر من تقديم طلبه." />}</>}
+        {financeView === "wallets" ? <>{wallets.length ? wallets.map((wallet) => { const profile = getProfile(wallet.user_id); if (!profile) return null; return <View key={`${wallet.user_id}-${wallet.currency}`} style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}><View style={styles.row}><View style={{ flex: 1 }}><Text style={[styles.cardTitle, { color: colors.text }]}>{profile.full_name}</Text><Text style={[styles.cardMeta, { color: colors.textSecondary }]}>{profile.role === "merchant" ? "تاجر" : profile.role === "driver" ? "سائق" : profile.role} · {profile.email}</Text></View><Text style={[styles.walletBalance, { color: colors.primary }]}>{formatSypNumber(Number(wallet.balance))} {currencyName(wallet.currency)}</Text></View><AppButton title="تسجيل عملية مالية" icon="swap-horizontal-outline" onPress={() => { setError(""); setWalletTarget({ profile, currency: wallet.currency, balance: Number(wallet.balance) }); setOperation("funding"); setDirection("credit"); }} /></View>; }) : <Empty text="لا توجد محافظ حتى الآن. تُنشأ محفظة السائق أو التاجر عند الموافقة على الطلب." />}</> : <><AppButton title="إضافة خطة اشتراك" icon="add-outline" onPress={() => beginPlan()} />{plans.length ? plans.map((plan) => <View key={plan.id} style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}><View style={styles.row}><View style={{ flex: 1 }}><Text style={[styles.cardTitle, { color: colors.text }]}>{plan.name} · {plan.duration_months} شهر</Text><Text style={[styles.cardMeta, { color: colors.textSecondary }]}>{formatSypNumber(Number(plan.price))} {currencyName("SYP")} · {plan.is_active ? "متاحة" : "متوقفة"}</Text><Text style={[styles.cardMeta, { color: colors.textSecondary }]}>{plan.description || "بدون وصف"}</Text></View></View><View style={styles.actions}><AppButton title="تعديل" variant="outline" onPress={() => beginPlan(plan)} /><AppButton title={plan.is_active ? "إيقاف الخطة" : "تفعيل الخطة"} variant={plan.is_active ? "danger" : "secondary"} onPress={() => void togglePlan(plan)} loading={busy} /></View></View>) : <Empty text="أضف خطة واحدة على الأقل حتى يتمكن التاجر من تقديم طلبه." />}</>}
       </> : null}
       {error ? <><Text style={[styles.error, { color: colors.error }]}>{error}</Text><AppButton title="إعادة المحاولة" variant="outline" onPress={() => void refresh(true, true)} loading={refreshing} /></> : null}
     </ScrollView>
 
     <AppModal visible={Boolean(selectedRequest)} title={selectedRequest?.decision === "accepted" ? "تأكيد الموافقة" : selectedRequest?.decision === "rejected" ? "رفض الطلب" : "طلب استكمال معلومات"} message={selectedRequest?.decision === "accepted" ? "سيتم اعتماد الحساب وإنشاء المتجر أو محفظة السائق حسب نوع الطلب." : "أضف ملاحظة واضحة لتظهر لصاحب الطلب."} confirmText={selectedRequest?.decision === "accepted" ? "موافقة" : "حفظ القرار"} cancelText="رجوع" busy={busy} onCancel={() => { setSelectedRequest(null); setError(""); }} onConfirm={() => void review()}>{error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}{selectedRequest?.decision === "accepted" && selectedRequest.role === "merchant" ? <Text style={[styles.cardMeta, { color: colors.textSecondary }]}>يتم إنشاء المتجر وتفعيل الاشتراك وإصدار فاتورة مستحقة، ولا يُعتبر المبلغ مدفوعًا.</Text> : null}{selectedRequest?.decision !== "accepted" ? <AppTextField label="ملاحظة للإجابة أو سبب الرفض" value={reviewNote} onChangeText={setReviewNote} multiline placeholder="اكتب ملاحظة مفيدة لصاحب الطلب" /> : null}</AppModal>
 
-    <AppModal visible={Boolean(walletTarget)} title={`عملية ${transactionTitle}`} message={`${walletTarget?.profile.full_name ?? ""} · الرصيد الحالي ${walletTarget?.balance.toLocaleString("ar-SY")} ${walletTarget ? currencyName(walletTarget.currency) : ""}`} confirmText="حفظ العملية" cancelText="إلغاء" busy={busy} onCancel={() => { setWalletTarget(null); setError(""); }} onConfirm={() => void saveWalletOperation()}>
+    <AppModal visible={Boolean(walletTarget)} title={`عملية ${transactionTitle}`} message={`${walletTarget?.profile.full_name ?? ""} · الرصيد الحالي ${(walletTarget ? formatSypNumber(walletTarget.balance) : "—")} ${walletTarget ? currencyName(walletTarget.currency) : ""}`} confirmText="حفظ العملية" cancelText="إلغاء" busy={busy} onCancel={() => { setWalletTarget(null); setError(""); }} onConfirm={() => void saveWalletOperation()}>
       {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
       <Choice label="نوع العملية" values={[["funding", "تمويل"], ["settlement", "تسوية"], ["adjustment", "تعديل"]]} value={operation} onChange={(value) => { const next = value as typeof operation; setOperation(next); setDirection(next === "settlement" ? "debit" : "credit"); }} />
       <Choice label="اتجاه القيد" values={[["credit", "إضافة إلى المحفظة"], ["debit", "خصم من المحفظة"]]} value={direction} onChange={(value) => setDirection(value as typeof direction)} />
@@ -323,7 +324,7 @@ export default function AdminScreen() {
       <AppTextField label="اسم الخطة" value={planName} onChangeText={setPlanName} />
       <AppTextField label="مدة الخطة بالأشهر" value={planDuration} onChangeText={setPlanDuration} keyboardType="number-pad" />
       <AppTextField label="السعر" value={planPrice} onChangeText={setPlanPrice} keyboardType="decimal-pad" />
-      <Choice label="العملة" values={[["SYP", "ليرة سورية"], ["USD", "دولار"]]} value={planCurrency} onChange={(value) => setPlanCurrency(value as typeof planCurrency)} />
+
       <AppTextField label="وصف الخطة" value={planDescription} onChangeText={setPlanDescription} multiline />
     </AppModal>
 
@@ -338,7 +339,7 @@ function Empty({ text }: { text: string }) { const { colors } = useTheme(); retu
 function RequestCard({ row, role, profile, onDecision }: { row: RequestRow; role: Role; profile?: Profile; onDecision: (decision: "accepted" | "rejected" | "changes_requested") => void }) {
   const { colors } = useTheme();
   return <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}><View style={styles.row}><View style={{ flex: 1 }}><Text style={[styles.cardTitle, { color: colors.text }]}>{role === "merchant" ? row.store_name : row.full_name || profile?.full_name || "طلب سائق"}</Text><Text style={[styles.cardMeta, { color: colors.textSecondary }]}>{profile?.email ?? ""} · {row.contact_phone}</Text></View><Text style={[styles.badge, { color: row.status === "accepted" ? colors.success : colors.accent, backgroundColor: colors.surfaceSecondary }]}>{statusName[row.status] ?? row.status}</Text></View>
-    {role === "merchant" ? <><Text style={[styles.cardMeta, { color: colors.textSecondary }]}>تصنيف المتجر: {(Array.isArray(row.store_categories) ? row.store_categories[0]?.name : row.store_categories?.name) ?? "غير محدد"} · العنوان: {row.store_address}</Text><Text style={[styles.cardMeta, { color: colors.textSecondary }]}>الخطة: {row.plan_name_snapshot} · {Number(row.plan_price_snapshot ?? 0).toLocaleString("ar-SY")} {currencyName(row.plan_currency_snapshot ?? "SYP")} · {row.plan_duration_months_snapshot ?? "—"} شهر</Text><Text style={[styles.cardMeta, { color: colors.textSecondary }]}>العمولة: {row.plan_commission_rate_snapshot == null ? "غير مهيأة" : `${row.plan_commission_rate_snapshot}%`} · حد المنتجات: {row.plan_product_limit_snapshot ?? "غير مهيأ"}{row.plan_features_snapshot?.length ? ` · المزايا: ${row.plan_features_snapshot.join("، ")}` : ""}</Text></> : <><Text style={[styles.cardMeta, { color: colors.textSecondary }]}>المركبة: {row.vehicle_type} · العقد: {row.contract_duration_months} أشهر</Text><Text style={[styles.cardMeta, { color: colors.textSecondary }]}>الأوقات المتاحة: {row.available_hours?.schedule ?? "غير محددة"}</Text></>}
+    {role === "merchant" ? <><Text style={[styles.cardMeta, { color: colors.textSecondary }]}>تصنيف المتجر: {(Array.isArray(row.store_categories) ? row.store_categories[0]?.name : row.store_categories?.name) ?? "غير محدد"} · العنوان: {row.store_address}</Text><Text style={[styles.cardMeta, { color: colors.textSecondary }]}>الخطة: {row.plan_name_snapshot} · {formatSypNumber(Number(row.plan_price_snapshot ?? 0))} {currencyName(row.plan_currency_snapshot ?? "SYP")} · {row.plan_duration_months_snapshot ?? "—"} شهر</Text><Text style={[styles.cardMeta, { color: colors.textSecondary }]}>العمولة: {row.plan_commission_rate_snapshot == null ? "غير مهيأة" : `${row.plan_commission_rate_snapshot}%`} · حد المنتجات: {row.plan_product_limit_snapshot ?? "غير مهيأ"}{row.plan_features_snapshot?.length ? ` · المزايا: ${row.plan_features_snapshot.join("، ")}` : ""}</Text></> : <><Text style={[styles.cardMeta, { color: colors.textSecondary }]}>المركبة: {row.vehicle_type} · العقد: {row.contract_duration_months} أشهر</Text><Text style={[styles.cardMeta, { color: colors.textSecondary }]}>الأوقات المتاحة: {row.available_hours?.schedule ?? "غير محددة"}</Text></>}
     <Text style={[styles.cardMeta, { color: colors.textMuted }]}>تاريخ الطلب: {new Date(row.submitted_at).toLocaleDateString("ar-SY")}</Text>{row.review_note ? <Text style={[styles.cardNote, { color: colors.textSecondary, backgroundColor: colors.surfaceSecondary }]}>{row.review_note}</Text> : null}
     {row.status !== "accepted" ? <View style={styles.actions}><AppButton title="موافقة" icon="checkmark-outline" onPress={() => onDecision("accepted")} /><AppButton title="استكمال" variant="outline" onPress={() => onDecision("changes_requested")} /><AppButton title="رفض" variant="danger" onPress={() => onDecision("rejected")} /></View> : null}
   </View>;

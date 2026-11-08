@@ -26,7 +26,7 @@ export function AccountProfileHeader({
   roleBadge,
   onEdit,
   editAccessibilityLabel = "تعديل الملف الشخصي",
-  showStatusIndicator = true,
+  showStatusIndicator = false,
 }: AccountProfileHeaderProps) {
   const { colors } = useTheme();
 
@@ -41,17 +41,17 @@ export function AccountProfileHeader({
 
       <View style={styles.info}>
         <View style={styles.nameRow}>
-          <Text numberOfLines={1} style={[styles.name, { color: colors.text }]}>{name}</Text>
+          <Text style={[styles.name, { color: colors.text }]}>{name}</Text>
           {roleBadge ? (
             <View style={[styles.roleBadge, { backgroundColor: colors.primaryLight }]}>
-              <Text numberOfLines={1} style={[styles.roleBadgeText, { color: colors.primary }]}>{roleBadge}</Text>
+              <Text style={[styles.roleBadgeText, { color: colors.primary }]}>{roleBadge}</Text>
             </View>
           ) : null}
         </View>
         {details.map((detail, index) => (
           <View key={`${detail.value}-${index}`} style={styles.detailRow}>
             {detail.icon ? <AppIcon name={detail.icon} size={13} color={colors.textMuted} /> : null}
-            <Text numberOfLines={1} style={[styles.detail, { color: colors.textSecondary }]}>{detail.value}</Text>
+            <Text style={[styles.detail, { color: colors.textSecondary }]}>{detail.value}</Text>
           </View>
         ))}
       </View>
@@ -80,12 +80,12 @@ const styles = StyleSheet.create({
   avatar: { alignItems: "center", borderRadius: Radius.full, borderWidth: 1, height: 62, justifyContent: "center", position: "relative", width: 62 },
   avatarDot: { borderRadius: Radius.full, borderWidth: 2, bottom: 1, height: 12, position: "absolute", right: 1, width: 12 },
   info: { alignItems: "flex-end", flex: 1, marginHorizontal: Spacing.three, minWidth: 0 },
-  nameRow: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.one, maxWidth: "100%" },
-  name: { flexShrink: 1, fontFamily: Fonts.bold, fontSize: FontSizes.lg, textAlign: "right" },
+  nameRow: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.one, flexWrap: "wrap", maxWidth: "100%" },
+  name: { flexShrink: 1, fontFamily: Fonts.bold, fontSize: FontSizes.md, textAlign: "right" },
   roleBadge: { borderRadius: Radius.full, paddingHorizontal: Spacing.two, paddingVertical: Spacing.half },
-  roleBadgeText: { fontFamily: Fonts.semiBold, fontSize: 10, textAlign: "right" },
+  roleBadgeText: { fontFamily: Fonts.semiBold, fontSize: 12, textAlign: "right" },
   detailRow: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.one, marginTop: Spacing.one, maxWidth: "100%" },
   detail: { flexShrink: 1, fontFamily: Fonts.regular, fontSize: FontSizes.xs, lineHeight: 20, textAlign: "right" },
-  editButton: { alignItems: "center", borderRadius: Radius.full, borderWidth: 1, height: 42, justifyContent: "center", width: 42 },
+  editButton: { alignItems: "center", borderRadius: Radius.full, borderWidth: 1, height: 44, justifyContent: "center", width: 44 },
   pressed: { opacity: 0.7 },
 });

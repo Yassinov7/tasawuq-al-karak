@@ -1,3 +1,4 @@
+import { formatSyp } from "@/lib/money";
 import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -11,8 +12,8 @@ import { getManagedSubscriptionPlansInvalidatedAt, loadManagedSubscriptionPlans,
 const cacheTtlMs = 15_000;
 let cachedPlans: { rows: ManagedSubscriptionPlan[]; updatedAt: number } | null = null;
 
-const currencyLabel = (currency: PlanCurrency) => currency === "USD" ? "دولار" : "ل.س";
-const money = (value: number, currency: PlanCurrency) => `${Number(value).toLocaleString("ar-SY", { maximumFractionDigits: 2 })} ${currencyLabel(currency)}`;
+
+const money = (value: number, currency: PlanCurrency) => formatSyp(Number(value), currency);
 const complete = (plan: Pick<ManagedSubscriptionPlan, "description" | "commission_rate" | "product_limit" | "features">) => Boolean(plan.description.trim()) && plan.commission_rate !== null && plan.product_limit !== null && Boolean(plan.features?.length);
 
 export default function AdminPlansScreen() {
@@ -69,7 +70,7 @@ export default function AdminPlansScreen() {
 function PlanCard({ plan, changing, onEdit, onToggle }: { plan: ManagedSubscriptionPlan; changing: boolean; onEdit: () => void; onToggle: () => void }) {
   const { colors } = useTheme(); const isComplete = complete(plan);
   return <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-    <View style={styles.cardHeader}><View style={styles.grow}><Text style={[styles.planName, { color: colors.text }]} numberOfLines={1}>{plan.name}</Text><Text style={[styles.meta, { color: colors.textSecondary }]}>{money(plan.price, plan.currency)} · {plan.duration_months} شهر</Text></View><Text style={[styles.status, { color: plan.is_active ? colors.success : colors.textMuted, backgroundColor: plan.is_active ? colors.primaryLight : colors.surfaceSecondary }]}>{plan.is_active ? "نشطة" : "مسودة"}</Text></View>
+    <View style={styles.cardHeader}><View style={styles.grow}><Text style={[styles.planName, { color: colors.text }]} numberOfLines={1}>{plan.name}</Text><Text style={[styles.meta, { color: colors.textSecondary }]}>{money(plan.price, "SYP")} · {plan.duration_months} شهر</Text></View><Text style={[styles.status, { color: plan.is_active ? colors.success : colors.textMuted, backgroundColor: plan.is_active ? colors.primaryLight : colors.surfaceSecondary }]}>{plan.is_active ? "نشطة" : "مسودة"}</Text></View>
     <View style={styles.terms}><Term label="العمولة" value={plan.commission_rate === null ? "غير محددة" : `${plan.commission_rate}%`} /><Term label="حد المنتجات" value={plan.product_limit === null ? "غير محدد" : String(plan.product_limit)} /></View>
     <Text style={[styles.meta, { color: colors.textSecondary }]} numberOfLines={2}>{plan.description || "لم يُضف وصف للخطة بعد."}</Text>
     {plan.features?.length ? <Text style={[styles.features, { color: colors.textSecondary }]} numberOfLines={2}>{plan.features.join(" · ")}</Text> : null}

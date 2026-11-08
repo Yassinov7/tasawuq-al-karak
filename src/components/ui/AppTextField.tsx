@@ -2,10 +2,12 @@ import { useState, type Ref } from "react";
 import { Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from "react-native";
 
 import { AppIcon } from "@/components/ui/AppIcon";
-import { Fonts, FontSizes, Radius, Spacing } from "@/constants/theme";
+import { Fonts, FontSizes, Radius, Spacing, Typography, LayoutSpacing, ControlSizes } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 
 type AppTextFieldProps = Omit<TextInputProps, "style"> & {
+  design?: "legacy" | "refined";
+  disabled?: boolean;
   label: string;
   error?: string;
   helperText?: string;
@@ -15,6 +17,8 @@ type AppTextFieldProps = Omit<TextInputProps, "style"> & {
 };
 
 export function AppTextField({
+  design = "legacy",
+  disabled = false,
   label,
   error,
   helperText,
@@ -25,37 +29,44 @@ export function AppTextField({
   ...inputProps
 }: AppTextFieldProps) {
   const { colors } = useTheme();
+  const [focused, setFocused] = useState(false);
+  const refined = design === "refined";
+  const readOnly = inputProps.readOnly;
   const [passwordVisible, setPasswordVisible] = useState(false);
   const isPassword = Boolean(secureTextEntry);
 
   return (
-    <View style={styles.field}>
-      <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
-      <View style={[styles.inputShell, { borderColor: error ? colors.error : colors.border, backgroundColor: colors.surface }, multiline && styles.multiline]}>
+    <View style={[styles.field, refined && { marginTop: 0, gap: LayoutSpacing.fieldInnerGap }]}>
+      <Text style={[styles.label, refined && Typography.bodyStrong, { color: colors.text }]}>{label}</Text>
+      <View style={[styles.inputShell, { borderColor: error ? colors.error : colors.border, backgroundColor: colors.surface }, multiline && styles.multiline, refined && { minHeight: multiline ? 104 : ControlSizes.input, borderWidth: 2, borderColor: error ? colors.errorBorder : disabled ? colors.disabledBorder : focused && !readOnly ? colors.focusRing : colors.borderStrong, backgroundColor: disabled ? colors.disabledSurface : readOnly ? colors.mutedSurface : colors.surface }]}>
         <TextInput
           {...inputProps}
           ref={inputRef}
+          editable={disabled ? false : inputProps.editable}
+          onFocus={(event) => { setFocused(true); inputProps.onFocus?.(event); }}
+          onBlur={(event) => { setFocused(false); inputProps.onBlur?.(event); }}
           multiline={multiline}
           secureTextEntry={isPassword && !passwordVisible}
-          placeholderTextColor={colors.textMuted}
+          placeholderTextColor={refined ? colors.textSecondary : colors.textMuted}
           textAlign="right"
-          style={[styles.input, { color: colors.text }, multiline && styles.multilineInput]}
+          style={[styles.input, refined && { ...Typography.input, minHeight: 44 }, { color: refined && disabled ? colors.disabledForeground : colors.text }, multiline && styles.multilineInput]}
           accessibilityLabel={label}
           accessibilityHint={error ?? helperText}
         />
         {isPassword ? (
           <Pressable
+            disabled={disabled}
             accessibilityRole="button"
             accessibilityLabel={
               passwordVisible ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"
             }
             accessibilityState={{ expanded: passwordVisible }}
             onPress={() => setPasswordVisible((visible) => !visible)}
-            style={
+            style={[refined && { minWidth: 44, minHeight: 44, justifyContent: "center" },
               passwordToggleMode === "icon"
                 ? styles.passwordIconToggle
                 : styles.passwordToggle
-            }
+            ]}
           >
             {passwordToggleMode === "icon" ? (
               <AppIcon
@@ -73,9 +84,9 @@ export function AppTextField({
           </Pressable>
         ) : null}
       </View>
-      {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
+      {error ? <Text style={[styles.error, refined && Typography.body, { color: refined ? colors.errorForeground : colors.error }]} accessibilityRole="alert">{refined ? `خطأ: ${error}` : error}</Text> : null}
       {!error && helperText ? (
-        <Text style={[styles.helper, { color: colors.textMuted }]}>
+        <Text style={[styles.helper, refined && Typography.body, { color: refined ? colors.textSecondary : colors.textMuted }]}>
           {helperText}
         </Text>
       ) : null}

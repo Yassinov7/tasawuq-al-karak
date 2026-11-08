@@ -1,0 +1,677 @@
+{
+  "date": "2026-11-09",
+  "verdict": "BLOCKED — VALIDATION PENDING",
+  "remoteConnection": false,
+  "applicationStarted": false,
+  "migrationsApplied": false,
+  "financialFlagsActivated": false,
+  "environment": {
+    "postgresOnPath": false,
+    "psqlOnPath": false,
+    "postgresInstallFound": false,
+    "dockerFound": false,
+    "podmanFound": false,
+    "wslInstalled": false,
+    "localDatabaseListenerFound": false,
+    "localDatabasePortsChecked": [
+      5432,
+      54321,
+      54322
+    ],
+    "cachedSupabaseCliVersion": "3.0.0",
+    "configuredPostgresMajor": 17
+  },
+  "checks": {
+    "typescript": {
+      "status": "PASS",
+      "command": "npx.cmd tsc --noEmit"
+    },
+    "lint": {
+      "status": "PASS",
+      "errors": 0,
+      "warnings": 6
+    },
+    "diffCheck": {
+      "status": "PASS"
+    },
+    "offline": [
+      {
+        "script": "scripts/test-finance-c2-guard.cjs",
+        "status": "PASS",
+        "count": 6
+      },
+      {
+        "script": "scripts/test-finance-c2.cjs",
+        "status": "PASS",
+        "count": 10
+      },
+      {
+        "script": "scripts/test-finance-c3.cjs",
+        "status": "PASS",
+        "count": 38
+      },
+      {
+        "script": "scripts/test-finance-c4.cjs",
+        "status": "PASS",
+        "count": 20
+      },
+      {
+        "script": "scripts/test-finance-c5.cjs",
+        "status": "PASS",
+        "count": 25
+      },
+      {
+        "script": "scripts/test-finance-c6.cjs",
+        "status": "PASS",
+        "count": 24
+      },
+      {
+        "script": "scripts/test-finance-c7.cjs",
+        "status": "PASS",
+        "count": 22
+      },
+      {
+        "script": "scripts/test-finance-c8.cjs",
+        "status": "PASS",
+        "count": 24
+      },
+      {
+        "script": "scripts/test-finance-c9.cjs",
+        "status": "PASS",
+        "count": 27
+      },
+      {
+        "script": "scripts/test-finance-c9-completion.cjs",
+        "status": "PASS",
+        "count": 33
+      },
+      {
+        "script": "scripts/test-finance-c10.cjs",
+        "status": "PASS",
+        "count": 20
+      },
+      {
+        "script": "scripts/test-finance-c11.cjs",
+        "status": "PASS",
+        "count": 22
+      },
+      {
+        "script": "scripts/test-driver-collection.cjs",
+        "status": "PASS",
+        "count": 14
+      },
+      {
+        "script": "scripts/test-delivery-collection-attempt.cjs",
+        "status": "PASS",
+        "count": 14
+      },
+      {
+        "script": "scripts/test-merchant-finance-workflow.cjs",
+        "status": "PASS",
+        "count": 31
+      },
+      {
+        "script": "scripts/test-financial-reports.cjs",
+        "status": "PASS",
+        "count": null
+      },
+      {
+        "script": "scripts/test-merchant-financial-account.cjs",
+        "status": "PASS",
+        "count": null
+      }
+    ],
+    "numberedOfflineChecks": 330,
+    "postgresBehavior": "NOT RUN",
+    "signedJwt": "NOT RUN",
+    "jwtClaimSimulationOnPostgres": "NOT RUN",
+    "rls": "NOT RUN",
+    "concurrency": "NOT RUN",
+    "reconciliation": "NOT RUN",
+    "device": "NOT RUN"
+  },
+  "migrations": [
+    {
+      "file": "supabase/migrations/20260930000000_currency_code_bootstrap.sql",
+      "cohort": "prerequisite",
+      "sha256": "6b5cd9f74610e85f23e785df09ddbb898cd578949e54fcb45ee5ef1a9dd6bfd1",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20260930000100_accounts_roles_applications_wallets.sql",
+      "cohort": "prerequisite",
+      "sha256": "2dcb9359063d469e66c13b99b03680f9f386390a139a4d07ff8f8706075bb572",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20260930000200_store_catalog_offers.sql",
+      "cohort": "prerequisite",
+      "sha256": "3eaac55f4752a561a0649b2476252887458e349768ee3c99e39fdf26393e8c3e",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20260930000300_ensure_store_media_bucket.sql",
+      "cohort": "prerequisite",
+      "sha256": "7d9d6fccbea96c5471741e203c5297aacb054369f707ee19c7895fd2dd42d031",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20260930000400_store_categories_notifications.sql",
+      "cohort": "prerequisite",
+      "sha256": "be229df80c426d8b0ba0f6b62a145cdb73c7560462a9a6bcdd9e6b9db3966cea",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261001000100_fix_store_media_owner_policy.sql",
+      "cohort": "prerequisite",
+      "sha256": "4b9307373f5cfc9c738ccbed2c9ef36c1afdccf03b17ce6fee261c7ffad266d5",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261001000200_customer_orders_cart_delivery.sql",
+      "cohort": "prerequisite",
+      "sha256": "fe99e1f65ab244d6c06948646cf359743fc60fdf1f2e71e54f8619c0ea4da0bd",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/202610010007_fix_order_cancellation_and_merchant_wallet.sql",
+      "cohort": "prerequisite",
+      "sha256": "40d1353939b155fb9952b1ba7f6ab83549e225997ac228d5b8d830044455b02b",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/202610010008_customers_and_guests_to_read_stores.sql",
+      "cohort": "prerequisite",
+      "sha256": "a4b5cd1dcb75ab2e90e5cc9efbc5b2aad60420a61afe638a56a58eef43bd7d08",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261007000100_customer_purchase_experience.sql",
+      "cohort": "prerequisite",
+      "sha256": "bce8ffb9f2362d4c63488691425967f8a7e3976ea9461faa306ce772b5192629",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261010000100_driver_workspace_availability.sql",
+      "cohort": "prerequisite",
+      "sha256": "22f711fba87ed438af882dd38598eddeffff22a9f75c9235094c48731143d67b",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261012000100_optional_profile_demographics.sql",
+      "cohort": "prerequisite",
+      "sha256": "48e1e5473397b024ab552aa12045f9e941250d73c47771d1f7c650519a789db2",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261012000200_update_profile_gender_choices.sql",
+      "cohort": "prerequisite",
+      "sha256": "84a263373481715f866d9fb64afef5e99a82e72f0ce64d96424c6fff017c663d",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261017000100_ratings_and_reviews.sql",
+      "cohort": "prerequisite",
+      "sha256": "499f4d930defdb8b4fdada449172a6e965591a3fcf5b9f61d98243309bc0d345",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261018000100_financial_foundation.sql",
+      "cohort": "prerequisite",
+      "sha256": "eeef53828e4b1ddd86c084d669345ac95c533bbd4ff62e1f2264c7e64fc3af62",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261018000200_merchant_approval_initial_invoice.sql",
+      "cohort": "prerequisite",
+      "sha256": "280919de8383546e9c6bae5d0d9f310322dadaff5628225535ab12508a69d729",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261018000300_subscription_payments_allocations_credit.sql",
+      "cohort": "prerequisite",
+      "sha256": "ef6bed5485171512eec4d4e7e6de729582cf47d8fed4ab26897ce94f301560f5",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261018000400_merchant_subscription_renewals.sql",
+      "cohort": "prerequisite",
+      "sha256": "2b60a52259f38db738df3e58256c46ee9201534886d20d315e960d9fe7553974",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261018000500_store_order_commissions.sql",
+      "cohort": "prerequisite",
+      "sha256": "4d897e86ed68b466e6d220d8a5820a639f9a708331c1a0fe81b22e5ece79cac5",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261018000600_merchant_application_plan_terms.sql",
+      "cohort": "prerequisite",
+      "sha256": "eda9693b12cafbf7aec45973bbd0d14e76bf7f76799636706ed6e9f565d92931",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261018000700_subscription_plan_management_guard.sql",
+      "cohort": "prerequisite",
+      "sha256": "eb3cd327ea4f5cc00094a54237e4f9259c9dcefb387e8ebbb48f9cbd24f9a6a4",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261018000800_cash_order_financial_foundation.sql",
+      "cohort": "prerequisite",
+      "sha256": "f05617cf9baef136032e183cd0ca7ce20e7df2e8fc1c694ecf75037354db5d98",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261018000900_driver_cash_custody_office_remittances.sql",
+      "cohort": "prerequisite",
+      "sha256": "fd6a1b88864ecf0c9ddb26f4da165f5f16f1d78985fce599031bde2db9dc7228",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261018001000_merchant_sales_settlements.sql",
+      "cohort": "prerequisite",
+      "sha256": "c185718a20d4ff51b26d961cb36e78cf9fa62646c7ca66934037de2688d83c46",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261018001100_admin_financial_reports.sql",
+      "cohort": "prerequisite",
+      "sha256": "1b509590ecd72c271a6067dcc3ed8c821711a5da45f76a7c487e13b13213d8b5",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261018001200_merchant_financial_account.sql",
+      "cohort": "prerequisite",
+      "sha256": "98d6050937687b5c39c1fd4bfd266b5567808630858ba923a9fab307e6f9505c",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261018001300_safe_product_removal.sql",
+      "cohort": "prerequisite",
+      "sha256": "c91c40a98d2e0e328f305fbbbf015c6309331d36ed9a31c5352d19ad588a9eb3",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261018001400_rls_financial_security.sql",
+      "cohort": "prerequisite",
+      "sha256": "8292d11caf8d03f5ce017010b0638ae8a5dbc5cf8da2f80a088496a50bc6c02e",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261018001500_review_views_invoker_security.sql",
+      "cohort": "prerequisite",
+      "sha256": "73b9593a74a3d904e93c47d586185e165cc3005b2af9b847250f0e29574a0948",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261026000100_syp_only_architecture.sql",
+      "cohort": "prerequisite",
+      "sha256": "e652f86fbd789450595559f725fbf607009b6fec24017688c31868c0b5549e3f",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261102000100_store_branding.sql",
+      "cohort": "prerequisite",
+      "sha256": "055742fa9b74babd813a98842f53b25f69b780dc1ee3008bf6d3ef16af2fd3cd",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261105000100_finance_c2_foundation.sql",
+      "cohort": "C2-C11",
+      "sha256": "ece3484aba8359517d2cf57481e3f517905c551c4456098e5c7e4d66ee533efe",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261106000100_finance_c3_delivery_pricing.sql",
+      "cohort": "C2-C11",
+      "sha256": "326b026c0cdcaf369df978b89a82317589bd57820a1eb496212761c3a171d50e",
+      "application": "NOT RUN"
+    },
+    {
+      "file": "supabase/migrations/20261107000100_finance_c4_decimal_contract.sql",
+      "cohort": "C2-C11",
+      "sha256": "bbf50bda9988ef42ea576c4e859a6a9470064ec599d9677566199369befb37f6",
+      "application": "NOT RUN",
+      "ownerReportedApplication": "APPLIED — not independently queried"
+    },
+    {
+      "file": "supabase/migrations/20261107000200_c4_store_pickups_review_gate.sql",
+      "cohort": "C2-C11",
+      "sha256": "bb197badd0d9f9c745d6ba97f5ef4957651867a12b412deebd83003d899c2b85",
+      "application": "NOT RUN",
+      "ownerReportedApplication": "APPLIED — not independently queried"
+    },
+    {
+      "file": "supabase/migrations/20261107000300_c4_atomic_delivery_collection.sql",
+      "cohort": "C2-C11",
+      "sha256": "7ff777bce339e98d11a4ec0c8773f1d857559a795d4329134c5a1f3bbecc41e3",
+      "application": "NOT RUN",
+      "ownerReportedApplication": "APPLIED — not independently queried"
+    },
+    {
+      "file": "supabase/migrations/20261108000100_finance_c5_driver_cash_handover.sql",
+      "cohort": "C2-C11",
+      "sha256": "48bc576ea092544bb7f78fb86b898b27bc5fc45ed204347f6283e50a603ccade",
+      "application": "NOT RUN",
+      "ownerReportedApplication": "APPLIED — not independently queried"
+    },
+    {
+      "file": "supabase/migrations/20261109000100_finance_c6_driver_wages.sql",
+      "cohort": "C2-C11",
+      "sha256": "1341d8b88a097021cbcc8af1685cd80f299e0726699b7d6deabc29ed5f9f7a3e",
+      "application": "NOT RUN",
+      "ownerReportedApplication": "APPLIED — not independently queried"
+    },
+    {
+      "file": "supabase/migrations/20261110000100_finance_c7_merchant_settlements.sql",
+      "cohort": "C2-C11",
+      "sha256": "ca5a35d2819fc0fa13bae2cbb57b38bf1c844a36bf82492e9ed9c015505dfee6",
+      "application": "NOT RUN",
+      "ownerReportedApplication": "APPLIED — not independently queried"
+    },
+    {
+      "file": "supabase/migrations/20261111000100_finance_c8_subscriptions.sql",
+      "cohort": "C2-C11",
+      "sha256": "79c79d00f15e3e354e05cf2f77d38578c1dc464b79478c75fdff19fc1932afd3",
+      "application": "NOT RUN",
+      "ownerReportedApplication": "APPLIED — not independently queried"
+    },
+    {
+      "file": "supabase/migrations/20261112000100_finance_c9_treasury.sql",
+      "cohort": "C2-C11",
+      "sha256": "15d6f86259fcd417ca6ae8ab9815e802055e873fcc4b6866e1e686a3a20d9cd0",
+      "application": "NOT RUN",
+      "ownerReportedApplication": "APPLIED — not independently queried"
+    },
+    {
+      "file": "supabase/migrations/20261112000200_finance_c9_posting.sql",
+      "cohort": "C2-C11",
+      "sha256": "2e988624df610ef7e3da18b2f0c038d2f93abb10a87657b4571089dcced5911a",
+      "application": "NOT RUN",
+      "ownerReportedApplication": "APPLIED — not independently queried"
+    },
+    {
+      "file": "supabase/migrations/20261113000100_finance_c10_reconciliation.sql",
+      "cohort": "C2-C11",
+      "sha256": "e152d08d89c57848cdeea953c6dc2f802829016659c7f1914c0fec54a633312b",
+      "application": "NOT RUN",
+      "ownerReportedApplication": "APPLIED — not independently queried"
+    },
+    {
+      "file": "supabase/migrations/20261114000100_finance_c11_safe_transition.sql",
+      "cohort": "C2-C11",
+      "sha256": "8ee3eb245040940ad914b93d8188ae6aa0e0bd00ee9d343c5c541eabd2ae1355",
+      "application": "NOT RUN",
+      "ownerReportedApplication": "APPLIED — not independently queried"
+    }
+  ],
+  "previousVerdict": "BLOCKED — ENVIRONMENT REQUIRED",
+  "actionScope": "Agent local actions only; server application reported separately by owner",
+  "postMigration": {
+    "projectRef": "dfpaeiffqkmedftjiqbm",
+    "targetClassification": "TEST — OWNER REPORTED",
+    "ownerEvidence": {
+      "source": "latest owner statement, not independently queried",
+      "c4ThroughC11MigrationRecords": 11,
+      "decimalConstraintPresent": true,
+      "oldTruncConstraintAbsent": true,
+      "changeSubscriptionAccountSignaturePresent": true
+    },
+    "readOnlyRemoteResults": "WAITING FOR OWNER RESULTS",
+    "agentRemoteSqlExecuted": false,
+    "agentWriteTestsExecuted": false,
+    "featureFlagValues": "NOT VERIFIED — expected all OFF",
+    "signedJwt": "NOT RUN",
+    "concurrency": "NOT RUN",
+    "reconciliation": "NOT RUN",
+    "criticalNewFinancialDefect": "NOT ESTABLISHED; runtime verification pending",
+    "behavioralBlockers": [
+      "Separate owner authorization for synthetic writes/temporary test activation",
+      "Synthetic fixtures and real Auth identities/tokens",
+      "Safe PostgreSQL/JWT harness pinned to the intended TEST identity; existing tools are loopback-only"
+    ],
+    "localChecksThisRound": {
+      "readOnlyPackage": 6,
+      "c8": 24,
+      "c10": 20,
+      "c11": 22,
+      "total": 72,
+      "typescript": "PASS",
+      "lint": {
+        "errors": 0,
+        "warnings": 6
+      },
+      "diffCheck": "PASS"
+    },
+    "packageFiles": [
+      "supabase/verification/finance_c12_test_readonly.sql",
+      "supabase/verification/finance_c12_cron_readonly.sql",
+      "docs/finance-c12-supabase-test-runbook.md",
+      "scripts/test-finance-c12-readonly.cjs"
+    ],
+    "localMigrationHashes": [
+      {
+        "file": "supabase/migrations/20260930000000_currency_code_bootstrap.sql",
+        "sha256": "6b5cd9f74610e85f23e785df09ddbb898cd578949e54fcb45ee5ef1a9dd6bfd1",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20260930000100_accounts_roles_applications_wallets.sql",
+        "sha256": "2dcb9359063d469e66c13b99b03680f9f386390a139a4d07ff8f8706075bb572",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20260930000200_store_catalog_offers.sql",
+        "sha256": "3eaac55f4752a561a0649b2476252887458e349768ee3c99e39fdf26393e8c3e",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20260930000300_ensure_store_media_bucket.sql",
+        "sha256": "7d9d6fccbea96c5471741e203c5297aacb054369f707ee19c7895fd2dd42d031",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20260930000400_store_categories_notifications.sql",
+        "sha256": "be229df80c426d8b0ba0f6b62a145cdb73c7560462a9a6bcdd9e6b9db3966cea",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261001000100_fix_store_media_owner_policy.sql",
+        "sha256": "4b9307373f5cfc9c738ccbed2c9ef36c1afdccf03b17ce6fee261c7ffad266d5",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261001000200_customer_orders_cart_delivery.sql",
+        "sha256": "fe99e1f65ab244d6c06948646cf359743fc60fdf1f2e71e54f8619c0ea4da0bd",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/202610010007_fix_order_cancellation_and_merchant_wallet.sql",
+        "sha256": "40d1353939b155fb9952b1ba7f6ab83549e225997ac228d5b8d830044455b02b",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/202610010008_customers_and_guests_to_read_stores.sql",
+        "sha256": "a4b5cd1dcb75ab2e90e5cc9efbc5b2aad60420a61afe638a56a58eef43bd7d08",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261007000100_customer_purchase_experience.sql",
+        "sha256": "bce8ffb9f2362d4c63488691425967f8a7e3976ea9461faa306ce772b5192629",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261010000100_driver_workspace_availability.sql",
+        "sha256": "22f711fba87ed438af882dd38598eddeffff22a9f75c9235094c48731143d67b",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261012000100_optional_profile_demographics.sql",
+        "sha256": "48e1e5473397b024ab552aa12045f9e941250d73c47771d1f7c650519a789db2",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261012000200_update_profile_gender_choices.sql",
+        "sha256": "84a263373481715f866d9fb64afef5e99a82e72f0ce64d96424c6fff017c663d",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261017000100_ratings_and_reviews.sql",
+        "sha256": "499f4d930defdb8b4fdada449172a6e965591a3fcf5b9f61d98243309bc0d345",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261018000100_financial_foundation.sql",
+        "sha256": "eeef53828e4b1ddd86c084d669345ac95c533bbd4ff62e1f2264c7e64fc3af62",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261018000200_merchant_approval_initial_invoice.sql",
+        "sha256": "280919de8383546e9c6bae5d0d9f310322dadaff5628225535ab12508a69d729",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261018000300_subscription_payments_allocations_credit.sql",
+        "sha256": "ef6bed5485171512eec4d4e7e6de729582cf47d8fed4ab26897ce94f301560f5",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261018000400_merchant_subscription_renewals.sql",
+        "sha256": "2b60a52259f38db738df3e58256c46ee9201534886d20d315e960d9fe7553974",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261018000500_store_order_commissions.sql",
+        "sha256": "4d897e86ed68b466e6d220d8a5820a639f9a708331c1a0fe81b22e5ece79cac5",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261018000600_merchant_application_plan_terms.sql",
+        "sha256": "eda9693b12cafbf7aec45973bbd0d14e76bf7f76799636706ed6e9f565d92931",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261018000700_subscription_plan_management_guard.sql",
+        "sha256": "eb3cd327ea4f5cc00094a54237e4f9259c9dcefb387e8ebbb48f9cbd24f9a6a4",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261018000800_cash_order_financial_foundation.sql",
+        "sha256": "f05617cf9baef136032e183cd0ca7ce20e7df2e8fc1c694ecf75037354db5d98",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261018000900_driver_cash_custody_office_remittances.sql",
+        "sha256": "fd6a1b88864ecf0c9ddb26f4da165f5f16f1d78985fce599031bde2db9dc7228",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261018001000_merchant_sales_settlements.sql",
+        "sha256": "c185718a20d4ff51b26d961cb36e78cf9fa62646c7ca66934037de2688d83c46",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261018001100_admin_financial_reports.sql",
+        "sha256": "1b509590ecd72c271a6067dcc3ed8c821711a5da45f76a7c487e13b13213d8b5",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261018001200_merchant_financial_account.sql",
+        "sha256": "98d6050937687b5c39c1fd4bfd266b5567808630858ba923a9fab307e6f9505c",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261018001300_safe_product_removal.sql",
+        "sha256": "c91c40a98d2e0e328f305fbbbf015c6309331d36ed9a31c5352d19ad588a9eb3",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261018001400_rls_financial_security.sql",
+        "sha256": "8292d11caf8d03f5ce017010b0638ae8a5dbc5cf8da2f80a088496a50bc6c02e",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261018001500_review_views_invoker_security.sql",
+        "sha256": "73b9593a74a3d904e93c47d586185e165cc3005b2af9b847250f0e29574a0948",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261026000100_syp_only_architecture.sql",
+        "sha256": "e652f86fbd789450595559f725fbf607009b6fec24017688c31868c0b5549e3f",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261102000100_store_branding.sql",
+        "sha256": "055742fa9b74babd813a98842f53b25f69b780dc1ee3008bf6d3ef16af2fd3cd",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261105000100_finance_c2_foundation.sql",
+        "sha256": "ece3484aba8359517d2cf57481e3f517905c551c4456098e5c7e4d66ee533efe",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261106000100_finance_c3_delivery_pricing.sql",
+        "sha256": "326b026c0cdcaf369df978b89a82317589bd57820a1eb496212761c3a171d50e",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261107000100_finance_c4_decimal_contract.sql",
+        "sha256": "bbf50bda9988ef42ea576c4e859a6a9470064ec599d9677566199369befb37f6",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261107000200_c4_store_pickups_review_gate.sql",
+        "sha256": "bb197badd0d9f9c745d6ba97f5ef4957651867a12b412deebd83003d899c2b85",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261107000300_c4_atomic_delivery_collection.sql",
+        "sha256": "7ff777bce339e98d11a4ec0c8773f1d857559a795d4329134c5a1f3bbecc41e3",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261108000100_finance_c5_driver_cash_handover.sql",
+        "sha256": "48bc576ea092544bb7f78fb86b898b27bc5fc45ed204347f6283e50a603ccade",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261109000100_finance_c6_driver_wages.sql",
+        "sha256": "1341d8b88a097021cbcc8af1685cd80f299e0726699b7d6deabc29ed5f9f7a3e",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261110000100_finance_c7_merchant_settlements.sql",
+        "sha256": "ca5a35d2819fc0fa13bae2cbb57b38bf1c844a36bf82492e9ed9c015505dfee6",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261111000100_finance_c8_subscriptions.sql",
+        "sha256": "9d99429df4b8df11bb133ec4123a05e41a2a1abd866301ea88769bc7a4909027",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261112000100_finance_c9_treasury.sql",
+        "sha256": "15d6f86259fcd417ca6ae8ab9815e802055e873fcc4b6866e1e686a3a20d9cd0",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261112000200_finance_c9_posting.sql",
+        "sha256": "2e988624df610ef7e3da18b2f0c038d2f93abb10a87657b4571089dcced5911a",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261113000100_finance_c10_reconciliation.sql",
+        "sha256": "e152d08d89c57848cdeea953c6dc2f802829016659c7f1914c0fec54a633312b",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      },
+      {
+        "file": "supabase/migrations/20261114000100_finance_c11_safe_transition.sql",
+        "sha256": "8ee3eb245040940ad914b93d8188ae6aa0e0bd00ee9d343c5c541eabd2ae1355",
+        "note": "Local file fingerprint only; not a remote execution checksum"
+      }
+    ]
+  }
+}

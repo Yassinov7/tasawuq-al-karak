@@ -7,11 +7,13 @@ import { useTheme } from "@/context/ThemeContext";
 type SignupProgressProps = {
   step: 1 | 2 | 3;
   onBack?: () => void;
+  onCancel: () => void;
+  busy?: boolean;
 };
 
 const labels = ["الترحيب", "معلومات الحساب", "نوع الحساب"];
 
-export function SignupProgress({ step, onBack }: SignupProgressProps) {
+export function SignupProgress({ step, onBack, onCancel, busy }: SignupProgressProps) {
   const { colors } = useTheme();
 
   return (
@@ -36,7 +38,8 @@ export function SignupProgress({ step, onBack }: SignupProgressProps) {
         ) : (
           <View style={styles.backPlaceholder} />
         )}
-        <Text style={[styles.stepLabel, { color: colors.textMuted }]}>
+        <Pressable disabled={busy} onPress={onCancel} accessibilityRole="button" style={{ minHeight: 44, justifyContent: "center" }}><Text style={{ color: colors.primary, fontFamily: Fonts.medium }}>إلغاء والعودة</Text></Pressable>
+        <Text style={[styles.stepLabel, { color: colors.textSecondary }]}>
           {`الخطوة ${["١", "٢", "٣"][step - 1]} من ٣`}
         </Text>
       </View>
@@ -72,7 +75,7 @@ export function SignupProgress({ step, onBack }: SignupProgressProps) {
                   <Text
                     style={[
                       styles.stageNumber,
-                      { color: current ? colors.surface : colors.textMuted },
+                      { color: current ? colors.onPrimary : colors.textSecondary },
                     ]}
                   >
                     {["١", "٢", "٣"][index]}
@@ -80,10 +83,9 @@ export function SignupProgress({ step, onBack }: SignupProgressProps) {
                 )}
               </View>
               <Text
-                numberOfLines={1}
-                style={[
+                                style={[
                   styles.stageLabel,
-                  { color: current ? colors.primary : colors.textMuted },
+                  { color: current ? colors.primary : colors.textSecondary },
                   current && styles.currentStageLabel,
                 ]}
               >

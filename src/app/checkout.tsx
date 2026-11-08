@@ -1,5 +1,8 @@
+import { quoteC3Cart, recoverC3Checkout, retryC3Checkout, type C3CheckoutResult } from "@/lib/c3-orders";
+import type { C3Quote } from "@/lib/c3-order-contract";
+import { formatSypNumber } from "@/lib/money";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -36,22 +39,28 @@ import {
 import { supabase } from "@/lib/supabase";
 
 export default function CheckoutScreen() {
+  const { user } = useAuth();
+  // Account replacement unmounts the entire draft, including failed/stale address loads.
+  return <CheckoutContent key={user?.id ?? "guest"} />;
+}
+
+function CheckoutContent() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { user } = useAuth();
+  const ownerId = user?.id;
+  const [initialAccountPhone] = useState(() => typeof user?.user_metadata?.phone === "string" ? user.user_metadata.phone : "");
   const {
     items,
     selectedOfferIds,
     itemCount,
-    subtotal,
-    currency,
-    hasMixedCurrencies,
+
+
     loading: cartLoading,
     syncError,
     flush,
     retrySync,
-    clearAfterOrder,
   } = useCart();
   const { products, stores, offers, refresh: refreshCatalog, loading: catalogLoading, error: catalogError } = useCustomerCatalog();
   useFocusEffect(useCallback(() => { void refreshCatalog(); }, [refreshCatalog]));
@@ -78,15 +87,71 @@ export default function CheckoutScreen() {
 
   const selectedZone = deliveryZones.find((zone) => zone.id === selectedZoneId);
   const selectedAddress = savedAddresses.find((address) => address.id === selectedAddressId) ?? null;
-  const deliveryFee = selectedZone?.fixed_fee ?? 0;
-  const total = currency && selectedZone?.currency === currency
-    ? subtotal + deliveryFee
-    : subtotal;
-  const confirmationTotal = currency
-    ? selectedZone && selectedZone.currency !== currency
-      ? `${formatCurrency(subtotal, currency)} + ${formatCurrency(deliveryFee, selectedZone.currency)}`
-      : formatCurrency(total, currency)
-    : "—";
+  const [quote, setQuote] = useState<{ scope: string; value: C3Quote } | null>(null);
+  const [quoteError, setQuoteError] = useState("");
+  const [quoteRetry, setQuoteRetry] = useState(0);
+  const submissionLock = useRef<string | null>(null);
+  const confirmedTotal = useRef<number | null>(null);
+  const confirmedCart = useRef<string | null>(null);
+  const ownerRef = useRef(user?.id);
+  useLayoutEffect(() => { ownerRef.current = user?.id; return () => { ownerRef.current = undefined; }; }, [user?.id]);
+  const [recoveryState, setRecoveryState] = useState<{ owner: string; result: C3CheckoutResult } | null>(null);
+  const [recoveryError, setRecoveryError] = useState<{ owner: string; message: string } | null>(null);
+  const [recovering, setRecovering] = useState(false);
+  const recovery = recoveryState && recoveryState.owner === user?.id ? recoveryState.result : null;
+  const recoveryMessage = recoveryError && recoveryError.owner === user?.id ? recoveryError.message : "";
+  const recoveryReady = Boolean(recovery) && !recovering && !recoveryMessage && recovery?.kind !== "pending";
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    const owner = user?.id;
+    if (!owner) return;
+    void (async () => {
+      await Promise.resolve();
+      if (!active) return;
+      setRecovering(true); setRecoveryError(null);
+      try {
+        const result = await recoverC3Checkout(owner);
+        if (active) {
+          setRecoveryState({ owner, result });
+          if (result.kind === "recovered") void retrySync().catch(() => undefined);
+        }
+      } catch (cause) { if (active) setRecoveryError({ owner, message: cause instanceof Error ? cause.message : "تعذر التحقق من المحاولة السابقة." }); }
+      finally { if (active) setRecovering(false); }
+    })();
+    return () => { active = false; };
+  }, [user?.id, retrySync]));
+  async function checkPrevious(retry: boolean) {
+    const owner = user?.id;
+    if (!owner || submissionLock.current === owner) return;
+    submissionLock.current = owner; setRecovering(true); setRecoveryError(null);
+    try {
+      const result = await (retry ? retryC3Checkout(owner) : recoverC3Checkout(owner));
+      if (ownerRef.current !== owner) return;
+      setRecoveryState({ owner, result });
+      if (result.kind === "recovered") void retrySync().catch(() => undefined);
+    } catch (cause) { if (ownerRef.current === owner) setRecoveryError({ owner, message: cause instanceof Error ? cause.message : "تعذر التحقق من المحاولة السابقة." }); }
+    finally { if (submissionLock.current === owner) submissionLock.current = null; if (ownerRef.current === owner) setRecovering(false); }
+  }
+  const quoteScope = JSON.stringify([user?.id, selectedZoneId, items, selectedOfferIds, quoteRetry]);
+  const validQuote = quote?.scope === quoteScope && !cartLoading && !syncError ? quote.value : null;
+  const total = validQuote?.total;
+  const deliveryFee = validQuote?.delivery_fee;
+  const confirmationTotal = total === undefined ? "بانتظار حساب الخادم" : formatCurrency(total, "SYP");
+  useEffect(() => {
+    let active = true;
+    if (!user || !selectedZoneId || cartLoading || syncError || itemCount === 0) return;
+    void (async () => {
+      await Promise.resolve();
+      if (!active) return;
+      setQuote(null); setQuoteError("");
+      try {
+        await flush();
+        const value = await quoteC3Cart(selectedZoneId, user.id);
+        if (active) setQuote({ scope: quoteScope, value });
+      } catch { if (active) setQuoteError("تعذر حساب ملخص الطلب من الخادم. أعد المحاولة."); }
+    })();
+    return () => { active = false; };
+  }, [quoteScope, user, selectedZoneId, cartLoading, syncError, itemCount, flush, quoteRetry]);
   const cartPreviewItems = items.flatMap((item) => {
     const product = products.find((candidate) => candidate.id === item.productId);
     return product ? [{ product, quantity: item.quantity }] : [];
@@ -147,13 +212,14 @@ export default function CheckoutScreen() {
   useEffect(() => {
     let alive = true;
     const loadCheckoutDetails = async () => {
+      setSubmitting(false);
       setLoadingDetails(true);
       setError(null);
       try {
         const [zones, profileResult, addresses] = await Promise.all([
           getDeliveryZones(),
-          user
-            ? supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle()
+          ownerId
+            ? supabase.from("profiles").select("full_name").eq("id", ownerId).maybeSingle()
             : Promise.resolve({ data: null, error: null }),
           getCustomerAddresses(),
         ]);
@@ -168,10 +234,9 @@ export default function CheckoutScreen() {
         setSelectedAddressId(initialAddressId);
         setSelectedZoneId(defaultZoneIsActive
           ? defaultAddress?.delivery_zone_id ?? ""
-          : zones[0]?.id ?? "");
+          : "");
         setRecipientName(defaultAddress?.recipient_name ?? profileResult.data?.full_name ?? "");
-        const metadataPhone = user?.user_metadata?.phone;
-        setContactPhone(defaultAddress?.contact_phone ?? (typeof metadataPhone === "string" ? metadataPhone : ""));
+        setContactPhone(defaultAddress?.contact_phone ?? initialAccountPhone);
         setDeliveryAddress(defaultAddress?.delivery_address ?? "");
       } catch (cause) {
         if (alive) {
@@ -185,7 +250,7 @@ export default function CheckoutScreen() {
     return () => {
       alive = false;
     };
-  }, [user]);
+  }, [ownerId, initialAccountPhone]);
 
   useFocusEffect(
     useCallback(() => {
@@ -207,7 +272,7 @@ export default function CheckoutScreen() {
   };
 
   const handleConfirmOrder = () => {
-    if (submitting) return;
+    if (submitting || !recoveryReady) return;
     setError(null);
     if (catalogLoading || catalogError || hasUnavailableItems) {
       setError(catalogLoading ? "جارٍ التحقق من توفر المنتجات." : catalogError ? "تعذر التحقق من توفر المنتجات. أعد تحميل السلة." : "يوجد منتج أو عرض لم يعد متاحًا. أزله من السلة قبل المتابعة.");
@@ -217,42 +282,59 @@ export default function CheckoutScreen() {
       setError("السلة فارغة أو ما زالت قيد التحميل.");
       return;
     }
-    if (hasMixedCurrencies) {
-      setError("لا يمكن إرسال سلة تحتوي منتجات بعملات مختلفة.");
-      return;
-    }
     if (!recipientName.trim() || !contactPhone.trim() || !deliveryAddress.trim() || !selectedZone) {
       setError("أكمل بيانات المستلم وعنوان التوصيل واختر منطقة التوصيل.");
       return;
     }
+    if (!validQuote) { setError("انتظر حساب المبلغ من الخادم."); return; }
+    confirmedTotal.current = validQuote.total;
+    confirmedCart.current = validQuote.cart_signature;
     setConfirmModalVisible(true);
   };
 
   const handleConfirm = async () => {
-    if (submitting) return;
+    if (submissionLock.current === user?.id) return;
+    if (confirmedTotal.current === null || !validQuote || confirmedTotal.current !== validQuote.total || confirmedCart.current !== validQuote.cart_signature || !user || !recoveryReady) { setError("تغير الملخص؛ راجعه وأكد المبلغ مجددًا."); setConfirmModalVisible(false); return; }
     if (catalogLoading || catalogError || hasUnavailableItems) {
       setError(catalogLoading ? "جارٍ التحقق من توفر المنتجات." : "يوجد منتج أو عرض غير متاح أو تعذر التحقق منه. عُد إلى السلة قبل المتابعة.");
       return;
     }
+    const owner = user.id;
+    submissionLock.current = owner;
     setSubmitting(true);
     setError(null);
     try {
       await flush();
-      const orderId = await createCustomerOrder({
+      const result = await createCustomerOrder({
         recipientName: recipientName.trim(),
         contactPhone: contactPhone.trim(),
         deliveryAddress: deliveryAddress.trim(),
         deliveryZoneId: selectedZoneId,
         customerNote: customerNote.trim(),
+        expectedTotal: confirmedTotal.current,
+        expectedUser: owner, cartSignature: validQuote.cart_signature,
       });
-      clearAfterOrder();
+      if (ownerRef.current !== owner) return;
       setConfirmModalVisible(false);
-      router.replace({ pathname: "/order-details", params: { id: orderId } });
+      setRecoveryError(null);
+      setRecoveryState({ owner, result });
+      if (result.kind === "created") {
+        void retrySync().catch(() => undefined);
+        router.replace({ pathname: "/order-details", params: { id: result.orderId } });
+      } else if (result.kind === "recovered") {
+        // A recovered result never clears the current local cart or claims it was submitted.
+        void retrySync().catch(() => undefined);
+      } else if (result.kind === "rejected") { setError(result.message); setQuoteRetry(value => value + 1); }
+
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "تعذر إنشاء الطلب. حاول مجددًا.");
+      if (ownerRef.current !== owner) return;
+      setRecoveryState({ owner, result: { kind: "pending", recipient: recipientName.trim(), expectedTotal: validQuote.total } });
+      setError(cause instanceof Error ? cause.message : "تعذر تأكيد الطلب. تحقّق من المحاولة السابقة.");
+      setQuoteRetry(value => value + 1);
       void refreshCatalog();
     } finally {
-      setSubmitting(false);
+      if (submissionLock.current === owner) submissionLock.current = null;
+      if (ownerRef.current === owner) setSubmitting(false);
     }
   };
 
@@ -280,6 +362,20 @@ export default function CheckoutScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
+        {(recovering || !recovery || recovery.kind !== "none" || recoveryMessage) ? <Section title="محاولة الطلب السابقة">
+          {recovering ? <ActivityIndicator color={colors.primary} /> : null}
+          {recovery?.kind === "recovered" ? <>
+            <Text style={[styles.noticeText, { color: colors.text }]}>تم العثور على طلب سبق تأكيد إنشائه. لم تُؤكد سلتك الحالية ولم تُمسح؛ يمكنك مراجعة الطلب السابق أو تأكيد طلب جديد من السلة الحالية.</Text>
+            <AppButton title="عرض الطلب المستعاد" variant="outline" onPress={() => router.push({ pathname: "/order-details", params: { id: recovery.orderId } })} />
+          </> : null}
+          {recovery?.kind === "pending" ? <>
+            <Text style={[styles.noticeText, { color: colors.text }]}>لم تُحسم المحاولة السابقة للمستلم {recovery.recipient} بمبلغ {formatCurrency(recovery.expectedTotal, "SYP")}. إعادة المحاولة تستخدم بياناتها المحفوظة؛ لا ترسل السلة الجديدة.</Text>
+            <AppButton title="إعادة محاولة الطلب السابق" disabled={recovering || submitting} onPress={() => void checkPrevious(true)} />
+          </> : null}
+          {recovery?.kind === "rejected" ? <Text style={[styles.noticeText, { color: colors.error }]}>{recovery.message}</Text> : null}
+          {recoveryMessage ? <Text accessibilityRole="alert" style={[styles.noticeText, { color: colors.error }]}>{recoveryMessage}</Text> : null}
+          <AppButton title="التحقق من نتيجة المحاولة السابقة" variant="outline" disabled={recovering || submitting} onPress={() => void checkPrevious(false)} />
+        </Section> : null}
         <Section title="محتوى السلة">
           <View style={[styles.cartPreview, { borderColor: colors.border }]}>
             {cartPreviewItems.slice(0, 3).map(({ product, quantity }) => (
@@ -291,7 +387,7 @@ export default function CheckoutScreen() {
                   </Text>
                 </View>
                 <Text numberOfLines={1} style={[styles.previewItemPrice, { color: colors.text }]}>
-                  {formatCurrency(product.price * quantity, product.currency ?? "SYP")}
+                  {formatCurrency(product.price, "SYP")} للوحدة
                 </Text>
               </View>
             ))}
@@ -413,7 +509,7 @@ export default function CheckoutScreen() {
               </View>
               <View style={styles.optionInfo}>
                 <Text style={[styles.optionTitle, { color: colors.text }]}>{selectedZone.name}</Text>
-                <Text style={[styles.optionText, { color: colors.textSecondary }]}>رسوم التوصيل: {formatCurrency(selectedZone.fixed_fee, selectedZone.currency)}</Text>
+                <Text style={[styles.optionText, { color: colors.textSecondary }]}>رسم المنطقة الأساسي: {formatCurrency(selectedZone.fixed_fee, "SYP")}؛ الرسم النهائي في الملخص</Text>
               </View>
               <AppIcon name="checkmark-circle" size={22} color={colors.primary} />
             </View>
@@ -449,7 +545,7 @@ export default function CheckoutScreen() {
                 >
                   <View style={styles.optionInfo}>
                     <Text style={[styles.optionTitle, { color: colors.text }]}>{zone.name}</Text>
-                    <Text style={[styles.optionText, { color: colors.textSecondary }]}>رسوم التوصيل: {formatCurrency(zone.fixed_fee, zone.currency)}</Text>
+                    <Text style={[styles.optionText, { color: colors.textSecondary }]}>الرسم الأساسي: {formatCurrency(zone.fixed_fee, "SYP")}</Text>
                   </View>
                   <AppIcon name={selectedZoneId === zone.id ? "checkmark-circle" : "ellipse-outline"} size={22} color={selectedZoneId === zone.id ? colors.primary : colors.textMuted} />
                 </Pressable>
@@ -511,6 +607,7 @@ export default function CheckoutScreen() {
         </Section>
 
         <Section title="ملخص الطلب">
+          <Text style={[styles.noticeText, { color: colors.textSecondary }]}>يحسب الخادم رسم المنطقة ورسم كل متجر إضافي، وتُحفظ مبالغ البضائع بدقتها الحالية حتى منزلتين عشريتين؛ رسوم التوصيل أعداد صحيحة بالليرة.</Text>
           <View style={[styles.priceSummary, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <SummaryRow
               label="عدد المنتجات"
@@ -519,12 +616,12 @@ export default function CheckoutScreen() {
 
             <SummaryRow
               label="المجموع الفرعي"
-              value={currency ? formatCurrency(subtotal, currency) : "—"}
+              value={validQuote ? formatCurrency(validQuote.items_amount, "SYP") : "بانتظار حساب الخادم"}
             />
 
             <SummaryRow
               label="التوصيل"
-              value={selectedZone ? formatCurrency(deliveryFee, selectedZone.currency) : "اختر منطقة التوصيل"}
+              value={deliveryFee !== undefined ? formatCurrency(deliveryFee, "SYP") : selectedZone ? "جارٍ حساب التوصيل" : "اختر منطقة التوصيل"}
             />
 
             <View
@@ -558,9 +655,7 @@ export default function CheckoutScreen() {
                     },
                   ]}
                 >
-                  {currency && selectedZone?.currency !== currency
-                    ? `${formatCurrency(subtotal, currency)} + ${selectedZone ? formatCurrency(deliveryFee, selectedZone.currency) : "—"}`
-                    : total.toLocaleString("en-US")}
+                  {total === undefined ? "—" : formatSypNumber(total)}
                 </Text>
 
                 <Text
@@ -572,9 +667,7 @@ export default function CheckoutScreen() {
                     },
                   ]}
                 >
-                  {currency && selectedZone?.currency === currency
-                    ? currency === "USD" ? "$" : "ل.س"
-                    : ""}
+                  {"ل.س"}
                 </Text>
               </View>
             </View>
@@ -605,6 +698,7 @@ export default function CheckoutScreen() {
 
         {hasUnavailableItems && !catalogLoading ? <Text accessibilityRole="alert" style={{ color: colors.error, textAlign: "right" }}>يوجد منتج أو عرض غير متاح؛ عُد إلى السلة لإزالته.</Text> : null}
         {catalogError ? <AppButton title="إعادة التحقق من توفر المنتجات" variant="outline" onPress={() => void refreshCatalog()} /> : null}
+        {quoteError ? <View><Text style={{ color: colors.error }}>{quoteError}</Text><AppButton title="إعادة حساب المبلغ" onPress={() => setQuoteRetry(value => value + 1)} /></View> : null}
         {error ? (
           <Text accessibilityRole="alert" style={{ color: colors.error, textAlign: "right" }}>
             {error}
@@ -626,13 +720,13 @@ export default function CheckoutScreen() {
           <Text numberOfLines={1} style={[styles.checkoutBarValue, { color: colors.primary }]}>{confirmationTotal}</Text>
         </View>
         <Pressable
-          disabled={loadingDetails || submitting || cartLoading || catalogLoading || Boolean(catalogError) || hasUnavailableItems || hasMixedCurrencies || itemCount === 0 || Boolean(syncError)}
+          disabled={!recoveryReady || !validQuote || loadingDetails || submitting || cartLoading || catalogLoading || Boolean(catalogError) || hasUnavailableItems || itemCount === 0 || Boolean(syncError)}
           onPress={handleConfirmOrder}
-          style={({ pressed }) => [styles.confirmButton, { backgroundColor: colors.primary }, pressed && styles.pressed, (loadingDetails || submitting || cartLoading || catalogLoading || Boolean(catalogError) || hasUnavailableItems || hasMixedCurrencies || itemCount === 0 || Boolean(syncError)) && { opacity: 0.55 }]}
+          style={({ pressed }) => [styles.confirmButton, { backgroundColor: colors.primary }, pressed && styles.pressed, (loadingDetails || submitting || cartLoading || catalogLoading || Boolean(catalogError) || hasUnavailableItems || itemCount === 0 || Boolean(syncError)) && { opacity: 0.55 }]}
           accessibilityRole="button"
           accessibilityLabel="تأكيد الطلب"
         >
-          <Text style={[styles.confirmText, { color: colors.surface }]}>{submitting ? "جارٍ إرسال الطلب..." : "تأكيد الطلب"}</Text>
+          <Text style={[styles.confirmText, { color: colors.surface }]}>{submitting ? "جارٍ إرسال الطلب..." : recovery?.kind === "recovered" ? "تأكيد طلب جديد" : "تأكيد الطلب"}</Text>
           <AppIcon name="checkmark-circle-outline" size={20} color={colors.surface} />
         </Pressable>
       </View>
@@ -642,7 +736,7 @@ export default function CheckoutScreen() {
         title="تأكيد الطلب"
         message={`هل تريد تأكيد الطلب بقيمة ${confirmationTotal} والدفع عند الاستلام؟`}
         icon="checkmark-circle-outline"
-        confirmText={submitting ? "جارٍ إرسال الطلب..." : "تأكيد الطلب"}
+        confirmText={submitting ? "جارٍ إرسال الطلب..." : recovery?.kind === "recovered" ? "تأكيد طلب جديد" : "تأكيد الطلب"}
         cancelText="مراجعة الطلب"
         busy={submitting}
         onConfirm={() => void handleConfirm()}

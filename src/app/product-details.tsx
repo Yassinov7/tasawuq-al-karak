@@ -1,3 +1,4 @@
+import { formatSypNumber } from "@/lib/money";
 import { Href, useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
@@ -335,7 +336,7 @@ export default function ProductDetailsScreen() {
                   },
                 ]}
               >
-                {product.price.toLocaleString("en-US")}
+                {formatSypNumber(product.price)}
               </Text>
 
               <Text
@@ -346,7 +347,7 @@ export default function ProductDetailsScreen() {
                   },
                 ]}
               >
-                {product.currency === "USD" ? "$" : "ل.س"}
+                {"ل.س"}
               </Text>
             </View>
 
@@ -567,7 +568,7 @@ export default function ProductDetailsScreen() {
                     },
                   ]}
                 >
-                  {selectedQuantity.toLocaleString("en-US", { maximumFractionDigits: 3 })} × {product.price.toLocaleString("en-US")} {product.currency === "USD" ? "$" : "ل.س"}
+                  {selectedQuantity.toLocaleString("en-US", { maximumFractionDigits: 3 })} × {formatSypNumber(product.price)} {"ل.س"}
                 </Text>
               </View>
 
@@ -580,7 +581,7 @@ export default function ProductDetailsScreen() {
                     },
                   ]}
                 >
-                  {totalPrice.toLocaleString("en-US")}
+                  {formatSypNumber(totalPrice)}
                 </Text>
 
                 <Text
@@ -591,7 +592,7 @@ export default function ProductDetailsScreen() {
                     },
                   ]}
                 >
-                  {product.currency === "USD" ? "$" : "ل.س"}
+                  {"ل.س"}
                 </Text>
               </View>
             </View>
@@ -771,7 +772,7 @@ type CustomerOfferCardProps = {
 function CustomerOfferCard({ offer, added, onAdd }: CustomerOfferCardProps) {
   const { colors } = useTheme();
   const calculation = calculateCustomerOffer(offer);
-  const currency = offer.currency === "USD" ? "$" : "ل.س";
+  const currency = "ل.س";
 
   return (
     <View
@@ -848,14 +849,14 @@ function CustomerOfferCard({ offer, added, onAdd }: CustomerOfferCardProps) {
         <View style={{ alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between" }}>
           <Text style={{ color: colors.text, fontFamily: Fonts.semiBold }}>سعر الباقة كاملة</Text>
           <Text style={{ color: colors.primary, fontFamily: Fonts.bold, fontSize: FontSizes.md }}>
-            {calculation.finalTotal.toLocaleString("en-US")} {currency}
+            {formatSypNumber(calculation.finalTotal)} {currency}
           </Text>
         </View>
         {calculation.originalTotal > calculation.finalTotal ? (
           <View style={{ alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between" }}>
             <Text style={{ color: colors.textMuted, fontFamily: Fonts.regular, fontSize: FontSizes.xs }}>التوفير على الباقة</Text>
             <Text style={{ color: colors.success, fontFamily: Fonts.medium, fontSize: FontSizes.xs }}>
-              {(calculation.originalTotal - calculation.finalTotal).toLocaleString("en-US")} {currency}
+              {formatSypNumber((calculation.originalTotal - calculation.finalTotal))} {currency}
             </Text>
           </View>
         ) : null}

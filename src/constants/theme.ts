@@ -3,6 +3,35 @@ import { Platform } from "react-native";
 import { FontFamily } from "./fonts";
 
 export const LightColors = {
+  onPrimary: "#FFFFFF",
+  onAccent: "#20251F",
+  onError: "#FFFFFF",
+  successForeground: "#285B33",
+  successSurface: "#EAF3EC",
+  successBorder: "#3E7D4B",
+  warningForeground: "#72530E",
+  warningSurface: "#F8F0DC",
+  warningBorder: "#9A741D",
+  errorForeground: "#9F3732",
+  errorSurface: "#FBEDEA",
+  errorBorder: "#B84A45",
+  infoForeground: "#245B78",
+  infoSurface: "#EAF2F8",
+  infoBorder: "#41728F",
+  mutedSurface: "#F3F1EA",
+  disabledForeground: "#687066",
+  disabledSurface: "#ECEDE7",
+  disabledBorder: "#C5CAC2",
+  borderSubtle: "#E2E4DE",
+  borderStrong: "#7D877B",
+  focusRing: "#2F6B3C",
+  surfaceSelected: "#EAF3EC",
+  surfacePressed: "#E1EAE1",
+  primaryPressed: "#24532F",
+  errorPressed: "#9F3732",
+  overlayScrim: "rgba(0,0,0,0.50)",
+  mediaBackdrop: "rgba(0,0,0,0.94)",
+  onMedia: "#FFFFFF",
   primary: "#2F6B3C",
   primaryDark: "#24532F",
   primaryLight: "#EAF3EC",
@@ -22,6 +51,35 @@ export const LightColors = {
 } as const;
 
 export const DarkColors = {
+  onPrimary: "#20251F",
+  onAccent: "#20251F",
+  onError: "#181D19",
+  successForeground: "#A5D3AD",
+  successSurface: "#203728",
+  successBorder: "#7FB88A",
+  warningForeground: "#E7C874",
+  warningSurface: "#45391F",
+  warningBorder: "#B28A37",
+  errorForeground: "#F19D97",
+  errorSurface: "#3C2424",
+  errorBorder: "#E87972",
+  infoForeground: "#A5CEE8",
+  infoSurface: "#203340",
+  infoBorder: "#7BABCA",
+  mutedSurface: "#232923",
+  disabledForeground: "#A5ADA5",
+  disabledSurface: "#292F29",
+  disabledBorder: "#515B52",
+  borderSubtle: "#363D37",
+  borderStrong: "#7F8A80",
+  focusRing: "#7FB88A",
+  surfaceSelected: "#29442F",
+  surfacePressed: "#334A37",
+  primaryPressed: "#93C59D",
+  errorPressed: "#F19D97",
+  overlayScrim: "rgba(0,0,0,0.65)",
+  mediaBackdrop: "rgba(0,0,0,0.96)",
+  onMedia: "#FFFFFF",
   primary: "#7FB88A",
   primaryDark: "#659A70",
   primaryLight: "#29442F",
@@ -43,7 +101,7 @@ export const DarkColors = {
   success: "#7FB88A",
   successText: "#20251F",
   error: "#E87972",
-} as const;
+} as const satisfies Record<keyof typeof LightColors, string>;
 
 export type ThemeColors = typeof LightColors | typeof DarkColors;
 
@@ -120,3 +178,19 @@ export const BottomTabInset =
 export const BottomNavHeight = 96;
 
 export const MaxContentWidth = 800;
+
+// Opt-in content metrics; legacy tokens and approved navigation remain unchanged.
+export const Typography = {
+  caption: { fontSize: 12, lineHeight: 20, fontFamily: Fonts.regular },
+  label: { fontSize: 13, lineHeight: 21, fontFamily: Fonts.medium },
+  body: { fontSize: 14, lineHeight: 23, fontFamily: Fonts.regular },
+  bodyStrong: { fontSize: 14, lineHeight: 23, fontFamily: Fonts.semiBold },
+  buttonLabel: { fontSize: 14, lineHeight: 23, fontFamily: Fonts.semiBold },
+  input: { fontSize: 16, lineHeight: 26, fontFamily: Fonts.regular },
+  cardTitle: { fontSize: 15, lineHeight: 24, fontFamily: Fonts.semiBold },
+  sectionTitle: { fontSize: 17, lineHeight: 27, fontFamily: Fonts.bold },
+  pageTitle: { fontSize: 20, lineHeight: 30, fontFamily: Fonts.bold },
+  metric: { fontSize: 24, lineHeight: 34, fontFamily: Fonts.bold },
+} as const;
+export const LayoutSpacing = { pageGutter:16, sectionGap:16, cardGap:12, cardPadding:16, compactCardPadding:12, rowGap:8, labelValueGap:4, formFieldGap:12, fieldInnerGap:4, actionGap:8 } as const;
+export const ControlSizes = { button:48, touch:44, input:48, icon:20, border:1, focusBorder:2 } as const;

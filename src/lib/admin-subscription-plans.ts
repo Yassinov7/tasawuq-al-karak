@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
-export type PlanCurrency = "SYP" | "USD";
+export type PlanCurrency = "SYP";
 
 export type ManagedSubscriptionPlan = {
   id: string;
@@ -8,7 +8,6 @@ export type ManagedSubscriptionPlan = {
   description: string;
   duration_months: number;
   price: number;
-  currency: PlanCurrency;
   commission_rate: number | null;
   product_limit: number | null;
   features: string[] | null;
@@ -22,14 +21,13 @@ export type SubscriptionPlanInput = {
   description: string;
   durationMonths: number;
   price: number;
-  currency: PlanCurrency;
   commissionRate: number | null;
   productLimit: number | null;
   features: string[];
   isActive: boolean;
 };
 
-const planFields = "id,name,description,duration_months,price,currency,commission_rate,product_limit,features,is_active,created_at,updated_at";
+const planFields = "id,name,description,duration_months,price,commission_rate,product_limit,features,is_active,created_at,updated_at";
 
 let plansInvalidatedAt = 0;
 
@@ -75,7 +73,6 @@ export async function saveManagedSubscriptionPlan(
     description: input.description,
     duration_months: input.durationMonths,
     price: input.price,
-    currency: input.currency,
     commission_rate: input.commissionRate,
     product_limit: input.productLimit,
     features: input.features,

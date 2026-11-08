@@ -1,5 +1,5 @@
 import { useRouter, type Href } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import {
   getAccountRoute,
@@ -22,6 +22,7 @@ type SignupFieldErrors = Partial<Record<SignupField, string>>;
 
 export function useSignup() {
   const router = useRouter();
+  const submitLock = useRef(false);
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -77,7 +78,7 @@ export function useSignup() {
   }, [email, fullName, password, passwordConfirmation]);
 
   const createAccount = useCallback(async () => {
-    if (busy || createdAccountId) return;
+    if (submitLock.current || busy || createdAccountId) return;
     setError("");
 
     if (!role) {
@@ -92,6 +93,8 @@ export function useSignup() {
       return;
     }
 
+    if (!validateDetails()) return;
+    submitLock.current = true;
     const cleanEmail = email.trim().toLowerCase();
     setBusy(true);
 
@@ -141,6 +144,7 @@ export function useSignup() {
     } catch {
       setError("تعذر الاتصال بالخدمة. تحقق من الإنترنت ثم حاول مجددًا.");
     } finally {
+      submitLock.current = false;
       setBusy(false);
     }
   }, [
@@ -154,6 +158,7 @@ export function useSignup() {
     password,
     role,
     router,
+    validateDetails,
   ]);
 
   const retryAccountRouting = useCallback(async () => {

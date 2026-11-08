@@ -6,6 +6,7 @@ import { useTheme } from "@/context/ThemeContext";
 type AppIconName = keyof typeof Ionicons.glyphMap;
 
 type AppIconProps = {
+  tone?: "default" | "muted" | "success" | "warning" | "error" | "info";
   name: AppIconName;
   size?: number;
   color?: string;
@@ -14,6 +15,7 @@ type AppIconProps = {
 };
 
 export function AppIcon({
+  tone = "default",
   name,
   size = 24,
   color,
@@ -26,7 +28,7 @@ export function AppIcon({
     <Ionicons
       name={name}
       size={size}
-      color={color ?? (active ? colors.primary : colors.textMuted)}
+      color={color ?? (tone === "default" ? active ? colors.primary : colors.textMuted : tone === "muted" ? colors.textSecondary : colors[`${tone}Foreground`])}
       style={style}
     />
   );

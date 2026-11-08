@@ -15,9 +15,13 @@ import { useTheme } from "@/context/ThemeContext";
 
 type LoginFormProps = {
   busy: boolean;
+  fieldErrors: { email?: string; password?: string };
   email: string;
   error: string;
   password: string;
+  resetEmail: string;
+  resetError: string;
+  onChangeResetEmail: (value: string) => void;
   resetBusy: boolean;
   resetMessage: string;
   resetVisible: boolean;
@@ -32,9 +36,11 @@ type LoginFormProps = {
 
 export function LoginForm({
   busy,
+  fieldErrors,
   email,
   error,
   password,
+  resetEmail, resetError, onChangeResetEmail,
   resetBusy,
   resetMessage,
   resetVisible,
@@ -57,8 +63,9 @@ export function LoginForm({
       ]}
     >
       <View style={styles.fields}>
-        <AppTextField
+        <AppTextField design="refined"
           label="البريد الإلكتروني"
+          error={fieldErrors.email} disabled={busy}
           value={email}
           onChangeText={onChangeEmail}
           keyboardType="email-address"
@@ -70,8 +77,9 @@ export function LoginForm({
           blurOnSubmit={false}
           onSubmitEditing={() => passwordInputRef.current?.focus()}
         />
-        <AppTextField
+        <AppTextField design="refined"
           label="كلمة المرور"
+          error={fieldErrors.password} disabled={busy}
           value={password}
           onChangeText={onChangePassword}
           inputRef={passwordInputRef}
@@ -85,6 +93,7 @@ export function LoginForm({
       </View>
 
       <ForgotPasswordSection
+        email={resetEmail} error={resetError} onChangeEmail={onChangeResetEmail}
         busy={resetBusy}
         message={resetMessage}
         visible={resetVisible}
@@ -99,7 +108,7 @@ export function LoginForm({
           accessibilityRole="alert"
           style={[
             styles.errorNotice,
-            { backgroundColor: colors.primaryLight },
+            { backgroundColor: colors.errorSurface },
           ]}
         >
           <AppIcon
@@ -114,7 +123,7 @@ export function LoginForm({
       ) : null}
 
       <View style={styles.submit}>
-        <AppButton
+        <AppButton design="refined"
           title="تسجيل الدخول"
           icon="log-in-outline"
           onPress={onLogin}
@@ -134,7 +143,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.xl,
   },
   fields: {
-    gap: Spacing.two,
+    gap: Spacing.three,
   },
   errorNotice: {
     flexDirection: "row-reverse",

@@ -25,7 +25,7 @@ type PublicCatalogCache = {
   productMedia: PublicProductMedia[];
 };
 
-const PUBLIC_CATALOG_CACHE_KEY = "public-catalog:v4";
+const PUBLIC_CATALOG_CACHE_KEY = "public-catalog:syp-v1";
 
 let catalogVersion = 0;
 export const invalidatePublicCatalog = () => {

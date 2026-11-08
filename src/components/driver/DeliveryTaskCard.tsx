@@ -7,6 +7,11 @@ import {
 } from "react-native";
 
 import { AppIcon } from "@/components/ui/AppIcon";
+import { AppButton } from "@/components/ui/AppButton";
+import { FinancialAmount } from "@/components/ui/FinancialAmount";
+import { StorePickupPanel } from "@/components/driver/StorePickupPanel";
+import type { PickupWorkflow } from "@/lib/store-pickups";
+import { canProgressDriverCollection, driverCollectionMessage, type DriverCollection } from "@/lib/driver-collection";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 import type {
@@ -30,11 +35,18 @@ const storeStatusLabels: Record<
 
 type DeliveryTaskCardProps = {
   orderNumber: number;
+  reference?: string;
   zoneName: string;
   createdAt: string;
   deliveryAddress?: string;
   storeCount?: number;
   assignedOrder?: DriverAssignedTask["customer_orders"];
+  collection?: DriverCollection;
+  pickups?: PickupWorkflow;
+  busyPickupId?: string | null;
+  onConfirmPickup?: (id: string) => void;
+  onRetryCollection?: () => void;
+  actionDisabled?: boolean;
   taskStatus?: Tables<"delivery_tasks">["status"];
   statusLabel?: string;
   actionTitle?: string;
@@ -46,11 +58,18 @@ type DeliveryTaskCardProps = {
 
 export function DeliveryTaskCard({
   orderNumber,
+  reference,
   zoneName,
   createdAt,
   deliveryAddress,
   storeCount,
   assignedOrder,
+  collection,
+  pickups,
+  busyPickupId,
+  onConfirmPickup,
+  onRetryCollection,
+  actionDisabled = false,
   taskStatus = "available",
   statusLabel,
   actionTitle,
@@ -60,6 +79,8 @@ export function DeliveryTaskCard({
   onAction,
 }: DeliveryTaskCardProps) {
   const { colors } = useTheme();
+  const disabled = actionLoading || actionDisabled || Boolean(assignedOrder && !canProgressDriverCollection(collection))
+    || pickups?.state === "unavailable" || Boolean(pickups?.state === "c4" && !pickups.canCompleteDelivery);
   const statusColor =
     taskStatus === "picked_up"
       ? colors.accent
@@ -97,7 +118,7 @@ export function DeliveryTaskCard({
       <View style={styles.heading}>
         <View style={styles.headingText}>
           <Text style={[styles.orderNumber, { color: colors.text }]}>
-            طلب رقم TW-{orderNumber}
+            {reference ?? `طلب رقم TW-${orderNumber}`}
           </Text>
           <Text style={[styles.createdAt, { color: colors.textSecondary }]}>
             {new Date(createdAt).toLocaleString("ar-SY", {
@@ -167,7 +188,7 @@ export function DeliveryTaskCard({
               ).length} طلبات من متاجر مختلفة
             </Text>
           ) : null}
-          {assignedOrder.store_orders
+          {pickups?.state !== "c4" ? assignedOrder.store_orders
             .filter((storeOrder) =>
               ["ready_for_pickup", "handed_to_driver", "delivered"].includes(
                 storeOrder.status,
@@ -194,22 +215,34 @@ export function DeliveryTaskCard({
                   {storeStatusLabels[storeOrder.status]}
                 </Text>
               </View>
-            ))}
+            )) : <StorePickupPanel stores={assignedOrder.store_orders} workflow={pickups} busy={busyPickupId}
+              disabled={actionLoading || actionDisabled || !canProgressDriverCollection(collection)} onConfirm={onConfirmPickup} />}
         </View>
       ) : null}
+
+      {assignedOrder ? <View style={{ gap: Spacing.two }}>
+        {collection?.state === "ready" ? <FinancialAmount label="مبلغ التحصيل" amount={collection.amount} /> : <>
+          <Text accessibilityRole="alert" style={[styles.detailText, { color: colors.errorForeground }]}>
+            {driverCollectionMessage(collection)}
+          </Text>
+          {onRetryCollection ? <AppButton design="refined" variant="outline" title="إعادة تحميل مبلغ التحصيل"
+            disabled={actionLoading || actionDisabled} onPress={onRetryCollection} /> : null}
+        </>}
+      </View> : null}
+      {pickups?.state === "unavailable" ? <Text accessibilityRole="alert" style={[styles.detailText, { color: colors.errorForeground }]}>تعذر تحميل حالات الاستلام؛ حدّث المهمة قبل أي إجراء.</Text> : null}
 
       {actionTitle && onAction ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={actionTitle}
-          accessibilityState={{ disabled: actionLoading, busy: actionLoading }}
-          disabled={actionLoading}
+          accessibilityState={{ disabled, busy: actionLoading }}
+          disabled={disabled}
           onPress={onAction}
           style={({ pressed }) => [
             styles.actionButton,
             {
               backgroundColor: actionColors.background,
-              opacity: actionLoading ? 0.6 : pressed ? 0.78 : 1,
+              opacity: disabled ? 0.6 : pressed ? 0.78 : 1,
             },
           ]}
         >
@@ -231,13 +264,13 @@ export function toAvailableTaskCard(
   task: AvailableDeliveryTask,
 ): Pick<
   DeliveryTaskCardProps,
-  "orderNumber" | "zoneName" | "createdAt" | "deliveryAddress" | "storeCount"
+  "reference" | "orderNumber" | "zoneName" | "createdAt" | "deliveryAddress" | "storeCount"
 > {
   return {
     orderNumber: task.order_number,
+    reference: task.reference,
     zoneName: task.delivery_zone_name_snapshot,
     createdAt: task.created_at,
-    deliveryAddress: task.delivery_address,
     storeCount: task.store_count,
   };
 }

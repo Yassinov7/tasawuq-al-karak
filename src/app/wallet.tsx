@@ -1,3 +1,4 @@
+import { assertSypDocuments, formatSyp, requireSyp } from "@/lib/money";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -16,7 +17,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { supabase } from "@/lib/supabase";
 
-type Currency = "SYP" | "USD";
+type Currency = "SYP";
 
 type Wallet = {
   currency: Currency;
@@ -46,14 +47,11 @@ function getTransactionLabel(type: string) {
 }
 
 function getCurrencyLabel(currency: Currency) {
-  return currency === "USD" ? "دولار" : "ل.س";
+  requireSyp(currency);
+  return "ل.س";
 }
 
-function formatAmount(value: number) {
-  return Number(value).toLocaleString("ar-SY", {
-    maximumFractionDigits: 2,
-  });
-}
+function formatAmount(value: number) { return formatSyp(Number(value)); }
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString("ar-SY", {
@@ -95,9 +93,8 @@ export default function WalletScreen() {
         const [walletResult, transactionResult] = await Promise.all([
           supabase
             .from("wallets")
-            .select("currency,balance")
-            .eq("user_id", user.id)
-            .order("currency"),
+            .select("balance")
+            .eq("user_id", user.id),
 
           supabase
             .from("wallet_transactions")
@@ -117,7 +114,8 @@ export default function WalletScreen() {
           throw transactionResult.error;
         }
 
-        setWallets((walletResult.data ?? []) as Wallet[]);
+        assertSypDocuments(transactionResult.data);
+        setWallets((walletResult.data ?? []).map((wallet) => ({ ...wallet, currency: "SYP" as const })));
         setTransactions((transactionResult.data ?? []) as Transaction[]);
       } catch {
         setError("تعذر تحميل البيانات المالية. حاول مرة أخرى.");

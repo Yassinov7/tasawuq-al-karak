@@ -1,5 +1,7 @@
+import { assertSypDocuments, formatSyp } from "@/lib/money";
 import { supabase } from "@/lib/supabase";
-import { purchaseAvailabilityMessage } from "@/lib/purchase-availability";
+import { getC3Contexts, submitC3Order } from "@/lib/c3-orders";
+import type { C3Context } from "@/lib/c3-order-contract";
 import type { Tables } from "@/types/database";
 
 export type CustomerOrder = Tables<"customer_orders">;
@@ -14,6 +16,7 @@ export type CustomerAddress = Tables<"customer_addresses"> & {
 };
 
 export type CustomerOrderView = CustomerOrder & {
+  c3?: C3Context;
   totals: CustomerOrderTotal[];
   stores: {
     storeOrder: CustomerStoreOrder;
@@ -24,14 +27,13 @@ export type CustomerOrderView = CustomerOrder & {
   deliveryTask: CustomerDeliveryTask | null;
 };
 
-export function formatCurrency(amount: number, currency: "SYP" | "USD") {
-  return `${amount.toLocaleString("en-US")} ${currency === "USD" ? "$" : "ل.س"}`;
-}
+export function formatCurrency(amount: number, currency: "SYP") { return formatSyp(Number(amount), currency); }
 
 async function attachOrderDetails(
   orders: CustomerOrder[],
 ): Promise<CustomerOrderView[]> {
   if (orders.length === 0) return [];
+  assertSypDocuments(orders);
   const orderIds = orders.map((order) => order.id);
 
   const [totalsResult, storeOrdersResult] = await Promise.all([
@@ -75,6 +77,8 @@ async function attachOrderDetails(
   if (itemsResult.error) throw itemsResult.error;
   if (historyResult.error) throw historyResult.error;
   if (deliveryTasksResult.error) throw deliveryTasksResult.error;
+  assertSypDocuments(totalsResult.data);
+  assertSypDocuments(itemsResult.data);
 
   const storeNames = new Map((storesResult.data ?? []).map((store) => [store.id, store.name]));
   const itemsByStoreOrder = new Map<string, CustomerOrderItem[]>();
@@ -96,9 +100,12 @@ async function attachOrderDetails(
     }
   }
 
+  const contexts = await getC3Contexts(orderIds);
   return orders.map((order) => ({
+    c3: contexts[order.id],
     ...order,
-    totals: (totalsResult.data ?? []).filter((total) => total.customer_order_id === order.id),
+    delivery_fee: contexts[order.id]?.pricing?.current.delivery_fee ?? order.delivery_fee,
+    totals: (totalsResult.data ?? []).filter((total) => total.customer_order_id === order.id).map(total => contexts[order.id]?.pricing ? { ...total, items_subtotal: contexts[order.id].pricing!.current.items_amount, delivery_fee: contexts[order.id].pricing!.current.delivery_fee, total: contexts[order.id].pricing!.current.total } : total),
     stores: storeOrders
       .filter((storeOrder) => storeOrder.customer_order_id === order.id)
       .map((storeOrder) => ({
@@ -203,25 +210,13 @@ export async function deleteCustomerAddress(addressId: string): Promise<void> {
 }
 
 export async function createCustomerOrder(input: {
-  recipientName: string;
-  contactPhone: string;
-  deliveryAddress: string;
-  deliveryZoneId: string;
-  customerNote: string;
-}): Promise<string> {
-  const { data, error } = await supabase.rpc("create_order_from_cart", {
-    input_recipient_name: input.recipientName,
-    input_contact_phone: input.contactPhone,
-    input_delivery_address: input.deliveryAddress,
-    input_delivery_zone: input.deliveryZoneId,
-    input_customer_note: input.customerNote,
-  });
-  if (error) {
-    const availabilityError = purchaseAvailabilityMessage(error);
-    if (availabilityError) throw new Error(availabilityError);
-    throw error;
-  }
-  return data;
+  recipientName: string; contactPhone: string; deliveryAddress: string;
+  deliveryZoneId: string; customerNote: string; expectedTotal: number; expectedUser: string; cartSignature: string;
+}) {
+  return submitC3Order({ input_recipient_name: input.recipientName,
+    input_contact_phone: input.contactPhone, input_delivery_address: input.deliveryAddress,
+    input_delivery_zone: input.deliveryZoneId, input_customer_note: input.customerNote,
+    expected_total: input.expectedTotal, expected_user: input.expectedUser, expected_cart_signature: input.cartSignature });
 }
 
 export async function cancelCustomerOrder(orderId: string): Promise<void> {

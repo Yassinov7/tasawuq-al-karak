@@ -53,13 +53,21 @@ function visit(node) {
   ts.forEachChild(node, visit);
 }
 visit(tree);
-assert.deepEqual(dependencies, ['router', 'userId']);
-assert(app.includes('setCategoryId((previous)') && app.includes('setPlanId((previous)'));
-assert(app.includes('merchant-application-draft:${userId}') && app.includes('submitLock.current'));
+assert(dependencies.includes('router') && dependencies.includes('userId'));
+assert(!dependencies.some((value) => ['planId', 'categoryId', 'phone', 'store'].includes(value)), 'Typing or selecting must not reload the form');
+assert(app.includes('useOnboardingDraft') && app.includes('draftReady'));
+assert(read('src/lib/merchant-application-draft.ts').includes('merchant-application-draft:${userId}') && app.includes('submitLock.current'));
+assert(!app.includes('supabase.rpc('), 'Opening the review must not submit an application');
 const editor = read('src/app/merchant/product-editor.tsx');
 assert(!editor.includes('__DEV__') && !editor.includes('setAlert') && !editor.includes('projectRef'));
-assert(editor.includes('setNotice(successMessage)') && editor.includes('router.back()'));
-assert(editor.includes('saveLock.current') && editor.includes('draftProduct.current'));
+assert(editor.includes('MerchantAddProduct') && editor.includes('MerchantEditProduct'));
+const addEditor = read('src/components/merchant/MerchantAddProduct.tsx');
+const editEditor = read('src/components/merchant/MerchantEditProduct.tsx');
+assert(addEditor.includes('setNotice(') && editEditor.includes('setNotice('));
+assert(addEditor.includes('router.back()') && editEditor.includes('router.back()'));
+assert(read('src/lib/merchant-product-create.ts').includes('if (locked) return false'));
+assert(read('src/lib/merchant-product-edit.ts').includes('if(busy)return false'));
+assert(addEditor.includes('setAttempt(snapshot)') && editEditor.includes('setAttempt(snapshot)'));
 const layout = read('src/app/merchant/_layout.tsx');
 assert.equal((layout.match(/<AppHeader\b/g) || []).length, 1);
 assert.equal((layout.match(/<AppBottomNav\b/g) || []).length, 1);
@@ -93,7 +101,9 @@ const client = { from(table) {
   return query;
 } };
 const store = { id: 'store', merchant_id: 'merchant' };
+const accountModel=load('src/lib/personal-account-model.ts',{'@/types/profile-demographics':load('src/types/profile-demographics.ts')});
 const account = load('src/lib/merchant-account.ts', {
+  '@/lib/personal-account': {readPersonalAccount:async()=>({id:'owner',full_name:'Saved name',age_range:null,gender:null}),assertAccount:async id=>assert.equal(id,'owner'),savePersonalAccount:async(id,base,draft)=>{assert.equal(id,base.id);return client.from('profiles').update(accountModel.personalValues(draft)).eq('id',id).select().single();}},
   '@/lib/supabase': { supabase: client },
   '@/lib/merchant-store': { getMerchantStore: async () => store },
   '@/lib/local-cache': { invalidateLocalCache: async () => undefined },
@@ -113,7 +123,7 @@ async function run() {
   await assert.rejects(account.saveMerchantProfile('owner', 'اسم صحيح', null, 'invalid'), /قيمة/);
   assert.equal(calls.length, 0);
   await account.saveMerchantProfile('owner', 'اسم صحيح', null);
-  assert.deepEqual(Object.keys(calls[0].values).sort(), ['age_range', 'full_name']);
+  assert.deepEqual(Object.keys(calls[0].values).sort(), ['age_range', 'full_name', 'gender']);
   assert.deepEqual(plain(calls[0].filters), [['id', 'owner']]);
   await assert.rejects(account.saveMerchantStoreInfo('owner', 'other-store', { name: 'متجر', description: '', phone: '12345', address: 'عنوان' }), /صلاحية/);
   assert.equal(calls.length, 1);

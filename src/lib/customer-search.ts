@@ -2,7 +2,6 @@ import type { Category, Product, Store } from "@/constants/catalog";
 
 export type SearchFilter = "all" | "products" | "stores" | "categories";
 export type ProductSort = "relevance" | "price-ascending" | "price-descending";
-export type CurrencyFilter = "all" | "SYP" | "USD";
 export type CustomerSearchResults = { stores: Store[]; products: Product[]; categories: Category[] };
 type Input = { categories: Category[]; products: Product[]; stores: Store[]; storeCategories: Category[] };
 
@@ -19,6 +18,10 @@ export function getCustomerSearchResults(input: Input, searchText: string): Cust
   const matchedCategories = categories.map((category) => { const name = normalizeCustomerSearchText(category.name); return { category, score: name === query ? 1000 : matchesAllCustomerSearchTerms(category.name, terms) ? 700 : 0 }; }).filter((item) => item.score > 0).sort((a, b) => b.score - a.score).map((item) => item.category);
   return { stores: matchedStores, products: matchedProducts, categories: matchedCategories };
 }
-export function getVisibleCustomerSearchResults(results: CustomerSearchResults, filter: SearchFilter, selectedCategoryId: string | null, currencyFilter: CurrencyFilter, productSort: ProductSort): CustomerSearchResults {
-  const products = results.products.filter((product) => (selectedCategoryId === null || product.categoryId === selectedCategoryId) && (currencyFilter === "all" || (product.currency ?? "SYP") === currencyFilter)); const sortedProducts = [...products]; if (currencyFilter !== "all" && productSort === "price-ascending") sortedProducts.sort((a,b) => a.price-b.price); else if (currencyFilter !== "all" && productSort === "price-descending") sortedProducts.sort((a,b) => b.price-a.price); if (filter === "products") return { stores: [], products: sortedProducts, categories: [] }; if (filter === "stores") return { stores: results.stores, products: [], categories: [] }; if (filter === "categories") return { stores: [], products: [], categories: results.categories }; return { ...results, products: sortedProducts };
+export function getVisibleCustomerSearchResults(results: CustomerSearchResults, filter: SearchFilter, selectedCategoryId: string | null, productSort: ProductSort): CustomerSearchResults {
+  const products = results.products.filter((product) => selectedCategoryId === null || product.categoryId === selectedCategoryId);
+  const sortedProducts = [...products];
+  if (productSort === "price-ascending") sortedProducts.sort((a, b) => a.price - b.price);
+  else if (productSort === "price-descending") sortedProducts.sort((a, b) => b.price - a.price);
+  return { stores: filter === "all" || filter === "stores" ? results.stores : [], products: filter === "all" || filter === "products" ? sortedProducts : [], categories: filter === "all" || filter === "categories" ? results.categories : [] };
 }

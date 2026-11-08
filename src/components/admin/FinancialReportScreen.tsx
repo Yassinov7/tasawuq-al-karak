@@ -3,7 +3,7 @@ import { type Href, useRouter } from "expo-router";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
-import { loadFinancialReport, reportDateField, type FinancialReportData, type FinancialReportKind, type FinancialReportRow, type ReportCurrency } from "@/lib/admin-financial-reports";
+import { loadFinancialReport, reportDateField, type FinancialReportData, type FinancialReportKind, type FinancialReportRow } from "@/lib/admin-financial-reports";
 
 const titles: Record<FinancialReportKind, string> = { cash: "الحركة النقدية المؤكدة", delivery: "أجور التوصيل", custody: "عهد السائقين", merchant: "مستحقات التجار", platform: "إيرادات المنصة" };
 const cashTypes = ["", "driver_remittance", "driver_credit_payout", "merchant_settlement_payment", "subscription_payment"];
@@ -27,7 +27,6 @@ const format = (value: string | number | null) => typeof value === "number" ? va
 
 export function FinancialReportScreen({ kind }: { kind: FinancialReportKind }) {
   const { colors } = useTheme();
-  const [currency, setCurrency] = useState<ReportCurrency | undefined>();
   const [from, setFrom] = useState(""); const [to, setTo] = useState("");
   const [eventType, setEventType] = useState(""); const [driverId, setDriverId] = useState(""); const [zone, setZone] = useState("");
   const [merchantId, setMerchantId] = useState(""); const [detailType, setDetailType] = useState(""); const [settlementState, setSettlementState] = useState("");
@@ -38,7 +37,7 @@ export function FinancialReportScreen({ kind }: { kind: FinancialReportKind }) {
     const request = ++requestId.current;
     if (manual) setRefreshing(true); else setLoading(true);
     try {
-      const next = await loadFinancialReport(kind, { currency, from, to, eventType, driverId, zone, merchantId, detailType, settlementState, page });
+      const next = await loadFinancialReport(kind, { from, to, eventType, driverId, zone, merchantId, detailType, settlementState, page });
       if (request !== requestId.current) return;
       setData(next); setError("");
     } catch (caught) {
@@ -47,7 +46,7 @@ export function FinancialReportScreen({ kind }: { kind: FinancialReportKind }) {
     } finally {
       if (request === requestId.current) { setLoading(false); setRefreshing(false); }
     }
-  }, [currency, driverId, eventType, from, kind, page, to, zone, merchantId, detailType, settlementState]);
+  }, [driverId, eventType, from, kind, page, to, zone, merchantId, detailType, settlementState]);
   useEffect(() => {
     const timer = setTimeout(() => void load(), 350);
     return () => { clearTimeout(timer); requestId.current += 1; };
@@ -57,7 +56,8 @@ export function FinancialReportScreen({ kind }: { kind: FinancialReportKind }) {
   const showDrivers = kind === "delivery" || kind === "custody";
   return <ScrollView style={[styles.screen, { backgroundColor: colors.background }]} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} />}>
     <Text style={[styles.title, { color: colors.text }]}>{titles[kind]}</Text>
-    <View style={styles.filters}>{([undefined, "SYP", "USD"] as const).map((item) => <Filter key={item ?? "all"} label={item ?? "كل العملات"} active={currency === item} onPress={() => { setPage(0); setData(null); setCurrency(item); }} />)}</View>
+    <ReportText>هذا تقرير للنظام القديم فقط؛ لا يشمل قيود C2–C9. راجع الخزينة الجديدة والمطابقة دون جمع النظامين.</ReportText>
+
     {reportDateField(kind) ? <View style={styles.filters}>
       <TextInput accessibilityLabel="بداية الفترة" value={from} onChangeText={(v) => change(setFrom, v)} placeholder="من YYYY-MM-DD" placeholderTextColor={colors.textMuted} style={[styles.input, { color: colors.text, borderColor: colors.border }]} />
       <TextInput accessibilityLabel="نهاية الفترة" value={to} onChangeText={(v) => change(setTo, v)} placeholder="إلى YYYY-MM-DD" placeholderTextColor={colors.textMuted} style={[styles.input, { color: colors.text, borderColor: colors.border }]} />
@@ -68,7 +68,7 @@ export function FinancialReportScreen({ kind }: { kind: FinancialReportKind }) {
     {kind === "delivery" ? <View style={styles.filters}><Filter label="كل المناطق" active={!zone} onPress={() => change(setZone, "")} />{options.filter((o) => o.kind === "zone").map((o) => <Filter key={String(o.value)} label={String(o.label)} active={zone === o.value} onPress={() => change(setZone, String(o.value))} />)}{zone && !options.length ? <Filter label="إلغاء فلتر المنطقة" active onPress={() => change(setZone, "")} /> : null}</View> : null}
     {kind === "merchant" || kind === "platform" ? <>
       <View style={styles.filters}><Filter label="كل التجار" active={!merchantId} onPress={() => change(setMerchantId, "")} />{options.filter((o) => o.kind === "merchant").map((o) => <Filter key={String(o.value)} label={String(o.label)} active={merchantId === o.value} onPress={() => change(setMerchantId, String(o.value))} />)}</View>
-      <ReportText>نوع التفاصيل وحالة التسوية يفلتران القائمة فقط؛ المؤشرات تشمل الفترة والعملة والتاجر المحدد.</ReportText>
+      <ReportText>نوع التفاصيل وحالة التسوية يفلتران القائمة فقط؛ المؤشرات تشمل الفترة والتاجر المحدد.</ReportText>
       <View style={styles.filters}>{detailTypes[kind].map((item) => <Filter key={item || "all-details"} label={labels[item] ?? "كل التفاصيل"} active={detailType === item} onPress={() => { setSettlementState(""); change(setDetailType, item); }} />)}</View>
       {kind === "merchant" && detailType === "settlement" ? <View style={styles.filters}>{["", "open", "completed", "partially_paid"].map((item) => <Filter key={item || "all-states"} label={labels[item] ?? "كل حالات التسوية"} active={settlementState === item} onPress={() => change(setSettlementState, item)} />)}</View> : null}
     </> : null}
@@ -79,8 +79,8 @@ export function FinancialReportScreen({ kind }: { kind: FinancialReportKind }) {
     {loading ? <ActivityIndicator color={colors.primary} /> : null}
     {error ? <><Text accessibilityRole="alert" style={[styles.meta, { color: colors.error }]}>{error}</Text><Filter label="إعادة المحاولة" onPress={() => void load()} /></> : null}
     {!loading && !error && data ? <>
-      {data.summaryAvailable ? <><ReportText>{kind === "custody" ? "الأرصدة الحالية حسب العملة" : "المؤشرات لجميع السجلات المطابقة للفلاتر"}</ReportText>{data.summary.map((row) => <Metrics key={String(row.currency)} row={row} />)}</> : <ReportText>هذا التقرير غير مكتمل: التفاصيل أدناه محدودة بصفحة؛ الإجماليات الشاملة غير متاحة بعد، ولا تُحسب من هذه الصفحة.</ReportText>}
-      {data.groups.length ? <ReportText>{kind === "custody" ? "حركة الفترة حسب العملة" : kind === "merchant" ? "الأرصدة الحالية لجميع التواريخ حسب العملة" : "التجميع حسب المنطقة والسائق"}</ReportText> : null}
+      {data.summaryAvailable ? <><ReportText>{kind === "custody" ? "الأرصدة الحالية بالليرة السورية" : "المؤشرات لجميع السجلات المطابقة للفلاتر"}</ReportText>{data.summary.map((row) => <Metrics key={String(row.currency)} row={row} />)}</> : <ReportText>هذا التقرير غير مكتمل: التفاصيل أدناه محدودة بصفحة؛ الإجماليات الشاملة غير متاحة بعد، ولا تُحسب من هذه الصفحة.</ReportText>}
+      {data.groups.length ? <ReportText>{kind === "custody" ? "حركة الفترة بالليرة السورية" : kind === "merchant" ? "الأرصدة الحالية لجميع التواريخ بالليرة السورية" : "التجميع حسب المنطقة والسائق"}</ReportText> : null}
       {data.groups.map((row, i) => <Metrics key={`${row.currency}-${row.group_type ?? "period"}-${row.group_key ?? i}`} row={row} />)}
       <ReportText>تفاصيل الصفحة {page + 1} · {data.count} سجل مطابق</ReportText>
       {data.rows.map((row, index) => <RecordCard key={`${row.event_type ?? "row"}-${row.id ?? row.customer_order_id ?? row.batch_entitlement_id ?? row.driver_id ?? index}-${row.currency}`} row={row} kind={kind} />)}

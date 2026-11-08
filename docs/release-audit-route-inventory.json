@@ -1,0 +1,654 @@
+{
+  "date": "2026-11-09",
+  "scope": "Source route inventory only, not runtime acceptance",
+  "routes": [
+    {
+      "file": "src/app/about.tsx",
+      "route": "/about",
+      "layout": false,
+      "lines": 103
+    },
+    {
+      "file": "src/app/addresses.tsx",
+      "route": "/addresses",
+      "layout": false,
+      "lines": 521
+    },
+    {
+      "file": "src/app/admin/application-details.tsx",
+      "route": "/admin/application-details",
+      "layout": false,
+      "lines": 36
+    },
+    {
+      "file": "src/app/admin/applications.tsx",
+      "route": "/admin/applications",
+      "layout": false,
+      "lines": 34
+    },
+    {
+      "file": "src/app/admin/cash-movement-report.tsx",
+      "route": "/admin/cash-movement-report",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/admin/commission-details.tsx",
+      "route": "/admin/commission-details",
+      "layout": false,
+      "lines": 16
+    },
+    {
+      "file": "src/app/admin/commissions.tsx",
+      "route": "/admin/commissions",
+      "layout": false,
+      "lines": 23
+    },
+    {
+      "file": "src/app/admin/create-merchant-settlement.tsx",
+      "route": "/admin/create-merchant-settlement",
+      "layout": false,
+      "lines": 35
+    },
+    {
+      "file": "src/app/admin/credit-details.tsx",
+      "route": "/admin/credit-details",
+      "layout": false,
+      "lines": 24
+    },
+    {
+      "file": "src/app/admin/credit.tsx",
+      "route": "/admin/credit",
+      "layout": false,
+      "lines": 36
+    },
+    {
+      "file": "src/app/admin/delivery-fees-report.tsx",
+      "route": "/admin/delivery-fees-report",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/admin/driver-custody-details.tsx",
+      "route": "/admin/driver-custody-details",
+      "layout": false,
+      "lines": 33
+    },
+    {
+      "file": "src/app/admin/driver-custody-report.tsx",
+      "route": "/admin/driver-custody-report",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/admin/driver-custody.tsx",
+      "route": "/admin/driver-custody",
+      "layout": false,
+      "lines": 16
+    },
+    {
+      "file": "src/app/admin/driver-details.tsx",
+      "route": "/admin/driver-details",
+      "layout": false,
+      "lines": 9
+    },
+    {
+      "file": "src/app/admin/drivers.tsx",
+      "route": "/admin/drivers",
+      "layout": false,
+      "lines": 17
+    },
+    {
+      "file": "src/app/admin/finance-reconciliation.tsx",
+      "route": "/admin/finance-reconciliation",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/admin/finance-transition.tsx",
+      "route": "/admin/finance-transition",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/admin/finance.tsx",
+      "route": "/admin/finance",
+      "layout": false,
+      "lines": 50
+    },
+    {
+      "file": "src/app/admin/financial-indicators.tsx",
+      "route": "/admin/financial-indicators",
+      "layout": false,
+      "lines": 190
+    },
+    {
+      "file": "src/app/admin/financial-reports.tsx",
+      "route": "/admin/financial-reports",
+      "layout": false,
+      "lines": 10
+    },
+    {
+      "file": "src/app/admin/index.tsx",
+      "route": "/admin",
+      "layout": false,
+      "lines": 384
+    },
+    {
+      "file": "src/app/admin/invoice-details.tsx",
+      "route": "/admin/invoice-details",
+      "layout": false,
+      "lines": 57
+    },
+    {
+      "file": "src/app/admin/invoices.tsx",
+      "route": "/admin/invoices",
+      "layout": false,
+      "lines": 80
+    },
+    {
+      "file": "src/app/admin/ledger-details.tsx",
+      "route": "/admin/ledger-details",
+      "layout": false,
+      "lines": 13
+    },
+    {
+      "file": "src/app/admin/ledger.tsx",
+      "route": "/admin/ledger",
+      "layout": false,
+      "lines": 13
+    },
+    {
+      "file": "src/app/admin/merchant-finance.tsx",
+      "route": "/admin/merchant-finance",
+      "layout": false,
+      "lines": 105
+    },
+    {
+      "file": "src/app/admin/merchant-payouts-report.tsx",
+      "route": "/admin/merchant-payouts-report",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/admin/merchant-settlement-details.tsx",
+      "route": "/admin/merchant-settlement-details",
+      "layout": false,
+      "lines": 80
+    },
+    {
+      "file": "src/app/admin/merchant-settlements.tsx",
+      "route": "/admin/merchant-settlements",
+      "layout": false,
+      "lines": 95
+    },
+    {
+      "file": "src/app/admin/more.tsx",
+      "route": "/admin/more",
+      "layout": false,
+      "lines": 30
+    },
+    {
+      "file": "src/app/admin/order-details.tsx",
+      "route": "/admin/order-details",
+      "layout": false,
+      "lines": 78
+    },
+    {
+      "file": "src/app/admin/orders.tsx",
+      "route": "/admin/orders",
+      "layout": false,
+      "lines": 91
+    },
+    {
+      "file": "src/app/admin/payment-details.tsx",
+      "route": "/admin/payment-details",
+      "layout": false,
+      "lines": 34
+    },
+    {
+      "file": "src/app/admin/payments.tsx",
+      "route": "/admin/payments",
+      "layout": false,
+      "lines": 44
+    },
+    {
+      "file": "src/app/admin/plan-form.tsx",
+      "route": "/admin/plan-form",
+      "layout": false,
+      "lines": 120
+    },
+    {
+      "file": "src/app/admin/plans.tsx",
+      "route": "/admin/plans",
+      "layout": false,
+      "lines": 88
+    },
+    {
+      "file": "src/app/admin/platform-revenue-report.tsx",
+      "route": "/admin/platform-revenue-report",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/admin/requests.tsx",
+      "route": "/admin/requests",
+      "layout": false,
+      "lines": 2
+    },
+    {
+      "file": "src/app/admin/store-details.tsx",
+      "route": "/admin/store-details",
+      "layout": false,
+      "lines": 30
+    },
+    {
+      "file": "src/app/admin/stores.tsx",
+      "route": "/admin/stores",
+      "layout": false,
+      "lines": 33
+    },
+    {
+      "file": "src/app/admin/subscription-details.tsx",
+      "route": "/admin/subscription-details",
+      "layout": false,
+      "lines": 45
+    },
+    {
+      "file": "src/app/admin/subscriptions.tsx",
+      "route": "/admin/subscriptions",
+      "layout": false,
+      "lines": 59
+    },
+    {
+      "file": "src/app/admin/treasury.tsx",
+      "route": "/admin/treasury",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/admin/_layout.tsx",
+      "route": "/admin/_layout",
+      "layout": true,
+      "lines": 81
+    },
+    {
+      "file": "src/app/application-status.tsx",
+      "route": "/application-status",
+      "layout": false,
+      "lines": 451
+    },
+    {
+      "file": "src/app/cart.tsx",
+      "route": "/cart",
+      "layout": false,
+      "lines": 1774
+    },
+    {
+      "file": "src/app/checkout.tsx",
+      "route": "/checkout",
+      "layout": false,
+      "lines": 990
+    },
+    {
+      "file": "src/app/driver/account.tsx",
+      "route": "/driver/account",
+      "layout": false,
+      "lines": 26
+    },
+    {
+      "file": "src/app/driver/cash-account.tsx",
+      "route": "/driver/cash-account",
+      "layout": false,
+      "lines": 20
+    },
+    {
+      "file": "src/app/driver/index.tsx",
+      "route": "/driver",
+      "layout": false,
+      "lines": 551
+    },
+    {
+      "file": "src/app/driver/orders.tsx",
+      "route": "/driver/orders",
+      "layout": false,
+      "lines": 389
+    },
+    {
+      "file": "src/app/driver/_layout.tsx",
+      "route": "/driver/_layout",
+      "layout": true,
+      "lines": 18
+    },
+    {
+      "file": "src/app/driver-application.tsx",
+      "route": "/driver-application",
+      "layout": false,
+      "lines": 876
+    },
+    {
+      "file": "src/app/favorites.tsx",
+      "route": "/favorites",
+      "layout": false,
+      "lines": 543
+    },
+    {
+      "file": "src/app/home/account.tsx",
+      "route": "/home/account",
+      "layout": false,
+      "lines": 24
+    },
+    {
+      "file": "src/app/home/index.tsx",
+      "route": "/home",
+      "layout": false,
+      "lines": 215
+    },
+    {
+      "file": "src/app/home/offers.tsx",
+      "route": "/home/offers",
+      "layout": false,
+      "lines": 477
+    },
+    {
+      "file": "src/app/home/search.tsx",
+      "route": "/home/search",
+      "layout": false,
+      "lines": 232
+    },
+    {
+      "file": "src/app/home/_layout.tsx",
+      "route": "/home/_layout",
+      "layout": true,
+      "lines": 19
+    },
+    {
+      "file": "src/app/index.tsx",
+      "route": "/",
+      "layout": false,
+      "lines": 150
+    },
+    {
+      "file": "src/app/invoice.tsx",
+      "route": "/invoice",
+      "layout": false,
+      "lines": 239
+    },
+    {
+      "file": "src/app/login.tsx",
+      "route": "/login",
+      "layout": false,
+      "lines": 111
+    },
+    {
+      "file": "src/app/merchant/account.tsx",
+      "route": "/merchant/account",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/merchant/catalog.tsx",
+      "route": "/merchant/catalog",
+      "layout": false,
+      "lines": 181
+    },
+    {
+      "file": "src/app/merchant/finance.tsx",
+      "route": "/merchant/finance",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/merchant/financial-ledger-details.tsx",
+      "route": "/merchant/financial-ledger-details",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/merchant/financial-ledger.tsx",
+      "route": "/merchant/financial-ledger",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/merchant/financial-sale-details.tsx",
+      "route": "/merchant/financial-sale-details",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/merchant/financial-sales.tsx",
+      "route": "/merchant/financial-sales",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/merchant/index.tsx",
+      "route": "/merchant",
+      "layout": false,
+      "lines": 158
+    },
+    {
+      "file": "src/app/merchant/offer-editor.tsx",
+      "route": "/merchant/offer-editor",
+      "layout": false,
+      "lines": 8
+    },
+    {
+      "file": "src/app/merchant/offers.tsx",
+      "route": "/merchant/offers",
+      "layout": false,
+      "lines": 7
+    },
+    {
+      "file": "src/app/merchant/orders.tsx",
+      "route": "/merchant/orders",
+      "layout": false,
+      "lines": 154
+    },
+    {
+      "file": "src/app/merchant/personal-info.tsx",
+      "route": "/merchant/personal-info",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/merchant/product-editor.tsx",
+      "route": "/merchant/product-editor",
+      "layout": false,
+      "lines": 15
+    },
+    {
+      "file": "src/app/merchant/products.tsx",
+      "route": "/merchant/products",
+      "layout": false,
+      "lines": 7
+    },
+    {
+      "file": "src/app/merchant/sales-commissions.tsx",
+      "route": "/merchant/sales-commissions",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/merchant/security.tsx",
+      "route": "/merchant/security",
+      "layout": false,
+      "lines": 4
+    },
+    {
+      "file": "src/app/merchant/settings.tsx",
+      "route": "/merchant/settings",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/merchant/settlement-details.tsx",
+      "route": "/merchant/settlement-details",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/merchant/settlements.tsx",
+      "route": "/merchant/settlements",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/merchant/store-info.tsx",
+      "route": "/merchant/store-info",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/merchant/subscription-invoice-details.tsx",
+      "route": "/merchant/subscription-invoice-details",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/merchant/subscription-invoices.tsx",
+      "route": "/merchant/subscription-invoices",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/merchant/subscription-payment-details.tsx",
+      "route": "/merchant/subscription-payment-details",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/merchant/subscription-payments.tsx",
+      "route": "/merchant/subscription-payments",
+      "layout": false,
+      "lines": 3
+    },
+    {
+      "file": "src/app/merchant/subscription.tsx",
+      "route": "/merchant/subscription",
+      "layout": false,
+      "lines": 5
+    },
+    {
+      "file": "src/app/merchant/_layout.tsx",
+      "route": "/merchant/_layout",
+      "layout": true,
+      "lines": 50
+    },
+    {
+      "file": "src/app/merchant-application-review.tsx",
+      "route": "/merchant-application-review",
+      "layout": false,
+      "lines": 142
+    },
+    {
+      "file": "src/app/merchant-application.tsx",
+      "route": "/merchant-application",
+      "layout": false,
+      "lines": 1163
+    },
+    {
+      "file": "src/app/notifications.tsx",
+      "route": "/notifications",
+      "layout": false,
+      "lines": 765
+    },
+    {
+      "file": "src/app/offer-details.tsx",
+      "route": "/offer-details",
+      "layout": false,
+      "lines": 443
+    },
+    {
+      "file": "src/app/order-details.tsx",
+      "route": "/order-details",
+      "layout": false,
+      "lines": 824
+    },
+    {
+      "file": "src/app/orders.tsx",
+      "route": "/orders",
+      "layout": false,
+      "lines": 675
+    },
+    {
+      "file": "src/app/personal-info.tsx",
+      "route": "/personal-info",
+      "layout": false,
+      "lines": 2
+    },
+    {
+      "file": "src/app/privacy.tsx",
+      "route": "/privacy",
+      "layout": false,
+      "lines": 115
+    },
+    {
+      "file": "src/app/product-details.tsx",
+      "route": "/product-details",
+      "layout": false,
+      "lines": 1337
+    },
+    {
+      "file": "src/app/reset-password.tsx",
+      "route": "/reset-password",
+      "layout": false,
+      "lines": 98
+    },
+    {
+      "file": "src/app/security.tsx",
+      "route": "/security",
+      "layout": false,
+      "lines": 2
+    },
+    {
+      "file": "src/app/settings.tsx",
+      "route": "/settings",
+      "layout": false,
+      "lines": 2
+    },
+    {
+      "file": "src/app/signup.tsx",
+      "route": "/signup",
+      "layout": false,
+      "lines": 163
+    },
+    {
+      "file": "src/app/store-details.tsx",
+      "route": "/store-details",
+      "layout": false,
+      "lines": 953
+    },
+    {
+      "file": "src/app/stores.tsx",
+      "route": "/stores",
+      "layout": false,
+      "lines": 415
+    },
+    {
+      "file": "src/app/terms.tsx",
+      "route": "/terms",
+      "layout": false,
+      "lines": 118
+    },
+    {
+      "file": "src/app/verify-email.tsx",
+      "route": "/verify-email",
+      "layout": false,
+      "lines": 44
+    },
+    {
+      "file": "src/app/wallet.tsx",
+      "route": "/wallet",
+      "layout": false,
+      "lines": 773
+    },
+    {
+      "file": "src/app/_layout.tsx",
+      "route": "/_layout",
+      "layout": true,
+      "lines": 119
+    }
+  ]
+}

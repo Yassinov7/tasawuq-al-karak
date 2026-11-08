@@ -1,0 +1,262 @@
+{
+  "date": "2026-11-09",
+  "scope": "Local source and mocked tests; no database or signed JWT validation",
+  "results": [
+    {
+      "script": "test-auth-onboarding.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS: recovery links, draft validation/isolation, theme compatibility/contrast, navigation preservation and storage failures."
+    },
+    {
+      "script": "test-database-schema-contract.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS: offline table column/optionality/nullability and FK coverage across 54 tables; remote verification is a separate check.\nPASS: 16 final historical views audited; 12 affected views have dependency-safe DROP/CREATE, ACL and owner coverage.\n  merchant_order_entitlement_positions -> merchant_settlement_batch_positions\n  merchant_settlement_batch_positions -> admin_merchant_payout_report_rows\n  admin_merchant_settlement_report_batches -> admin_merchant_financial_report_events\n  merchant_order_entitlement_positions -> merchant_account_sale_rows"
+    },
+    {
+      "script": "test-delivery-collection-attempt.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS unknown survives restart and read-only recovery sends no cash write\nPASS rejected result retires old intent; next deliberate action has new key\nPASS read/write cache failure prevents collection\nPASS double tap locks synchronously\nPASS account switch never exposes recovered result; other owner cannot use saved intent\nPASS failed cleanup or recovery read never authorizes a duplicate write\nPASS capability/version mismatch prevents new collection\n14 atomic client tests passed; SQL behavior NOT TESTED."
+    },
+    {
+      "script": "test-driver-collection.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS foreign assigned-task row fails closed even if a mock bypasses query filters\nPASS caller cannot request another driver identity or use an unassigned parent\nPASS account switch during context read discards collection and customer details\nPASS valid transition re-reads scoped context before calling existing RPC\nPASS zero is valid only when explicitly supplied by server; fractional SYP is preserved\nPASS UI wires retry/block states and immediate action lock; unknown collection cannot progress\nPASS SQL permits assigned-driver pricing only and keeps review blocks; inspection is not JWT proof\n14 driver collection checks passed (offline; PostgreSQL/JWT/device NOT RUN)."
+    },
+    {
+      "script": "test-finance-c10.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS integration SQL forces deferred checks AFTER cross-phase writes and proves drift detection\nPASS shared timeout is unknown, and does not cancel a late commit\nPASS C3 hung creation releases the client lock but preserves recoverable intent\nPASS C4 pickup lost/hung response is recovered using immutable task/store pair\nPASS C4 delivery timeout recovers the committed result without another collection\nPASS legacy admin dashboard has no cross-account module cache and labels are explicit\nPASS PostgreSQL runner refuses without opt-in before any connection\n20 C10 offline integration/contract checks PASS; PostgreSQL/JWT/concurrency NOT RUN."
+    },
+    {
+      "script": "test-finance-c11.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS report rejects combined balances, incomplete gates and malformed money\nPASS scoped report uses expected user and pagination\nPASS user switch and permission denial never reveal legacy obligations\nPASS actual legacy amount adapter returns exact server preview without local calculation\nPASS legacy adapter rejects wrong task/order, session switch and unknown amount\nPASS complete C10/C11 SQL composition includes real deferred/COMMIT paths and no skipped tests\nPASS both behavioral harnesses deny missing opt-in before any network/psql\n22 C11 offline checks PASS; PostgreSQL/JWT/COMMIT/concurrency NOT RUN."
+    },
+    {
+      "script": "test-finance-c12-readonly.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS both files contain only a read-only transaction, SELECT/WITH and ROLLBACK\nPASS no writes, sequence advance, claims, dynamic blocks or financial RPC execution\nPASS eleven migrations, decimal constraint and all eight gate identities are explicit\nPASS ledger checks include empty entries, precision, reversal, duplicate events, references and reconciliation\nPASS scheduler reads are optional and never disclose commands, JWTs or keys\nPASS C10 view helper bodies remain SELECT-only in the reviewed local source chain\n6 C12 read-only package SOURCE checks PASS. PostgreSQL/JWT/remote execution NOT RUN."
+    },
+    {
+      "script": "test-finance-c2-guard.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS hostaddr, service, options, credentials and config directories are not inherited\nPASS remote, DNS, conninfo-like names and URL query overrides fail closed\nPASS all fixtures and distinctness are validated before a query can be created\nPASS each connection checks server, database OID, system identity and test token read-only\nPASS actual process boundary receives only approved environment and identity-first SQL\nPASS missing identity, marker or fixture proof cannot reach test writes\n6 offline guard tests passed. No psql process or connection was started."
+    },
+    {
+      "script": "test-finance-c2.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS server durations handle timezone offsets and reject missing/negative data\nPASS foundation never changes an old business function or installs an old-table trigger\nPASS only two narrow public read functions exist and internal writers are revoked\nPASS balance is checked immediately and at commit, with entry locks and immutable identities\nPASS numeric fractions cannot be coerced away before CHECK validation\nPASS an economic event requires a posted journal and a successful operation at commit\nPASS event validation owns server time and enforces both parent relations\n10 C2 local contract checks passed. PostgreSQL execution is separate and NOT asserted here."
+    },
+    {
+      "script": "test-finance-c3.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS old unconfirmed creation contract is not executable by runtime roles\nPASS merchant pricing isolation and no customer increase approval API\nPASS delayed gate concurrency test is real separate psql sessions, guarded\nPASS server checks expected subject before writes/replay and binds canonical cart content\nPASS SQL precision matches legacy pricing; fractional SQL cases and post-deferred assertions exist\nPASS interactive test connection cannot send test SQL before identity ACK\nPASS actual shared cache strict read propagates failure instead of reporting no attempt\n38 offline C3 checks passed. PostgreSQL behavior NOT RUN here."
+    },
+    {
+      "script": "test-finance-c4.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS immutable birth-time selector, default-off admission and no reassignment after pickup\nPASS cash contract uses authoritative current price, economic uniqueness, two balanced journals and legacy fences\nPASS zero branch is auditable without financial events/accounts/journals; positive branch is retained\nPASS alternative delivery writers require the same committed result, with explicitly deferred guards\nPASS PostgreSQL harness requires explicit opt-in and observed blocking, not serialized fake concurrency\nPASS UI uses per-store controls/progress, realtime store updates, neutral financial component\nPASS SQL suite has isolation guards and post-deferred assertions; execution is separate\n20 offline C4 checks passed. Actual PostgreSQL/JWT/concurrency NOT RUN."
+    },
+    {
+      "script": "test-finance-c5.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS SQL uses immutable requests/decisions, all-pending reservations and ledger-derived balance\nPASS only approved driver requests; admin role PLUS explicit receiver permission confirms\nPASS cash confirmation alone posts exact Dr treasury / Cr driver with deferred receipt checks\nPASS RCT has its own FK/kind branch, immutable C2 numbering and source-event uniqueness preserved\nPASS zero C4 and legacy cannot fund C5; unsupported ledger movements block spending\nPASS UI reuses FinancialAmount, server capabilities, scoped reads and RLS-filtered realtime\nPASS isolated harness has opt-ins/identity/real blocking and SQL covers deferred failures and zero C4\n25 offline C5 checks passed; actual PostgreSQL/JWT/concurrency NOT RUN."
+    },
+    {
+      "script": "test-finance-c6.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS C4 extension posts while same C4 operation pending, before complete and after result\nPASS RCT allocation verifies real posted receipt and collected cash, serialized FIFO, no pending requests\nPASS payout requires admin PLUS separate permission, serializes treasury and never writes driver_cash\nPASS private SQL functions all empty search_path and no runtime private executor\nPASS UI exposes separate wage/custody, snapshots/RCT/PAY and explicit whole payout\nPASS pinned PostgreSQL harness refuses execution without opt-in before spawning or connecting\nPASS SQL test assertions force deferred checks; concurrency observes real locks including cross-driver treasury\n24 offline C6 checks passed. PostgreSQL/JWT/concurrency NOT RUN."
+    },
+    {
+      "script": "test-finance-c7.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS C7 capture verifies delivered-only C4 net/commission/fee and NEVER posts accrual\nPASS prepare creates SET/reservation only, unique SUB prevents duplicate settlements\nPASS PAY uses shared C6 treasury lock and trusted balance, no custody or subscription deduction\nPASS all SECURITY DEFINER bodies have empty path, private grants revoked, RLS owner scoped\nPASS UI reuses neutral financial components and explicit actual-payment confirmation\nPASS mutating C7 harness refuses any connection before explicit disposable opt-in\nPASS SQL suites enforce deferred failures, actual owner RLS rows and real C6/C7 blocking\n22 offline C7 checks passed. PostgreSQL/JWT/concurrency NOT RUN."
+    },
+    {
+      "script": "test-finance-c8.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS all definer paths empty, no new zero journal, snapshots immutable, legacy writers fenced\nPASS UI shares financial controls; mode copy denies automatic payment and legacy remains separate\nPASS mutating C8 harness stops before any connection without explicit opt-in\nPASS SQL boundary/deferred/role cases and actual overlapping sessions are written, not executed here\nPASS business rejection is durable/recoverable and can be explicitly finished without unknown deadlock\nPASS eligibility OID is preserved and legacy renewal queue explicitly excludes enrolled C8 cohorts\nPASS admin read access never substitutes for invoice/mode issue permission through merchant ownership\n24 offline C8 checks passed. SQL/JWT/concurrency NOT RUN."
+    },
+    {
+      "script": "test-finance-c9-completion.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS source: independent approvals and real owner mapping\nPASS source: economic uniqueness beyond attempt key\nPASS source: cash lock precedes available balance and posting\nPASS source: request and expense approval have no posting branch\nPASS source: immutable deferred complete journals and locked privileges\nPASS postgres completion runner refuses without opt-in\nPASS actual JWT endpoint guard rejects hosted services and redirects without network\n33 C9 completion offline checks PASS; PostgreSQL/JWT/concurrency NOT RUN."
+    },
+    {
+      "script": "test-finance-c9.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS cash-movement rejection is durable and recoverable\nPASS source: audit migration never posts; companion owns financial workflows\nPASS source: default off and explicit permissions\nPASS source: shared C5-C9 mutex and count movement guard\nPASS source: signed ledger, reversal preserved, deterministic pagination\nPASS source: immutable deferred audit and all definers pinned\nPASS PostgreSQL harness refuses absent opt-in before connecting\n27 C9 local checks PASS (NOT PostgreSQL tests)"
+    },
+    {
+      "script": "test-financial-reports.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "Financial report service contract checks passed (offline)."
+    },
+    {
+      "script": "test-merchant-add-product.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS actual local file validation does not trust picker size or MIME\nPASS a different pending attempt cannot overwrite the recovery record\nPASS explicit discard never forgets an uncertain row and never deletes remote data\nPASS navigation decisions cover clean, dirty and in-flight state\nPASS late reference reads are fenced and do not overwrite entered category\nPASS shared route delegates to separate add/edit savers without creating in edit\nPASS catalogue invalidation happens only after confirmed creation; no compensating deletes\n27 add-product tests passed (offline)"
+    },
+    {
+      "script": "test-merchant-catalog.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS fractional component quantities and buy/reward roles stay visible; prices retain SYP\nPASS list uses virtual rendering, debounced server scopes, refined confirmation and safe media retention\nPASS adapter uses page-sized stable keyset and page-scoped images and offer items\nPASS query adapter sends scoped search and filters to Supabase, including page continuations\nPASS offer child rows survive a server cap smaller than requested, with lookup names and fractional rewards\nPASS product adapter keeps actual readable inactive category and first ordered image without loading video rows\nPASS historical order snapshots are never rewritten by catalog operations\n29 merchant catalog tests passed (offline)"
+    },
+    {
+      "script": "test-merchant-draft-guard.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS: draft reference/exit guard/account isolation; modal selector search and first/last selection across 300 categories. Physical scrolling still needs a phone."
+    },
+    {
+      "script": "test-merchant-edit-product.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS another store product cannot be loaded and its media are never queried\nPASS UPDATE query includes product, store and optimistic timestamp predicates\nPASS delete only targets a known original row and never touches Storage\nPASS pending edit restores the same snapshot; corrupt records are not treated as new\nPASS both modes use the same refined form and omit normal category refresh\nPASS reference retries preserve edited inputs and initial product has no defaults\nPASS editing has no product INSERT and invalidates authoritative catalogues\n27 merchant edit-product tests passed (offline)"
+    },
+    {
+      "script": "test-merchant-experience.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS: merchant route sections/chrome, legacy units, availability filters, application dependencies, save feedback, server subscription selection and owned account writes. No network calls."
+    },
+    {
+      "script": "test-merchant-finance-workflow.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS independent operation gets a new key only after finishing the previous confirmed/rejected attempt\nPASS confirmed operation never becomes resendable when a subsequent verification read fails\nPASS batch creation has the same durable retry protocol as payment\nPASS four routes use financial chrome mapping; summary separates liabilities and no wallet is read\nPASS admin empty state is finite and no old rounding or categorical timeout failure remains\nPASS sharing identifies scope, copy uses native text selection, and no partial CSV is advertised\nPASS dates include complete local days across zones and DST midnight gaps\n31 merchant finance/settlement workflow tests passed (offline)"
+    },
+    {
+      "script": "test-merchant-financial-account.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "Merchant financial account and notification contracts passed (offline)."
+    },
+    {
+      "script": "test-merchant-home.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS: merchant home scoped counts/offer windows, freshness, retry/empty states, eligibility, account isolation and stale-response/blur protection (offline)."
+    },
+    {
+      "script": "test-merchant-offer-editor.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS durable sending state is restored by owner/store/mode and read errors block recovery\nPASS corrupt recovery forms are rejected instead of rendering or submitting guessed defaults\nPASS RPC adapter uses only the current signature and cannot send after blur\nPASS UI keeps selected components separate, explicitly replaces types, and preserves end decisions\nPASS navigation, debounce cancellation, account-keyed route and stale requests are guarded\nPASS success invalidates merchant/home/public caches without changing catalogue layout or snapshots\nPASS offer form does not introduce image/video uploads or reuse product creation workflow\n40 merchant offer model/save tests passed (offline)"
+    },
+    {
+      "script": "test-merchant-orders.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS short server pages still continue when server count exceeds rows\nPASS independent order locks release safely when one action fails\nPASS focus freshness reuses current data and refreshes stale data\nPASS parallel refreshes coalesce and realtime during a read queues one refresh\nPASS failed next page preserves rows and explicit retry recovers\nPASS late write completion after blur/refocus cannot refresh another lifecycle\nPASS offer snapshots keep components, quantities and original/final values\n18 merchant orders tests passed"
+    },
+    {
+      "script": "test-merchant-settlement-render.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS fractional SYP, signs, zero and redundant .00 retain exact existing display\nPASS forty-digit ledger strings are never converted to Number or passed as BigInt to Intl\nPASS all six RPC fields reject null, undefined, NaN, numeric and malformed types at decoder boundary\nPASS invalid presentation props show explicit unavailable label and never a fake zero\nPASS RPC service sends the actual scope and delivers only the validated financial DTO\nPASS invalid first load becomes a read error; failed refresh retains only previous validated values\nPASS a late earlier response cannot publish incomplete data over a newer read\n9 settlement render/contract regressions PASS. Phone/PostgreSQL NOT RUN."
+    },
+    {
+      "script": "test-offer-expiration.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS expiration selection leaves all three offer types, quantities and prices untouched\nPASS isolated timezone and DST validation: UTC\nPASS isolated timezone and DST validation: Asia/Damascus\nPASS isolated timezone and DST validation: America/New_York\nPASS isolated timezone and DST validation: America/Los_Angeles\nPASS isolated timezone and DST validation: Pacific/Kiritimati\nPASS isolated timezone and DST validation: Australia/Lord_Howe\n17 offer expiration tests passed (offline)"
+    },
+    {
+      "script": "test-review-views-security.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS: four invoker views, public-column allowlists, catalog anon isolation and rollback SQL test contract. PostgreSQL execution still required on staging."
+    },
+    {
+      "script": "test-safe-product-removal.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "Safe product removal contracts passed (offline)."
+    },
+    {
+      "script": "test-shared-account.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS legacy short names load without crashing the editor seed\nPASS actual settings provider restores theme, saves once, and retains previous value on failure\nPASS actual account hook discards blur response, refreshes on focus and hides previous user synchronously\nPASS actual draft guard confirms cancel and blocks busy navigation\nPASS uncertain save permits explicit retry only after a verified unchanged base\nPASS driver professional component ignores a late revoked result after blur\nPASS UI contracts: one editor, draft guards, safe navigation and no phone writes\n27 shared-account production logic/adapter checks passed (offline; no live Auth/RLS claims)."
+    },
+    {
+      "script": "test-store-branding-ui.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS late loading cannot populate an inactive account scope\nPASS leaving while reading local file prevents registration/upload\nPASS reopening restores uncertain attempt without uploading\nPASS project size error is actionable and does not claim success\nPASS refresh failure after successful mutation is distinct from mutation failure\nPASS signed link deadline expires exactly; no persistent URL cache\nPASS playback never starts automatically and pauses/unsubscribes on departure\n14 production workflow/display checks passed (offline; no real Storage upload)."
+    },
+    {
+      "script": "test-store-branding.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "19 native branding offline checks passed. Actual PostgreSQL/RLS/Storage NOT VERIFIED."
+    },
+    {
+      "script": "test-syp-architecture.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS: SYP formatter/validation, cache namespace/isolation, real offer calculation/search sort, RPC contracts and SQL invariants. PostgreSQL execution NOT performed."
+    },
+    {
+      "script": "test-syp-view-dependencies.cjs",
+      "status": "PASS",
+      "exitCode": 0,
+      "summary": "PASS: 16 final historical views audited; 12 affected views have dependency-safe DROP/CREATE, ACL and owner coverage.\n  merchant_order_entitlement_positions -> merchant_settlement_batch_positions\n  merchant_settlement_batch_positions -> admin_merchant_payout_report_rows\n  admin_merchant_settlement_report_batches -> admin_merchant_financial_report_events\n  merchant_order_entitlement_positions -> merchant_account_sale_rows"
+    }
+  ],
+  "validation": {
+    "lint": {
+      "status": "PASS",
+      "errors": 0,
+      "warnings": 6
+    },
+    "typescript": {
+      "status": "PASS"
+    },
+    "expoDoctor": {
+      "status": "FAIL",
+      "passed": 20,
+      "total": 21,
+      "reason": "Eight Expo patch version mismatches"
+    },
+    "webExport": {
+      "status": "PASS",
+      "generatedStaticRoutes": 105,
+      "bundleReported": "3.6MB",
+      "output": ".expo/release-audit-web"
+    },
+    "nativeBuilds": {
+      "status": "NOT RUN"
+    },
+    "postgres": {
+      "status": "NOT RUN"
+    },
+    "signedJwt": {
+      "status": "NOT RUN"
+    },
+    "runtimeDeviceQA": {
+      "status": "NOT RUN"
+    }
+  }
+}

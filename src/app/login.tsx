@@ -18,12 +18,14 @@ export default function LoginScreen() {
   const { colors } = useTheme();
   const {
     busy,
+    fieldErrors,
     clearError,
     email,
     error,
     login,
     openReset,
     password,
+    resetEmail, resetError, changeResetEmail,
     resetBusy,
     resetMessage,
     resetVisible,
@@ -54,9 +56,11 @@ export default function LoginScreen() {
               <LoginHeader />
               <LoginForm
                 busy={busy}
+                fieldErrors={fieldErrors}
                 email={email}
                 error={error}
                 password={password}
+                resetEmail={resetEmail} resetError={resetError} onChangeResetEmail={changeResetEmail}
                 resetBusy={resetBusy}
                 resetMessage={resetMessage}
                 resetVisible={resetVisible}

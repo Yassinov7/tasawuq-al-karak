@@ -1,3 +1,4 @@
+import { formatSyp } from "@/lib/money";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type Href, useRouter } from "expo-router";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
@@ -13,7 +14,7 @@ const filters: { id: AdminInvoiceListFilter; label: string }[] = [
   { id: "all", label: "الكل" }, { id: "open", label: "مفتوحة" }, { id: "partially_paid", label: "جزئية" }, { id: "paid", label: "مسددة" }, { id: "void", label: "ملغاة" },
 ];
 const labels: Record<string, string> = { open: "مفتوحة", partially_paid: "مسددة جزئيًا", paid: "مسددة", void: "ملغاة" };
-const money = (value: number, currency: string) => `${Number(value).toLocaleString("ar-SY", { maximumFractionDigits: 2 })} ${currency === "USD" ? "دولار" : "ل.س"}`;
+const money = (value: number, currency: string) => formatSyp(Number(value), currency);
 const date = (value: string | null) => value ? new Date(value).toLocaleDateString("ar-SY") : "—";
 
 export default function AdminInvoicesScreen() {

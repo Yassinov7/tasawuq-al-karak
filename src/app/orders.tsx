@@ -66,10 +66,10 @@ export default function OrdersScreen() {
       const rows = await getCustomerOrders();
       setOrders(rows.map((order) => ({
         id: order.id,
-        displayId: `TW-${order.order_number}`,
+        displayId: order.c3?.references[`ORD:${order.id}`] ?? `TW-${order.order_number}`,
         storeNames: order.stores.map((store) => store.storeName).join("، "),
         itemCount: order.stores.reduce((count, store) => count + groupOrderItems(store.items).length, 0),
-        total: order.totals.map((total) => formatCurrency(total.total, total.currency)).join(" + "),
+        total: order.totals[0] ? formatCurrency(order.totals[0].total, order.totals[0].currency) : "غير متاح",
         date: new Date(order.created_at).toLocaleString("ar"),
         status: order.status,
       })));

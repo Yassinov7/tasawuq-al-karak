@@ -1,4 +1,5 @@
 import type { Json } from "@/types/database";
+import { assertSypDocuments, formatSyp } from "@/lib/money";
 
 export type OrderLineForDisplay = {
   id: string;
@@ -6,7 +7,7 @@ export type OrderLineForDisplay = {
   selling_unit_snapshot: string;
   quantity: number;
   unit_price_snapshot: number;
-  currency: "SYP" | "USD";
+  currency: "SYP";
   line_total: number;
   offer_snapshot: Json | null;
 };
@@ -18,7 +19,7 @@ type OfferSnapshot = {
   discount_method: string | null;
   discount_value: number | null;
   bundle_price: number | null;
-  currency: "SYP" | "USD";
+  currency: "SYP";
   original_line_total: number;
   final_line_total: number;
 };
@@ -28,7 +29,7 @@ export type OrderItemGroup = {
   offerTitle: string | null;
   offerDescription: string | null;
   items: OrderLineForDisplay[];
-  currency: "SYP" | "USD";
+  currency: "SYP";
   originalTotal: number;
   finalTotal: number;
 };
@@ -46,7 +47,7 @@ function readOfferSnapshot(value: Json | null): OfferSnapshot | null {
     typeof offerId !== "string" ||
     typeof title !== "string" ||
     typeof offerType !== "string" ||
-    (currency !== "SYP" && currency !== "USD") ||
+    currency !== "SYP" ||
     typeof originalTotal !== "number" ||
     typeof finalTotal !== "number"
   ) {
@@ -69,19 +70,19 @@ function readOfferSnapshot(value: Json | null): OfferSnapshot | null {
 }
 
 function describeOffer(snapshot: OfferSnapshot) {
-  const currency = snapshot.currency === "USD" ? "$" : "ل.س";
   if (snapshot.offer_type === "bundle" && snapshot.bundle_price !== null) {
-    return `سعر الباقة ${snapshot.bundle_price.toLocaleString("ar")} ${currency}`;
+    return `سعر الباقة ${formatSyp(snapshot.bundle_price, snapshot.currency)}`;
   }
   if (snapshot.offer_type === "discount") {
     return snapshot.discount_method === "percentage"
       ? `خصم ${snapshot.discount_value ?? 0}%`
-      : `خصم ${snapshot.discount_value?.toLocaleString("ar") ?? 0} ${currency} لكل وحدة`;
+      : `خصم ${formatSyp(snapshot.discount_value ?? 0, snapshot.currency)} لكل وحدة`;
   }
   return "عرض شراء مع هدية";
 }
 
 export function groupOrderItems(items: OrderLineForDisplay[]): OrderItemGroup[] {
+  assertSypDocuments(items);
   const groups = new Map<string, OrderItemGroup>();
   for (const item of items) {
     const snapshot = readOfferSnapshot(item.offer_snapshot);

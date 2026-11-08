@@ -95,7 +95,6 @@ function toCatalogState(catalog: PublicCatalog): Pick<
     name: product.title,
     description: product.description,
     price: product.price,
-    currency: product.currency,
     unit: product.selling_unit,
     available: product.is_available,
     minimumQuantity: product.minimum_quantity,

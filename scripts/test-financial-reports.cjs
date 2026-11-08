@@ -13,26 +13,26 @@ const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.Modu
 const moduleValue = { exports: {} };
 vm.runInNewContext(compiled, {
   exports: moduleValue.exports,
-  require: (name) => { assert.equal(name, '@/lib/supabase'); return { supabase: client }; },
+  require: (name) => { if (name === '@/lib/money') return require('./syp-test-loader.cjs').load('src/lib/money.ts'); assert.equal(name, '@/lib/supabase'); return { supabase: client }; },
   Date,
 });
 const { loadFinancialReport } = moduleValue.exports;
 const envelope = {
   rows: Array.from({ length: 20 }, (_, id) => ({ id: String(id), currency: 'SYP', amount: 1 })),
-  summary: [{ currency: 'SYP', inflow: 55000, outflow: 45000 }, { currency: 'USD', inflow: 2, outflow: 1 }],
+  summary: [{ currency: 'SYP', inflow: 55000, outflow: 45000 }],
   groups: [], options: [], count: 41,
 };
 
 (async () => {
   response = { data: envelope, error: null };
   for (const kind of ['cash', 'delivery', 'custody', 'merchant', 'platform']) {
-    const result = await loadFinancialReport(kind, { page: 1, currency: 'SYP' });
+    const result = await loadFinancialReport(kind, { page: 1 });
     assert.equal(result.summary, envelope.summary, 'Use server totals unchanged, never page sums');
     assert.equal(result.count, 41);
     assert.equal(result.rows.length, 20);
     assert.equal(calls.at(-1).name, ['merchant', 'platform'].includes(kind) ? 'admin_sales_revenue_report' : 'admin_financial_report');
     assert.equal(calls.at(-1).args.page_number, 1);
-    assert.equal(calls.at(-1).args.report_currency, 'SYP');
+    assert(!('report_currency' in calls.at(-1).args));
   }
   await loadFinancialReport('cash', { from: '2026-10-01', to: '2026-10-23', eventType: 'driver_remittance' });
   assert.equal(calls.at(-1).args.period_from, new Date(2026, 9, 1).toISOString());

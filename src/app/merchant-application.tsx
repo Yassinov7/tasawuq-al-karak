@@ -1,4 +1,5 @@
-import { useRouter, type Href } from "expo-router";
+import { formatSyp } from "@/lib/money";
+import { useRouter, useLocalSearchParams, type Href } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -13,21 +14,25 @@ import {
 import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { AppTextField } from "@/components/ui/AppTextField";
-import { Fonts, FontSizes, Radius, Spacing } from "@/constants/theme";
+import { Fonts, FontSizes, Radius, Spacing, Typography, LayoutSpacing } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { supabase } from "@/lib/supabase";
 
-import { peekLocalCache, writeLocalCache, invalidateLocalCache } from "@/lib/local-cache";
+import { writeLocalCache } from "@/lib/local-cache";
+import { emptyMerchantDraft, merchantDraftKey, validateMerchantDraft, type ApplicationDraft } from "@/lib/merchant-application-draft";
+import { OnboardingFrame } from "@/components/auth/OnboardingFrame";
+import { useOnboardingDraft } from "@/hooks/useOnboardingDraft";
+import { DraftExitModal } from "@/components/auth/DraftExitModal";
+import { MerchantCategorySelect } from "@/components/merchant/MerchantCategorySelect";
+import { useOnboardingExit, type DraftExitActions } from "@/hooks/useOnboardingExit";
 
-type ApplicationDraft = { planId: string; categoryId: string; phone: string; store: string; description: string; address: string };
 type Plan = {
   id: string;
   name: string;
   description: string;
   duration_months: number;
   price: number;
-  currency: "SYP" | "USD";
   commission_rate: number | null;
   product_limit: number | null;
   features: string[] | null;
@@ -40,10 +45,8 @@ type StoreCategory = {
 
 type LoadState = "loading" | "ready" | "error";
 
-const money = (price: number, currency: "SYP" | "USD") =>
-  `${Number(price).toLocaleString("ar-SY")} ${
-    currency === "USD" ? "دولار" : "ل.س"
-  }`;
+const money = (price: number, currency: "SYP") =>
+  formatSyp(Number(price), currency);
 
 const getDurationLabel = (months: number) => {
   if (months === 1) return "شهر واحد";
@@ -70,29 +73,37 @@ function MerchantApplicationForm() {
   const { user } = useAuth();
   const { colors } = useTheme();
 
+  const { edit } = useLocalSearchParams<{ edit?: string }>();
+  const prefilled = useRef(false);
   const userId = user?.id;
-  const draftKey = userId ? `merchant-application-draft:${userId}` : "";
-  const draft = draftKey ? peekLocalCache<ApplicationDraft>(draftKey) : undefined;
+  const draftKey = merchantDraftKey(userId ?? "guest");
+  const form = useOnboardingDraft(draftKey, emptyMerchantDraft);
+  const { ready: draftReady, change: changeDraft } = form;
+  const { planId, categoryId, phone, store, description, address } = form.value;
+  const setPlanId = (value: string | ((old: string) => string)) => changeDraft("planId", value);
+  const setCategoryId = (value: string | ((old: string) => string)) => changeDraft("categoryId", value);
+  const setPhone = (value: string) => changeDraft("phone", value);
+  const setStore = (value: string) => changeDraft("store", value);
+  const setDescription = (value: string) => changeDraft("description", value);
+  const setAddress = (value: string) => changeDraft("address", value);
   const submitLock = useRef(false);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [categories, setCategories] = useState<StoreCategory[]>([]);
-  const [planId, setPlanId] = useState(draft?.planId ?? "");
-  const [categoryId, setCategoryId] = useState(draft?.categoryId ?? "");
-
-  const [phone, setPhone] = useState(draft?.phone ?? "");
-  const [store, setStore] = useState(draft?.store ?? "");
-  const [description, setDescription] = useState(draft?.description ?? "");
-  const [address, setAddress] = useState(draft?.address ?? "");
-
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof ApplicationDraft, string>>>({});
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [fieldError, setFieldError] = useState("");
 
+  const [exitActions, setExitActions] = useState<DraftExitActions | null>(null);
+  const exit = useOnboardingExit({ dirty: form.dirty, busy, save: form.save, discard: form.discard, confirmExit: setExitActions });
+
   const loadData = useCallback(
     async (isRefresh = false) => {
+      if (!draftReady) return;
       if (!userId) {
+        router.replace("/login");
         setLoadState("ready");
         return;
       }
@@ -109,7 +120,7 @@ function MerchantApplicationForm() {
         const [planResult, categoryResult, appResult] = await Promise.all([
           supabase
             .from("subscription_plans")
-            .select("id,name,description,duration_months,price,currency,commission_rate,product_limit,features")
+            .select("id,name,description,duration_months,price,commission_rate,product_limit,features")
             .eq("is_active", true)
             .order("duration_months"),
 
@@ -121,7 +132,7 @@ function MerchantApplicationForm() {
 
           supabase
             .from("merchant_applications")
-            .select("id,status")
+            .select("id,status,plan_id,category_id,contact_phone,store_name,store_description,store_address")
             .eq("user_id", userId)
             .maybeSingle(),
         ]);
@@ -138,19 +149,28 @@ function MerchantApplicationForm() {
           throw appResult.error;
         }
 
-        if (appResult.data) {
+        if (appResult.data && !(edit === "1" && ["changes_requested", "rejected"].includes(appResult.data.status))) {
           router.replace("/application-status" as Href);
           return;
         }
 
+        if (appResult.data && !prefilled.current) {
+          prefilled.current = true;
+          const saved = appResult.data;
+          changeDraft("planId", (old) => old || saved.plan_id);
+          changeDraft("categoryId", (old) => old || saved.category_id || "");
+          changeDraft("phone", (old) => old || saved.contact_phone);
+          changeDraft("store", (old) => old || saved.store_name);
+          changeDraft("description", (old) => old || saved.store_description);
+          changeDraft("address", (old) => old || saved.store_address);
+        }
         const loadedPlans = (planResult.data ?? []) as Plan[];
         const loadedCategories = (categoryResult.data ?? []) as StoreCategory[];
 
         setPlans(loadedPlans);
         setCategories(loadedCategories);
 
-        setCategoryId((previous) => loadedCategories.some((item) => item.id === previous) ? previous : loadedCategories[0]?.id ?? "");
-        setPlanId((previous) => loadedPlans.some((item) => item.id === previous && isPlanReady(item)) ? previous : "");
+
         setLoadState("ready");
       } catch {
         setLoadState("error");
@@ -161,7 +181,7 @@ function MerchantApplicationForm() {
         setRefreshing(false);
       }
     },
-    [router, userId],
+    [router, userId, draftReady, edit, changeDraft],
   );
 
   useEffect(() => {
@@ -169,84 +189,24 @@ function MerchantApplicationForm() {
     return () => clearTimeout(timer);
   }, [loadData]);
 
-  useEffect(() => {
-    if (draftKey) void writeLocalCache(draftKey, { planId, categoryId, phone, store, description, address });
-  }, [draftKey, planId, categoryId, phone, store, description, address]);
-
-  const validateForm = () => {
-    setError("");
-    setFieldError("");
-
-    if (!/^[+\d٠-٩۰-۹\s()-]{5,32}$/.test(phone.trim()) || phone.replace(/[^\d٠-٩۰-۹]/g, "").length < 5) {
-      setFieldError("أدخل رقم هاتف صحيحًا من 5 إلى 32 محرفًا.");
-      return false;
-    }
-
-    if (store.trim().length < 2 || store.trim().length > 120) {
-      setFieldError("أدخل اسم متجر من حرفين إلى 120 حرفًا.");
-      return false;
-    }
-
-    if (!categoryId) {
-      setFieldError("اختر تصنيف المتجر.");
-      return false;
-    }
-
-    if (address.trim().length < 3 || address.trim().length > 300) {
-      setFieldError("أدخل عنوانًا من 3 إلى 300 حرف.");
-      return false;
-    }
-
-    if (!plans.some((plan) => plan.id === planId && isPlanReady(plan))) {
-      setFieldError("اختر خطة الاشتراك.");
-      return false;
-    }
-
-    return true;
-  };
-
   const submit = async () => {
-    if (submitLock.current) return;
-    if (!user) {
-      setError("سجّل الدخول أولًا.");
-      return;
-    }
-
-    if (!validateForm()) {
-      return;
-    }
-
-    submitLock.current = true;
-    setBusy(true);
-    setError("");
-    setFieldError("");
-
+    if (submitLock.current || !userId) return;
+    const errors = validateMerchantDraft(form.value);
+    if (!plans.some((item) => item.id === planId && isPlanReady(item))) errors.planId = "اختر خطة اشتراك متاحة ومكتملة.";
+    if (!categories.some((item) => item.id === categoryId)) errors.categoryId = "اختر تصنيف متجر متاحًا.";
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) { setFieldError("راجع الحقول المشار إليها قبل المتابعة."); return; }
+    submitLock.current = true; setBusy(true); setError("");
     try {
-      const { error: submitError } = await supabase.rpc(
-        "submit_merchant_application",
-        {
-          selected_plan: planId,
-          input_contact_phone: phone.trim(),
-          input_store_name: store.trim(),
-          input_store_description: description.trim(),
-          input_store_address: address.trim(),
-          selected_store_category: categoryId,
-        },
-      );
-
-      if (submitError) {
-        setError("تعذر إرسال طلب المتجر. تحقق من البيانات وحاول مرة أخرى.");
-        return;
-      }
-
-      await invalidateLocalCache(draftKey);
-      router.replace("/application-status" as Href);
-    } catch { setError("تعذر إرسال الطلب. احتفظنا ببياناتك؛ تحقق من الاتصال وحاول مجددًا."); }
-    finally { submitLock.current = false; setBusy(false); }
+      await form.save();
+      await writeLocalCache(draftKey + ":review", { plan: plans.find((item) => item.id === planId), category: categories.find((item) => item.id === categoryId) });
+      router.push("/merchant-application-review" as Href);
+    } finally { submitLock.current = false; setBusy(false); }
   };
 
   if (loadState === "loading") {
-    return (
+    return (<OnboardingFrame title="إنشاء متجر" onCancel={exit} busy={busy}>
+      <DraftExitModal actions={exitActions} onClose={() => setExitActions(null)} />{(
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
 
@@ -254,11 +214,12 @@ function MerchantApplicationForm() {
           جاري تجهيز نموذج إنشاء المتجر...
         </Text>
       </View>
-    );
+    )}</OnboardingFrame>);
   }
 
   if (loadState === "error") {
-    return (
+    return (<OnboardingFrame title="إنشاء متجر" onCancel={exit} busy={busy}>
+      <DraftExitModal actions={exitActions} onClose={() => setExitActions(null)} />{(
       <View
         style={[
           styles.center,
@@ -285,9 +246,9 @@ function MerchantApplicationForm() {
           {error}
         </Text>
 
-        <AppButton title="إعادة المحاولة" onPress={() => void loadData()} />
+        <AppButton design="refined" title="إعادة المحاولة" onPress={() => void loadData()} />
       </View>
-    );
+    )}</OnboardingFrame>);
   }
 
   const canSubmit =
@@ -301,36 +262,11 @@ function MerchantApplicationForm() {
   const selectedPlan = plans.find((plan) => plan.id === planId && isPlanReady(plan));
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="رجوع"
-          onPress={() => router.back()}
-          hitSlop={10}
-          style={styles.headerButton}
-        >
-          <AppIcon name="arrow-forward" size={22} color={colors.text} />
-        </Pressable>
-
-        <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            إنشاء متجر
-          </Text>
-
-          <Text
-            style={[styles.headerSubtitle, { color: colors.textSecondary }]}
-          >
-            الخطوة الأولى لبدء نشاطك
-          </Text>
-        </View>
-
-        <View style={styles.headerButton} />
-      </View>
-
+    <OnboardingFrame title="إنشاء متجر — ١ من ٢" onCancel={exit} busy={busy}>
+      <DraftExitModal actions={exitActions} onClose={() => setExitActions(null)} />
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.container}
+        contentContainerStyle={[styles.container, { padding: LayoutSpacing.pageGutter, gap: LayoutSpacing.cardGap }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -370,82 +306,8 @@ function MerchantApplicationForm() {
           </View>
         </View>
 
-        <View style={styles.progressRow}>
-          <View style={styles.progressItem}>
-            <View
-              style={[
-                styles.progressCircle,
-                {
-                  backgroundColor: colors.primary,
-                },
-              ]}
-            >
-              <Text style={[styles.progressNumber, { color: colors.primary }]}>
-                1
-              </Text>
-            </View>
+        <Text style={{ color: colors.textSecondary, textAlign: "right" }}>١. بيانات المتجر والخطة ← ٢. مراجعة وتأكيد، ثم متابعة قرار الإدارة</Text>
 
-            <Text style={[styles.progressLabel, { color: colors.text }]}>
-              بيانات المتجر
-            </Text>
-          </View>
-
-          <View
-            style={[styles.progressLine, { backgroundColor: colors.border }]}
-          />
-
-          <View style={styles.progressItem}>
-            <View
-              style={[
-                styles.progressCircle,
-                {
-                  backgroundColor: colors.surfaceSecondary,
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              <Text
-                style={[styles.progressNumber, { color: colors.textSecondary }]}
-              >
-                2
-              </Text>
-            </View>
-
-            <Text
-              style={[styles.progressLabel, { color: colors.textSecondary }]}
-            >
-              المراجعة
-            </Text>
-          </View>
-
-          <View
-            style={[styles.progressLine, { backgroundColor: colors.border }]}
-          />
-
-          <View style={styles.progressItem}>
-            <View
-              style={[
-                styles.progressCircle,
-                {
-                  backgroundColor: colors.surfaceSecondary,
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              <Text
-                style={[styles.progressNumber, { color: colors.textSecondary }]}
-              >
-                3
-              </Text>
-            </View>
-
-            <Text
-              style={[styles.progressLabel, { color: colors.textSecondary }]}
-            >
-              بدء العمل
-            </Text>
-          </View>
-        </View>
 
         <View
           style={[
@@ -482,9 +344,10 @@ function MerchantApplicationForm() {
             </View>
           </View>
 
-          <AppTextField
+          <AppTextField design="refined"
             label="رقم الهاتف *"
-            value={phone}
+            error={fieldErrors.phone}
+              value={phone}
             onChangeText={(value) => {
               setPhone(value);
               setFieldError("");
@@ -529,9 +392,10 @@ function MerchantApplicationForm() {
             </View>
           </View>
 
-          <AppTextField
+          <AppTextField design="refined"
             label="اسم المتجر *"
-            value={store}
+            error={fieldErrors.store}
+              value={store}
             onChangeText={(value) => {
               setStore(value);
               setFieldError("");
@@ -565,68 +429,23 @@ function MerchantApplicationForm() {
               </Text>
             </View>
           ) : (
-            <View style={styles.categoryList}>
-              {categories.map((category) => {
-                const selected = categoryId === category.id;
-
-                return (
-                  <Pressable
-                    key={category.id}
-                    accessibilityRole="button"
-                    accessibilityState={{
-                      selected,
-                    }}
-                    onPress={() => {
-                      setCategoryId(category.id);
-                      setFieldError("");
-                    }}
-                    style={[
-                      styles.category,
-                      {
-                        backgroundColor: selected
-                          ? colors.primaryLight
-                          : colors.surfaceSecondary,
-                        borderColor: selected ? colors.primary : colors.border,
-                      },
-                    ]}
-                  >
-                    {selected ? (
-                      <AppIcon
-                        name="checkmark"
-                        size={16}
-                        color={colors.primary}
-                      />
-                    ) : null}
-
-                    <Text
-                      style={[
-                        styles.categoryText,
-                        {
-                          color: selected
-                            ? colors.primary
-                            : colors.textSecondary,
-                        },
-                      ]}
-                    >
-                      {category.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <MerchantCategorySelect categories={categories} value={categoryId} disabled={busy} onChange={(id) => { setCategoryId(id); setFieldError(""); }} />
           )}
 
-          <AppTextField
+          {fieldErrors.categoryId ? <Text accessibilityRole="alert" style={{ color: colors.errorForeground, textAlign: "right" }}>{fieldErrors.categoryId}</Text> : null}
+          <AppTextField design="refined"
             label="وصف المتجر"
-            value={description}
+            error={fieldErrors.description}
+              value={description}
             onChangeText={setDescription}
             multiline
             placeholder="اكتب وصفاً مختصراً عن نشاط متجرك..."
           />
 
-          <AppTextField
+          <AppTextField design="refined"
             label="عنوان المتجر *"
-            value={address}
+            error={fieldErrors.address}
+              value={address}
             onChangeText={(value) => {
               setAddress(value);
               setFieldError("");
@@ -784,7 +603,7 @@ function MerchantApplicationForm() {
                       <Text
                         style={[styles.planPrice, { color: colors.primary }]}
                       >
-                        {money(plan.price, plan.currency)}
+                        {money(plan.price, "SYP")}
                       </Text>
 
                       <Text style={[styles.planTerms, { color: colors.textSecondary }]}>
@@ -794,7 +613,7 @@ function MerchantApplicationForm() {
                       </Text>
 
                       {ready && plan.features?.length ? (
-                        <Text style={[styles.planFeatures, { color: colors.textMuted }]}>
+                        <Text style={[styles.planFeatures, { color: colors.textSecondary }]}>
                           {plan.features.join(" · ")}
                         </Text>
                       ) : null}
@@ -809,12 +628,13 @@ function MerchantApplicationForm() {
             <View style={[styles.selectedPlanSummary, { backgroundColor: colors.primaryLight, borderColor: colors.primary }]}>
               <Text style={[styles.selectedPlanTitle, { color: colors.primary }]}>الخطة المختارة: {selectedPlan.name}</Text>
               <Text style={[styles.selectedPlanText, { color: colors.textSecondary }]}>
-                {money(selectedPlan.price, selectedPlan.currency)} · {getDurationLabel(selectedPlan.duration_months)} · عمولة {selectedPlan.commission_rate}%
+                {money(selectedPlan.price, "SYP")} · {getDurationLabel(selectedPlan.duration_months)} · عمولة {selectedPlan.commission_rate}%
               </Text>
             </View>
           ) : null}
         </View>
 
+        {fieldErrors.planId ? <Text accessibilityRole="alert" style={{ color: colors.errorForeground, textAlign: "right" }}>{fieldErrors.planId}</Text> : null}
         {fieldError ? (
           <View
             style={[
@@ -892,8 +712,8 @@ function MerchantApplicationForm() {
         </Text>
 
         <View style={styles.submitArea}>
-          <AppButton
-            title="إرسال طلب المتجر"
+          <AppButton design="refined"
+            title="تقديم الطلب — مراجعة البيانات"
             onPress={() => void submit()}
             loading={busy}
             disabled={!canSubmit}
@@ -904,7 +724,7 @@ function MerchantApplicationForm() {
           </Text>
         </View>
       </ScrollView>
-    </View>
+    </OnboardingFrame>
   );
 }
 
@@ -1025,8 +845,8 @@ const styles = StyleSheet.create({
   },
 
   heroTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.lg,
+
+    ...Typography.sectionTitle,
     textAlign: "right",
   },
 
@@ -1066,7 +886,7 @@ const styles = StyleSheet.create({
 
   progressLabel: {
     fontFamily: Fonts.medium,
-    fontSize: 10,
+    fontSize: 12,
     textAlign: "center",
   },
 
@@ -1104,8 +924,8 @@ const styles = StyleSheet.create({
   },
 
   sectionTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.md,
+
+    ...Typography.cardTitle,
     textAlign: "right",
   },
 
@@ -1132,7 +952,7 @@ const styles = StyleSheet.create({
   },
 
   category: {
-    minHeight: 42,
+    minHeight: 44,
     borderWidth: 1,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing.three,
@@ -1217,7 +1037,7 @@ const styles = StyleSheet.create({
 
   durationText: {
     fontFamily: Fonts.semiBold,
-    fontSize: 11,
+    fontSize: 12,
   },
 
   planDescription: {

@@ -1,4 +1,5 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import * as Linking from "expo-linking";
 import { useRouter, type Href } from "expo-router";
 
 import {
@@ -9,30 +10,37 @@ import { supabase } from "@/lib/supabase";
 
 export function useLogin() {
   const router = useRouter();
+  const loginLock = useRef(false);
+  const resetLock = useRef(false);
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [resetVisible, setResetVisible] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetError, setResetError] = useState("");
   const [resetMessage, setResetMessage] = useState("");
 
-  const clearError = useCallback(() => setError(""), []);
+  const clearError = useCallback(() => { setError(""); setFieldErrors({}); }, []);
 
   const login = useCallback(async () => {
-    if (busy) return;
+    if (loginLock.current) return;
     setError("");
 
     const cleanEmail = email.trim().toLowerCase();
     if (!isValidEmail(cleanEmail)) {
-      setError("أدخل بريدًا إلكترونيًا صحيحًا.");
+      setFieldErrors({ email: "أدخل بريدًا إلكترونيًا صحيحًا." });
       return;
     }
     if (!password) {
-      setError("أدخل كلمة المرور.");
+      setFieldErrors({ password: "أدخل كلمة المرور." });
       return;
     }
 
+    loginLock.current = true;
+    setFieldErrors({});
     setBusy(true);
     try {
       const { data, error: loginError } =
@@ -59,49 +67,54 @@ export function useLogin() {
     } catch {
       setError("تعذر الاتصال بالخدمة. تحقق من الإنترنت ثم حاول مجددًا.");
     } finally {
+      loginLock.current = false;
       setBusy(false);
     }
-  }, [busy, email, password, router]);
+  }, [email, password, router]);
 
   const openReset = useCallback(() => {
+    setResetEmail(email); setResetError("");
     setResetMessage("");
     setResetVisible(true);
-  }, []);
+  }, [email]);
 
   const closeReset = useCallback(() => {
     if (!resetBusy) setResetVisible(false);
   }, [resetBusy]);
 
   const sendReset = useCallback(async () => {
-    if (resetBusy) return;
+    if (resetLock.current) return;
 
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail = resetEmail.trim().toLowerCase();
     if (!isValidEmail(cleanEmail)) {
-      setResetMessage("أدخل بريدًا إلكترونيًا صحيحًا في صفحة الدخول أولًا.");
+      setResetError("أدخل بريدًا إلكترونيًا صحيحًا.");
       return;
     }
 
+    setResetError(""); setResetMessage("");
+    resetLock.current = true;
     setResetBusy(true);
     try {
       const { error: resetError } =
-        await supabase.auth.resetPasswordForEmail(cleanEmail);
-      setResetMessage(
-        resetError
-          ? "تعذر إرسال الرسالة الآن. حاول مجددًا بعد قليل."
-          : "إذا كان البريد مسجلًا، ستصلك رسالة لإعادة تعيين كلمة المرور.",
-      );
+        await supabase.auth.resetPasswordForEmail(cleanEmail, { redirectTo: Linking.createURL("reset-password") });
+      if (resetError) setResetError("تعذر إرسال الرسالة الآن. حاول مجددًا بعد قليل.");
+      else setResetMessage("إذا كان البريد مسجلًا، ستصلك رسالة لإعادة تعيين كلمة المرور.");
     } catch {
-      setResetMessage("تعذر الاتصال بالخدمة الآن. حاول مجددًا بعد قليل.");
+      setResetError("تعذر الاتصال بالخدمة الآن. حاول مجددًا بعد قليل.");
     } finally {
+      resetLock.current = false;
       setResetBusy(false);
     }
-  }, [email, resetBusy]);
+  }, [resetEmail]);
 
+  const changeResetEmail = useCallback((value: string) => { if (resetLock.current) return; setResetEmail(value); setResetError(""); setResetMessage(""); }, []);
   const dismissResetMessage = useCallback(() => {
     setResetVisible(false);
   }, []);
 
   return {
+    fieldErrors,
+    resetEmail, resetError, changeResetEmail,
     busy,
     clearError,
     email,

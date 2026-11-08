@@ -1,4 +1,5 @@
 import type { Product } from "@/constants/catalog";
+import { assertSypDocuments, formatSypNumber } from "@/lib/money";
 import type { PublicOffer } from "@/lib/public-catalog";
 
 export type CustomerOfferItem = {
@@ -18,7 +19,7 @@ export type CalculatedOfferItem = CustomerOfferItem & {
 };
 
 export type CalculatedOffer = {
-  currency: "SYP" | "USD";
+  currency: "SYP";
   originalTotal: number;
   finalTotal: number;
   items: CalculatedOfferItem[];
@@ -29,6 +30,7 @@ function roundMoney(value: number) {
 }
 
 export function calculateCustomerOffer(offer: CustomerOffer): CalculatedOffer {
+  assertSypDocuments(offer);
   const originalTotal = roundMoney(
     offer.items.reduce(
       (total, item) => total + roundMoney(item.product.price * item.quantity),
@@ -65,7 +67,7 @@ export function calculateCustomerOffer(offer: CustomerOffer): CalculatedOffer {
   });
 
   return {
-    currency: offer.currency,
+    currency: "SYP",
     originalTotal,
     finalTotal: roundMoney(items.reduce((total, item) => total + item.finalLineTotal, 0)),
     items,
@@ -76,11 +78,11 @@ export function describeCustomerOffer(offer: CustomerOffer) {
   if (offer.offer_type === "discount") {
     return offer.discount_method === "percentage"
       ? `خصم ${offer.discount_value}%`
-      : `خصم ${offer.discount_value?.toLocaleString("ar")} ${offer.currency === "USD" ? "$" : "ل.س"} لكل وحدة`;
+      : `خصم ${offer.discount_value === null ? "غير متاح" : formatSypNumber(offer.discount_value)} ${"ل.س"} لكل وحدة`;
   }
 
   if (offer.offer_type === "bundle") {
-    return `سعر الباقة ${offer.bundle_price?.toLocaleString("ar")} ${offer.currency === "USD" ? "$" : "ل.س"}`;
+    return `سعر الباقة ${offer.bundle_price === null ? "غير متاح" : formatSypNumber(offer.bundle_price)} ${"ل.س"}`;
   }
 
   const buyItem = offer.items.find((item) => item.itemRole === "buy");

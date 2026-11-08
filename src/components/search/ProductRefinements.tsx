@@ -8,11 +8,10 @@ import { AppIcon } from "@/components/ui/AppIcon";
 
 type SearchFilter = "all" | "products" | "stores" | "categories";
 type ProductSort = "relevance" | "price-ascending" | "price-descending";
-type CurrencyFilter = "all" | "SYP" | "USD";
-type Props = { filtersVisible: boolean; filter: SearchFilter; productResultsForRefinement: boolean; colors: { surface: string; border: string; text: string; textSecondary: string; primary: string; primaryLight: string; accentLight: string; accent: string }; selectedCategoryId: string | null; productCategories: Category[]; currencyFilter: CurrencyFilter; productSort: ProductSort; setSelectedCategoryId: Dispatch<SetStateAction<string | null>>; setCurrencyFilter: Dispatch<SetStateAction<CurrencyFilter>>; setProductSort: Dispatch<SetStateAction<ProductSort>>; setFilter: Dispatch<SetStateAction<SearchFilter>>; };
+type Props = { filtersVisible: boolean; filter: SearchFilter; productResultsForRefinement: boolean; colors: { surface: string; border: string; text: string; textSecondary: string; primary: string; primaryLight: string; accentLight: string; accent: string }; selectedCategoryId: string | null; productCategories: Category[]; productSort: ProductSort; setSelectedCategoryId: Dispatch<SetStateAction<string | null>>; setProductSort: Dispatch<SetStateAction<ProductSort>>; setFilter: Dispatch<SetStateAction<SearchFilter>>; };
 
 export function ProductRefinements(props: Props) {
-  const { filtersVisible, filter, productResultsForRefinement, colors, selectedCategoryId, productCategories, currencyFilter, productSort, setSelectedCategoryId, setCurrencyFilter, setProductSort, setFilter } = props;
+  const { filtersVisible, filter, productResultsForRefinement, colors, selectedCategoryId, productCategories, productSort, setSelectedCategoryId, setProductSort, setFilter } = props;
   return (<>
         {filtersVisible && (filter === "all" || filter === "products") &&
         productResultsForRefinement ? (
@@ -32,7 +31,6 @@ export function ProductRefinements(props: Props) {
               <Pressable
                 onPress={() => {
                   setSelectedCategoryId(null);
-                  setCurrencyFilter("all");
                   setProductSort("relevance");
                 }}
                 accessibilityRole="button"
@@ -85,7 +83,6 @@ export function ProductRefinements(props: Props) {
                         active={selected}
                         onPress={() => {
                           setFilter("products");
-                          setCurrencyFilter("all");
                           setProductSort("relevance");
                           setSelectedCategoryId(selected ? null : category.id);
                         }}
@@ -96,53 +93,9 @@ export function ProductRefinements(props: Props) {
               </>
             ) : null}
 
-            <View>
-              <Text style={[styles.refinementLabel, { color: colors.textSecondary }]}>
-                العملة
-              </Text>
-              <View style={styles.sortOptions}>
-                {([
-                  { id: "all", label: "الكل" },
-                  { id: "SYP", label: "ل.س" },
-                  { id: "USD", label: "$" },
-                ] as const).map((option) => {
-                  const selected = currencyFilter === option.id;
-                  return (
-                    <Pressable
-                      key={option.id}
-                      onPress={() => {
-                        setCurrencyFilter(option.id);
-                        setProductSort("relevance");
-                        if (option.id !== "all") {
-                          setFilter("products");
-                        }
-                      }}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      style={[
-                        styles.sortChip,
-                        {
-                          backgroundColor: selected ? colors.primaryLight : colors.surface,
-                          borderColor: selected ? colors.primary : colors.border,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.sortText,
-                          { color: selected ? colors.primary : colors.textSecondary },
-                        ]}
-                      >
-                        {option.label}
-                      </Text>
-                      {selected ? <AppIcon name="checkmark" size={14} color={colors.primary} /> : null}
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
 
-            {currencyFilter !== "all" ? (
+
+            {true ? (
               <View>
                 <Text style={[styles.refinementLabel, { color: colors.textSecondary }]}>
                   ترتيب السعر

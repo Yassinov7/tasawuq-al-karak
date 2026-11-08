@@ -9,6 +9,7 @@ function load(file, mocks, suffix = '') {
   const code = ts.transpileModule(source, { fileName: file, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const exports = {};
   vm.runInNewContext(code, { exports, require: (name) => {
+    if (name === '@/lib/money') return require('./syp-test-loader.cjs').load('src/lib/money.ts');
     if (Object.hasOwn(mocks, name)) return mocks[name];
     throw new Error(`Unexpected dependency: ${name}`);
   } });
@@ -50,8 +51,9 @@ for (const method of ['update', 'eq', 'select']) query[method] = (...args) => { 
 query.single = async () => response;
 const merchant = load('src/lib/merchant-store.ts', { '@/lib/supabase': { supabase: { from: (name) => { assert.equal(name, 'products'); return query; } } } });
 const orders = load('src/lib/customer-orders.ts', {
-  '@/lib/supabase': { supabase: { rpc: async (name) => { assert.equal(name, 'create_order_from_cart'); return response; } } },
+  '@/lib/supabase': { supabase: {} },
   '@/lib/purchase-availability': availability,
+  '@/lib/c3-orders': { getC3Contexts: async () => ({}), submitC3Order: async () => { const friendly = availability.purchaseAvailabilityMessage(response.error); if (friendly) throw new Error(friendly); throw response.error; } },
 });
 (async () => {
   for (const available of [false, true]) {

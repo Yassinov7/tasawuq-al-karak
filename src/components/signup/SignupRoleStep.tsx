@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { SignupErrorNotice } from "@/components/signup/SignupErrorNotice";
-import { Fonts, FontSizes, Radius, Spacing } from "@/constants/theme";
+import { Fonts, FontSizes, Radius, Spacing, Typography } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 import type { SignupRole } from "@/hooks/useSignup";
 
@@ -81,7 +81,7 @@ export function SignupRoleStep({
           return (
             <Pressable
               key={item.value}
-              disabled={accountCreated}
+              disabled={accountCreated || busy}
               accessibilityRole="radio"
               accessibilityLabel={`${item.title}. ${item.detail}`}
               accessibilityState={{ selected }}
@@ -125,7 +125,7 @@ export function SignupRoleStep({
               <AppIcon
                 name={selected ? "checkmark-circle" : "ellipse-outline"}
                 size={23}
-                color={selected ? colors.primary : colors.textMuted}
+                color={selected ? colors.primary : colors.textSecondary}
               />
             </Pressable>
           );
@@ -182,7 +182,7 @@ export function SignupRoleStep({
       <SignupErrorNotice message={error} />
 
       <View style={styles.actions}>
-        <AppButton
+        <AppButton design="refined"
           title={busy ? "جارٍ إنشاء الحساب…" : "إنشاء الحساب"}
           icon={busy ? undefined : "person-add-outline"}
           onPress={onContinue}
@@ -190,7 +190,7 @@ export function SignupRoleStep({
           disabled={!role || !acceptedTerms || busy || accountCreated}
         />
         {accountCreated ? (
-          <AppButton
+          <AppButton design="refined"
             title="إعادة محاولة فتح الحساب"
             variant="outline"
             onPress={onRetryRouting}
@@ -240,8 +240,7 @@ const styles = StyleSheet.create({
   },
   title: {
     textAlign: "right",
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.xl,
+    ...Typography.pageTitle,
   },
   subtitle: {
     marginTop: Spacing.two,

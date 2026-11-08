@@ -1,3 +1,4 @@
+import { formatSyp } from "@/lib/money";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type Href, useRouter } from "expo-router";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
@@ -10,9 +11,9 @@ import { getAdminPaymentPage, getCachedAdminPaymentPage, isCachedAdminPaymentPag
 
 const pageSize = 20;
 const filters: { id: AdminPaymentFilter; label: string }[] = [
-  { id: "all", label: "الكل" }, { id: "SYP", label: "ليرة سورية" }, { id: "USD", label: "دولار" }, { id: "cash", label: "نقدي" }, { id: "external_transfer", label: "حوالة" },
+  { id: "all", label: "الكل" }, { id: "SYP", label: "ليرة سورية" }, { id: "cash", label: "نقدي" }, { id: "external_transfer", label: "حوالة" },
 ];
-const money = (value: number, currency: string) => `${Number(value).toLocaleString("ar-SY", { maximumFractionDigits: 2 })} ${currency === "USD" ? "دولار" : "ل.س"}`;
+const money = (value: number, currency: string) => formatSyp(Number(value), currency);
 const date = (value: string) => new Date(value).toLocaleDateString("ar-SY");
 
 export default function AdminPaymentsScreen() {

@@ -1,8 +1,7 @@
-import { useRouter, type Href } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useRouter, useLocalSearchParams, type Href } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -10,36 +9,54 @@ import {
   View,
 } from "react-native";
 
+import { OnboardingFrame } from "@/components/auth/OnboardingFrame";
+import { useOnboardingDraft } from "@/hooks/useOnboardingDraft";
+import { useOnboardingExit } from "@/hooks/useOnboardingExit";
+
 import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { AppTextField } from "@/components/ui/AppTextField";
-import { Fonts, FontSizes, Radius, Spacing } from "@/constants/theme";
+import { Fonts, FontSizes, Radius, Spacing, Typography, LayoutSpacing } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { supabase } from "@/lib/supabase";
 
 type LoadState = "loading" | "ready" | "error";
 
+const emptyDriverDraft = { name: "", phone: "", vehicle: "", duration: "12", hours: "08:00 - 17:00" };
 export default function DriverApplicationScreen() {
+  const { user } = useAuth();
+  return <DriverApplicationForm key={user?.id ?? "guest"} />;
+}
+function DriverApplicationForm() {
   const router = useRouter();
   const { user } = useAuth();
   const { colors } = useTheme();
 
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [vehicle, setVehicle] = useState("");
-  const [duration, setDuration] = useState("12");
-  const [hours, setHours] = useState("08:00 - 17:00");
-
+  const { edit } = useLocalSearchParams<{ edit?: string }>();
+  const prefilled = useRef(false);
+  const form = useOnboardingDraft('driver-application-draft:' + (user?.id ?? 'guest'), emptyDriverDraft);
+  const { ready: draftReady, change: changeDraft } = form;
+  const { name, phone, vehicle, duration, hours } = form.value;
+  const setName = (value: string) => changeDraft('name', value);
+  const setPhone = (value: string) => changeDraft('phone', value);
+  const setVehicle = (value: string) => changeDraft('vehicle', value);
+  const setDuration = (value: string) => changeDraft('duration', value);
+  const setHours = (value: string) => changeDraft('hours', value);
+  const submitLock = useRef(false);
+  const [errors, setErrors] = useState<Partial<Record<keyof typeof emptyDriverDraft, string>>>({});
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [fieldError, setFieldError] = useState("");
   const [loadState, setLoadState] = useState<LoadState>("loading");
 
+  const exit = useOnboardingExit({ dirty: form.dirty, busy, save: form.save, discard: form.discard });
   const checkApplication = useCallback(
     async (isRefresh = false) => {
+      if (!draftReady) return;
       if (!user) {
+        router.replace("/login");
         setLoadState("ready");
         return;
       }
@@ -55,7 +72,7 @@ export default function DriverApplicationScreen() {
       try {
         const { data, error: applicationError } = await supabase
           .from("driver_applications")
-          .select("id,status")
+          .select("id,status,full_name,contact_phone,vehicle_type,contract_duration_months,available_hours")
           .eq("user_id", user.id)
           .maybeSingle();
 
@@ -63,11 +80,20 @@ export default function DriverApplicationScreen() {
           throw applicationError;
         }
 
-        if (data) {
+        if (data && !(edit === "1" && ["changes_requested", "rejected"].includes(data.status))) {
           router.replace("/application-status" as Href);
           return;
         }
 
+        if (data && !prefilled.current) {
+          prefilled.current = true;
+          changeDraft("name", (old) => old || data.full_name);
+          changeDraft("phone", (old) => old || data.contact_phone);
+          changeDraft("vehicle", (old) => old || data.vehicle_type);
+          changeDraft("duration", String(data.contract_duration_months));
+          const hours = data.available_hours;
+          if (hours && typeof hours === "object" && !Array.isArray(hours) && typeof hours.schedule === "string") changeDraft("hours", hours.schedule);
+        }
         setLoadState("ready");
       } catch {
         setLoadState("error");
@@ -78,7 +104,7 @@ export default function DriverApplicationScreen() {
         setRefreshing(false);
       }
     },
-    [router, user],
+    [router, user, draftReady, edit, changeDraft],
   );
 
   useEffect(() => {
@@ -87,45 +113,18 @@ export default function DriverApplicationScreen() {
   }, [checkApplication]);
 
   const validateForm = () => {
-    setError("");
-    setFieldError("");
-
-    if (!name.trim()) {
-      setFieldError("أدخل الاسم الكامل.");
-      return false;
-    }
-
-    if (!phone.trim()) {
-      setFieldError("أدخل رقم الهاتف للتواصل.");
-      return false;
-    }
-
-    if (!vehicle.trim()) {
-      setFieldError("أدخل نوع المركبة.");
-      return false;
-    }
-
-    if (!duration.trim()) {
-      setFieldError("أدخل مدة التعاقد.");
-      return false;
-    }
-
-    const months = Number(duration);
-
-    if (!Number.isInteger(months) || months < 1 || months > 60) {
-      setFieldError("مدة التعاقد يجب أن تكون بين شهر و60 شهرًا.");
-      return false;
-    }
-
-    if (!hours.trim()) {
-      setFieldError("أدخل أوقات العمل المتاحة.");
-      return false;
-    }
-
-    return true;
+    const next: typeof errors = {};
+    if (name.trim().length < 2) next.name = 'أدخل الاسم الكامل.';
+    if (!/^[+\d٠-٩۰-۹\s()-]{5,32}$/.test(phone.trim()) || phone.replace(/[^\d٠-٩۰-۹]/g, '').length < 5) next.phone = 'أدخل رقم هاتف صحيحًا.';
+    if (!vehicle.trim()) next.vehicle = 'أدخل نوع المركبة.';
+    if (!Number.isInteger(Number(duration)) || Number(duration) < 1 || Number(duration) > 60) next.duration = 'مدة التعاقد بين شهر و60 شهرًا.';
+    if (!hours.trim()) next.hours = 'أدخل أوقات العمل المتاحة.';
+    setErrors(next); setFieldError(Object.keys(next).length ? 'راجع الحقول المشار إليها.' : '');
+    return Object.keys(next).length === 0;
   };
 
   const submit = async () => {
+    if (submitLock.current) return;
     if (!user) {
       setError("سجّل الدخول أولًا.");
       return;
@@ -137,10 +136,17 @@ export default function DriverApplicationScreen() {
 
     const months = Number(duration);
 
+    submitLock.current = true;
     setBusy(true);
     setError("");
+    try {
     setFieldError("");
 
+    const existing = await supabase.from("driver_applications").select("status").eq("user_id", user.id).maybeSingle();
+    if (existing.error) throw existing.error;
+    if (existing.data && !["changes_requested", "rejected"].includes(existing.data.status)) { router.replace("/application-status"); return; }
+    const identity = await supabase.auth.getUser();
+    if (identity.error || identity.data.user?.id !== user.id) throw new Error("session-changed");
     const { error: submitError } = await supabase.rpc(
       "submit_driver_application",
       {
@@ -154,8 +160,6 @@ export default function DriverApplicationScreen() {
       },
     );
 
-    setBusy(false);
-
     if (submitError) {
       if (submitError.message.includes("awaiting review")) {
         setError("طلبك قيد المراجعة بالفعل.");
@@ -166,11 +170,14 @@ export default function DriverApplicationScreen() {
       return;
     }
 
+    await form.clear();
     router.replace("/application-status" as Href);
+    } catch { setError("تعذر تأكيد إرسال الطلب. احتفظنا بالمسودة؛ تحقق من الحالة قبل إعادة المحاولة."); }
+    finally { submitLock.current = false; setBusy(false); }
   };
 
   if (loadState === "loading") {
-    return (
+    return (<OnboardingFrame title="طلب الانتساب كسائق" onCancel={exit} busy={busy}>{(
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
 
@@ -178,11 +185,11 @@ export default function DriverApplicationScreen() {
           جاري التحقق من حالة طلبك...
         </Text>
       </View>
-    );
+    )}</OnboardingFrame>);
   }
 
   if (loadState === "error") {
-    return (
+    return (<OnboardingFrame title="طلب الانتساب كسائق" onCancel={exit} busy={busy}>{(
       <View
         style={[
           styles.center,
@@ -209,12 +216,12 @@ export default function DriverApplicationScreen() {
           {error}
         </Text>
 
-        <AppButton
+        <AppButton design="refined"
           title="إعادة المحاولة"
           onPress={() => void checkApplication()}
         />
       </View>
-    );
+    )}</OnboardingFrame>);
   }
 
   const canSubmit =
@@ -226,36 +233,10 @@ export default function DriverApplicationScreen() {
     !busy;
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="رجوع"
-          onPress={() => router.back()}
-          hitSlop={10}
-          style={styles.headerButton}
-        >
-          <AppIcon name="arrow-forward" size={22} color={colors.text} />
-        </Pressable>
-
-        <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            طلب الانتساب كسائق
-          </Text>
-
-          <Text
-            style={[styles.headerSubtitle, { color: colors.textSecondary }]}
-          >
-            انضم إلى شبكة سائقي تسوق
-          </Text>
-        </View>
-
-        <View style={styles.headerButton} />
-      </View>
-
+    <OnboardingFrame title="طلب الانتساب كسائق" onCancel={exit} busy={busy}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.container}
+        contentContainerStyle={[styles.container, { padding: LayoutSpacing.pageGutter, gap: LayoutSpacing.cardGap }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -303,7 +284,7 @@ export default function DriverApplicationScreen() {
                 { backgroundColor: colors.primary },
               ]}
             >
-              <Text style={[styles.progressNumber, { color: colors.primary }]}>
+              <Text style={[styles.progressNumber, { color: colors.onPrimary }]}>
                 1
               </Text>
             </View>
@@ -405,9 +386,9 @@ export default function DriverApplicationScreen() {
             </View>
           </View>
 
-          <AppTextField
+          <AppTextField design="refined"
             label="الاسم الكامل *"
-            value={name}
+            error={errors.name} value={name}
             onChangeText={(value) => {
               setName(value);
               setFieldError("");
@@ -416,9 +397,9 @@ export default function DriverApplicationScreen() {
             placeholder="أدخل اسمك الكامل"
           />
 
-          <AppTextField
+          <AppTextField design="refined"
             label="رقم الهاتف للتواصل *"
-            value={phone}
+            error={errors.phone} value={phone}
             onChangeText={(value) => {
               setPhone(value);
               setFieldError("");
@@ -463,9 +444,9 @@ export default function DriverApplicationScreen() {
             </View>
           </View>
 
-          <AppTextField
+          <AppTextField design="refined"
             label="نوع المركبة *"
-            value={vehicle}
+            error={errors.vehicle} value={vehicle}
             onChangeText={(value) => {
               setVehicle(value);
               setFieldError("");
@@ -473,9 +454,9 @@ export default function DriverApplicationScreen() {
             placeholder="دراجة نارية، سيارة..."
           />
 
-          <AppTextField
+          <AppTextField design="refined"
             label="مدة التعاقد بالأشهر *"
-            value={duration}
+            error={errors.duration} value={duration}
             onChangeText={(value) => {
               setDuration(value.replace(/[^0-9]/g, ""));
               setFieldError("");
@@ -505,9 +486,9 @@ export default function DriverApplicationScreen() {
             </Text>
           </View>
 
-          <AppTextField
+          <AppTextField design="refined"
             label="ساعات وأوقات العمل المتاحة *"
-            value={hours}
+            error={errors.hours} value={hours}
             onChangeText={(value) => {
               setHours(value);
               setFieldError("");
@@ -584,7 +565,7 @@ export default function DriverApplicationScreen() {
         ) : null}
 
         <View style={styles.submitArea}>
-          <AppButton
+          <AppButton design="refined"
             title="إرسال طلب الانتساب"
             onPress={() => void submit()}
             loading={busy}
@@ -596,7 +577,7 @@ export default function DriverApplicationScreen() {
           </Text>
         </View>
       </ScrollView>
-    </View>
+    </OnboardingFrame>
   );
 }
 
@@ -717,8 +698,8 @@ const styles = StyleSheet.create({
   },
 
   heroTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.lg,
+
+    ...Typography.sectionTitle,
     textAlign: "right",
   },
 
@@ -758,7 +739,7 @@ const styles = StyleSheet.create({
 
   progressLabel: {
     fontFamily: Fonts.medium,
-    fontSize: 10,
+    fontSize: 12,
     textAlign: "center",
   },
 
@@ -796,8 +777,8 @@ const styles = StyleSheet.create({
   },
 
   sectionTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.md,
+
+    ...Typography.cardTitle,
     textAlign: "right",
   },
 

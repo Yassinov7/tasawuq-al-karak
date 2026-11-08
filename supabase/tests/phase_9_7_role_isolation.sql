@@ -74,13 +74,13 @@ do $$
 declare probe text; rejected boolean;
 begin
   foreach probe in array array[
-    'select public.record_driver_cash_remittance(null, ''SYP'', 1, null)',
-    'select public.pay_driver_cash_credit(null, ''SYP'', 1, null)',
-    'select public.create_merchant_settlement_batch(null, ''SYP'', null, null)',
+    'select public.record_driver_cash_remittance(null, 1, null)',
+    'select public.pay_driver_cash_credit(null, 1, null)',
+    'select public.create_merchant_settlement_batch(null, null, null)',
     'select public.record_merchant_settlement_payment(null, 1, ''[]''::jsonb, null)',
     'select public.allocate_subscription_payment(null, ''[]''::jsonb, null)',
-    'select public.record_subscription_payment(null, ''SYP'', 1, ''cash'', null, ''[]''::jsonb)',
-    'select public.set_merchant_credit_limit(null, ''SYP'', false, 0)',
+    'select public.record_subscription_payment(null, 1, ''cash'', null, ''[]''::jsonb)',
+    'select public.set_merchant_credit_limit(null, false, 0)',
     'select public.renew_merchant_subscription(null, null)',
     'select public.schedule_merchant_subscription_plan_change(null, null, null)',
     'select public.set_merchant_auto_renew(null, false)',

@@ -1,3 +1,4 @@
+import { formatSyp } from "@/lib/money";
 import { useCallback, useEffect, useState } from "react";
 import { type Href, useLocalSearchParams, useRouter } from "expo-router";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -9,7 +10,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { getAdminInvoiceDetails, getCachedAdminInvoice, isCachedAdminInvoiceFresh, type AdminInvoiceDetails, type LedgerEntry } from "@/lib/admin-finance";
 
 const labels: Record<string, string> = { open: "مفتوحة", partially_paid: "مسددة جزئيًا", paid: "مسددة", void: "ملغاة", initial: "فاتورة أولى", renewal: "تجديد", adjustment: "تعديل" };
-const money = (value: number, currency: string) => `${Number(value).toLocaleString("ar-SY", { maximumFractionDigits: 2 })} ${currency === "USD" ? "دولار" : "ل.س"}`;
+const money = (value: number, currency: string) => formatSyp(Number(value), currency);
 const date = (value: string | null) => value ? new Date(value).toLocaleDateString("ar-SY") : "غير متاح";
 const short = (value: string) => value.length > 13 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value;
 

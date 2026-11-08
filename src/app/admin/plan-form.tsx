@@ -7,7 +7,7 @@ import { AppIcon } from "@/components/ui/AppIcon";
 import { AppTextField } from "@/components/ui/AppTextField";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
-import { loadManagedSubscriptionPlan, saveManagedSubscriptionPlan, type PlanCurrency } from "@/lib/admin-subscription-plans";
+import { loadManagedSubscriptionPlan, saveManagedSubscriptionPlan } from "@/lib/admin-subscription-plans";
 
 type FieldErrors = Partial<Record<"name" | "description" | "duration" | "price" | "commission" | "limit" | "features", string>>;
 
@@ -27,7 +27,6 @@ export default function AdminPlanFormScreen() {
   const [description, setDescription] = useState("");
   const [duration, setDuration] = useState("1");
   const [price, setPrice] = useState("");
-  const [currency, setCurrency] = useState<PlanCurrency>("SYP");
   const [commission, setCommission] = useState("");
   const [productLimit, setProductLimit] = useState("");
   const [features, setFeatures] = useState<string[]>([]);
@@ -42,7 +41,7 @@ export default function AdminPlanFormScreen() {
     try {
       const plan = await loadManagedSubscriptionPlan(planId);
       setName(plan.name); setDescription(plan.description); setDuration(String(plan.duration_months));
-      setPrice(String(plan.price)); setCurrency(plan.currency); setCommission(plan.commission_rate === null ? "" : String(plan.commission_rate));
+      setPrice(String(plan.price)); setCommission(plan.commission_rate === null ? "" : String(plan.commission_rate));
       setProductLimit(plan.product_limit === null ? "" : String(plan.product_limit)); setFeatures(plan.features ?? []); setIsActive(plan.is_active);
     } catch (requestError) {
       console.warn("Unable to load subscription plan for editing", requestError);
@@ -85,7 +84,7 @@ export default function AdminPlanFormScreen() {
     if (Object.keys(nextErrors).length) return;
     setSaving(true);
     try {
-      await saveManagedSubscriptionPlan({ name: name.trim(), description: description.trim(), durationMonths: durationValue, price: priceValue, currency, commissionRate: commissionValue, productLimit: productLimitValue, features, isActive }, planId);
+      await saveManagedSubscriptionPlan({ name: name.trim(), description: description.trim(), durationMonths: durationValue, price: priceValue, commissionRate: commissionValue, productLimit: productLimitValue, features, isActive }, planId);
       Alert.alert("تم الحفظ", editing ? "تم حفظ تعديلات الخطة. لا تتغير الاشتراكات أو الفواتير أو اللقطات السابقة." : "تم إنشاء الخطة كمسودة أو خطة نشطة بحسب الإعدادات.", [{ text: "حسنًا", onPress: () => router.back() }]);
     } catch (requestError) {
       console.warn("Unable to save subscription plan", requestError);
@@ -101,7 +100,7 @@ export default function AdminPlanFormScreen() {
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
       <View style={[styles.notice, { backgroundColor: colors.primaryLight, borderColor: colors.border }]}><AppIcon name="information-circle-outline" size={20} color={colors.primary} /><Text style={[styles.noticeText, { color: colors.textSecondary }]}>تُحفظ شروط الخطة الجديدة فقط؛ الاشتراكات وطلبات التجار السابقة تحتفظ باللقطات المسجلة لها.</Text></View>
       <Section title="البيانات الأساسية"><AppTextField label="اسم الخطة" value={name} onChangeText={setName} maxLength={80} error={errors.name} /><AppTextField label="وصف الخطة" value={description} onChangeText={setDescription} multiline error={errors.description} helperText="يظهر للمتقدم عند اختيار الخطة." /><Choice label="الحالة" value={isActive ? "active" : "draft"} values={[["draft", "مسودة"], ["active", "نشطة"]]} onChange={(value) => setIsActive(value === "active")} /></Section>
-      <Section title="الرسوم والعمولة"><AppTextField label="رسوم الاشتراك" value={price} onChangeText={setPrice} keyboardType="decimal-pad" error={errors.price} placeholder="0" /><Choice label="العملة" value={currency} values={[["SYP", "ليرة سورية"], ["USD", "دولار"]]} onChange={(value) => setCurrency(value as PlanCurrency)} /><AppTextField label="نسبة العمولة (%)" value={commission} onChangeText={setCommission} keyboardType="decimal-pad" error={errors.commission} helperText="يسمح بـ 0% عند تحديدها صراحة." /></Section>
+      <Section title="الرسوم والعمولة"><AppTextField label="رسوم الاشتراك" value={price} onChangeText={setPrice} keyboardType="decimal-pad" error={errors.price} placeholder="0" /><AppTextField label="نسبة العمولة (%)" value={commission} onChangeText={setCommission} keyboardType="decimal-pad" error={errors.commission} helperText="يسمح بـ 0% عند تحديدها صراحة." /></Section>
       <Section title="المدة والحدود"><AppTextField label="المدة بالأشهر" value={duration} onChangeText={setDuration} keyboardType="number-pad" error={errors.duration} /><AppTextField label="حد المنتجات" value={productLimit} onChangeText={setProductLimit} keyboardType="number-pad" error={errors.limit} helperText="اكتب 0 عند عدم السماح بإضافة منتجات." /></Section>
       <Section title="المزايا"><AppTextField label="إضافة ميزة" value={featureDraft} onChangeText={setFeatureDraft} onSubmitEditing={addFeature} returnKeyType="done" placeholder="مثال: دعم فني" /><AppButton title="إضافة الميزة" icon="add-outline" variant="secondary" onPress={addFeature} disabled={!featureDraft.trim()} />{features.length ? <View style={styles.chips}>{features.map((feature) => <Pressable key={feature} accessibilityRole="button" accessibilityLabel={`حذف ميزة ${feature}`} onPress={() => setFeatures((current) => current.filter((item) => item !== feature))} style={[styles.chip, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}><AppIcon name="close-outline" size={15} color={colors.textSecondary} /><Text style={[styles.chipText, { color: colors.text }]}>{feature}</Text></Pressable>)}</View> : <Text style={[styles.helper, { color: errors.features ? colors.error : colors.textMuted }]}>{errors.features ?? "أضف الميزات كعناصر مستقلة لتسهيل مراجعتها."}</Text>}</Section>
       {isActive && !formComplete ? <View style={[styles.incomplete, { backgroundColor: colors.surfaceSecondary }]}><Text style={[styles.helper, { color: colors.error }]}>لا يمكن حفظ الخطة نشطة قبل استكمال الوصف والعمولة وحد المنتجات والميزات.</Text></View> : null}

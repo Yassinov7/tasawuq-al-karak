@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import {
   Pressable,
   ScrollView,
@@ -7,6 +7,8 @@ import {
   View,
 } from "react-native";
 
+import {usePersonalAccount} from "@/hooks/usePersonalAccount";
+import {accountHome} from "@/lib/personal-account-model";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { SyriaFlag } from "@/components/ui/SyriaFlag";
@@ -105,6 +107,7 @@ type ThemeOptionProps = {
   subtitle: string;
   icon: "phone-portrait-outline" | "sunny-outline" | "moon-outline";
   selected: boolean;
+  disabled?: boolean;
   onPress: () => void;
 };
 
@@ -113,6 +116,7 @@ function ThemeOption({
   subtitle,
   icon,
   selected,
+  disabled=false,
   onPress,
 }: ThemeOptionProps) {
   const { colors } = useTheme();
@@ -120,6 +124,7 @@ function ThemeOption({
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       style={({ pressed }) => [
         styles.themeOption,
         {
@@ -147,7 +152,7 @@ function ThemeOption({
         <AppIcon
           name={icon}
           size={20}
-          color={selected ? colors.surface : colors.textSecondary}
+          color={selected ? colors.onPrimary : colors.textSecondary}
         />
       </View>
 
@@ -200,25 +205,22 @@ function ThemeOption({
 
 export default function SettingsScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const router = useRouter();
-  const { accountRole } = useLocalSearchParams<{ accountRole?: string }>();
+  const account=usePersonalAccount();
   const {
     themeMode,
-    setThemeMode,
+    setThemeMode,settingsReady,themeSaving,settingsError,
   } = useSettings();
 
   const { itemCount } = useCart();
   const { colors } = useTheme();
-  const headerMode =
-    accountRole === "merchant" || accountRole === "driver"
-      ? "business"
-      : "customer";
+  const headerMode=account.data?.role==='customer'?'customer':account.data?'business':'shared';
 
   const handleBack = () => {
     if (router.canGoBack()) {
       router.back();
       return;
     }
-    router.replace("/");
+    router.replace(account.data?accountHome[account.data.role]:"/");
   };
 
   return (
@@ -242,16 +244,7 @@ export default function SettingsScreen({ embedded = false }: { embedded?: boolea
         contentContainerStyle={styles.content}
       >
         <View style={styles.intro}>
-          <Text
-            style={[
-              styles.title,
-              {
-                color: colors.text,
-              },
-            ]}
-          >
-            الإعدادات
-          </Text>
+          {settingsError?<Text accessibilityRole="alert" style={{fontFamily:Fonts.regular,color:colors.errorForeground,textAlign:"right"}}>{settingsError}</Text>:null}
 
           <Text
             style={[
@@ -338,7 +331,7 @@ export default function SettingsScreen({ embedded = false }: { embedded?: boolea
                 },
               ]}
             >
-              <ThemeOption
+              <ThemeOption disabled={!settingsReady||themeSaving}
                 mode="system"
                 icon="phone-portrait-outline"
                 title="تلقائي حسب الجهاز"
@@ -347,7 +340,7 @@ export default function SettingsScreen({ embedded = false }: { embedded?: boolea
                 onPress={() => setThemeMode("system")}
               />
 
-              <ThemeOption
+              <ThemeOption disabled={!settingsReady||themeSaving}
                 mode="light"
                 icon="sunny-outline"
                 title="فاتح"
@@ -356,7 +349,7 @@ export default function SettingsScreen({ embedded = false }: { embedded?: boolea
                 onPress={() => setThemeMode("light")}
               />
 
-              <ThemeOption
+              <ThemeOption disabled={!settingsReady||themeSaving}
                 mode="dark"
                 icon="moon-outline"
                 title="داكن"

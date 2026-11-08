@@ -1,3 +1,4 @@
+import { formatSyp } from "@/lib/money";
 import { useCallback, useEffect, useState } from "react";
 import { useLocalSearchParams } from "expo-router";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -9,7 +10,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { featureList, getAdminApplicationDetail, reviewAdminApplication, type ApplicationDetail, type ApplicationRole, type ApplicationStatus } from "@/lib/admin-applications";
 
 const labels: Record<string, string> = { pending: "قيد المراجعة", changes_requested: "تحتاج استكمالًا", accepted: "مقبول", rejected: "مرفوض" };
-const money = (value: number, currency: string) => `${Number(value).toLocaleString("ar-SY", { maximumFractionDigits: 2 })} ${currency === "USD" ? "دولار" : "ل.س"}`;
+const money = (value: number, currency: string) => formatSyp(Number(value), currency);
 
 export default function ApplicationDetailsScreen() {
   const { applicationId, role: rawRole } = useLocalSearchParams<{ applicationId?: string; role?: string }>(); const role: ApplicationRole = rawRole === "driver" ? "driver" : "merchant"; const { colors } = useTheme();

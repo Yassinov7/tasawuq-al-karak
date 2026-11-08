@@ -23,7 +23,7 @@ import { useCart } from "@/context/CartContext";
 import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { useTheme } from "@/context/ThemeContext";
 
-import { getCustomerSearchResults, getVisibleCustomerSearchResults, normalizeCustomerSearchText, type CurrencyFilter, type ProductSort, type SearchFilter } from "@/lib/customer-search";
+import { getCustomerSearchResults, getVisibleCustomerSearchResults, normalizeCustomerSearchText, type ProductSort, type SearchFilter } from "@/lib/customer-search";
 
 export default function SearchTab() {
   const router = useRouter();
@@ -47,14 +47,13 @@ export default function SearchTab() {
   const [searchText, setSearchText] = useState(initialText);
   const [filter, setFilter] = useState<SearchFilter>("all");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-  const [currencyFilter, setCurrencyFilter] = useState<CurrencyFilter>("all");
   const [productSort, setProductSort] = useState<ProductSort>("relevance");
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [refinementsExpanded, setRefinementsExpanded] = useState(false);
 
   const query = normalizeCustomerSearchText(searchText);
   const results = useMemo(() => getCustomerSearchResults({ categories, products, stores, storeCategories }, searchText), [categories, products, searchText, storeCategories, stores]);
-  const visibleResults = useMemo(() => getVisibleCustomerSearchResults(results, filter, selectedCategoryId, currencyFilter, productSort), [currencyFilter, filter, productSort, results, selectedCategoryId]);
+  const visibleResults = useMemo(() => getVisibleCustomerSearchResults(results, filter, selectedCategoryId, productSort), [filter, productSort, results, selectedCategoryId]);
 
   const filterCounts: Record<SearchFilter, number> = query
     ? {
@@ -71,18 +70,15 @@ export default function SearchTab() {
       };
   const productCategories = query
     ? categories.filter((category) =>
-        results.products.some((product) => product.categoryId === category.id),
-      )
+        results.products.some((product) => product.categoryId === category.id))
     : categories.filter((category) =>
-        products.some((product) => product.available && product.categoryId === category.id),
-      );
+        products.some((product) => product.available && product.categoryId === category.id));
   const productResultsForRefinement = query
     ? results.products.length > 0
     : products.some((product) => product.available);
   const activeFilterCount =
     Number(filter !== "all") +
     Number(selectedCategoryId !== null) +
-    Number(currencyFilter !== "all") +
     Number(productSort !== "relevance");
   const totalResults = visibleResults.stores.length +
     visibleResults.products.length + visibleResults.categories.length;
@@ -94,7 +90,6 @@ export default function SearchTab() {
     selectedCategoryId
       ? productCategories.find((category) => category.id === selectedCategoryId)?.name
       : null,
-    currencyFilter === "SYP" ? "ل.س" : currencyFilter === "USD" ? "$" : null,
     productSort === "price-ascending" ? "الأقل سعراً" : productSort === "price-descending" ? "الأعلى سعراً" : null,
   ].filter((item): item is string => Boolean(item));
 
@@ -105,7 +100,6 @@ export default function SearchTab() {
   const handleQueryChange = (value: string) => {
     setSearchText(value);
     setSelectedCategoryId(null);
-    setCurrencyFilter("all");
     setProductSort("relevance");
   };
 
@@ -131,7 +125,6 @@ export default function SearchTab() {
     setSearchText(categoryName);
     setFilter("products");
     setSelectedCategoryId(null);
-    setCurrencyFilter("all");
     setProductSort("relevance");
     Keyboard.dismiss();
   };
@@ -139,7 +132,6 @@ export default function SearchTab() {
   const handleQuickSearch = (value: string) => {
     setSearchText(value);
     setSelectedCategoryId(null);
-    setCurrencyFilter("all");
     setProductSort("relevance");
     setFilter("all");
   };
@@ -163,9 +155,9 @@ export default function SearchTab() {
       >
         <SearchControls colors={colors} searchText={searchText} filtersVisible={filtersVisible}
           activeFilterCount={activeFilterCount} filter={filter} filterCounts={filterCounts}
-          selectedCategoryId={selectedCategoryId} currencyFilter={currencyFilter} productSort={productSort}
+          selectedCategoryId={selectedCategoryId} productSort={productSort}
           setSearchText={setSearchText} setFiltersVisible={setFiltersVisible} setFilter={setFilter}
-          setSelectedCategoryId={setSelectedCategoryId} setCurrencyFilter={setCurrencyFilter} setProductSort={setProductSort}
+          setSelectedCategoryId={setSelectedCategoryId} setProductSort={setProductSort}
           onQueryChange={handleQueryChange} onSubmit={handleSubmit} />
 
         {filtersVisible && (filter === "all" || filter === "products") && productResultsForRefinement ? (
@@ -186,15 +178,13 @@ export default function SearchTab() {
         {refinementsExpanded ? <ProductRefinements filtersVisible={filtersVisible} filter={filter}
           productResultsForRefinement={productResultsForRefinement} colors={colors}
           selectedCategoryId={selectedCategoryId} productCategories={productCategories}
-          currencyFilter={currencyFilter} productSort={productSort}
-          setSelectedCategoryId={setSelectedCategoryId} setCurrencyFilter={setCurrencyFilter}
-          setProductSort={setProductSort} setFilter={setFilter} /> : null}
+          productSort={productSort}
+          setSelectedCategoryId={setSelectedCategoryId} setProductSort={setProductSort} setFilter={setFilter} /> : null}
 
         {!query && filter === "all" && selectedCategoryId === null || totalResults === 0 ? (
           <SearchEmptyState isInitial={!query && filter === "all" && selectedCategoryId === null}
             colors={colors} quickSearches={quickSearches} query={query} searchText={searchText}
-            filter={filter} selectedCategoryId={selectedCategoryId} currencyFilter={currencyFilter}
-            onQuickSearch={handleQuickSearch} onResetFilters={() => { setFilter("all"); setSelectedCategoryId(null); setCurrencyFilter("all"); setProductSort("relevance"); }} />
+            filter={filter} selectedCategoryId={selectedCategoryId} onQuickSearch={handleQuickSearch} onResetFilters={() => { setFilter("all"); setSelectedCategoryId(null); setProductSort("relevance"); }} />
         ) : (
           <SearchResults colors={colors} query={query} searchText={searchText} totalResults={totalResults}
             visibleResults={visibleResults} storeCategories={storeCategories}

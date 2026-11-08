@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
 export type OrderRealtimeSubscription = {
-  table: "customer_orders" | "store_orders" | "delivery_tasks";
+  table: "customer_orders" | "store_orders" | "delivery_tasks" | "driver_cash_handover_requests" | "driver_cash_handover_attempts" | "delivery_collection_results" | "driver_wage_policies" | "driver_wage_entitlements" | "driver_cash_receipt_allocations" | "driver_wage_payments" | "merchant_delivery_positions" | "merchant_settlement_documents" | "merchant_settlement_payments" | "c7_merchant_settlement_payments" | "subscription_plan_versions" | "subscription_memberships" | "subscription_account_events" | "subscription_billing_documents" | "subscription_cash_receipts";
   filter?: string;
 };
 

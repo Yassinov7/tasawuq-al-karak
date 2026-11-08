@@ -144,7 +144,7 @@ export default function DriverHomeScreen() {
     setNotice("");
     try {
       await acceptDeliveryTask(task.customer_order_id);
-      setNotice(`تم قبول مهمة الطلب TW-${task.order_number}.`);
+      setNotice(`تم قبول مهمة ${task.reference ?? `الطلب TW-${task.order_number}`}.`);
       await loadData(true);
     } catch {
       setError("تعذر قبول المهمة؛ ربما قبلها سائق آخر. حدّث قائمة المهام وحاول مجددًا.");

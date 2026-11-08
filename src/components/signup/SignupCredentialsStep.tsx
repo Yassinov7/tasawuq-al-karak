@@ -1,4 +1,3 @@
-import { Link } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -6,7 +5,7 @@ import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { AppTextField } from "@/components/ui/AppTextField";
 import { SignupErrorNotice } from "@/components/signup/SignupErrorNotice";
-import { Fonts, FontSizes, Radius, Spacing } from "@/constants/theme";
+import { Fonts, FontSizes, Radius, Spacing, Typography } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 import type { SignupField } from "@/hooks/useSignup";
 import type {
@@ -45,6 +44,7 @@ type SignupCredentialsStepProps = {
   onChangePassword: (value: string) => void;
   onChangePasswordConfirmation: (value: string) => void;
   onContinue: () => void;
+  onExit: () => void;
 };
 
 export function SignupCredentialsStep({
@@ -63,6 +63,7 @@ export function SignupCredentialsStep({
   onChangePassword,
   onChangePasswordConfirmation,
   onContinue,
+  onExit,
 }: SignupCredentialsStepProps) {
   const { colors } = useTheme();
   const [optionalInfoExpanded, setOptionalInfoExpanded] = useState(false);
@@ -78,7 +79,7 @@ export function SignupCredentialsStep({
       </Text>
 
       <View style={styles.fields}>
-        <AppTextField
+        <AppTextField design="refined"
           label="الاسم الكامل"
           value={fullName}
           onChangeText={onChangeFullName}
@@ -88,7 +89,7 @@ export function SignupCredentialsStep({
           returnKeyType="next"
           error={fieldErrors.fullName}
         />
-        <AppTextField
+        <AppTextField design="refined"
           label="البريد الإلكتروني"
           value={email}
           onChangeText={onChangeEmail}
@@ -100,7 +101,7 @@ export function SignupCredentialsStep({
           returnKeyType="next"
           error={fieldErrors.email}
         />
-        <AppTextField
+        <AppTextField design="refined"
           label="كلمة المرور"
           value={passwordValue}
           onChangeText={onChangePassword}
@@ -112,7 +113,7 @@ export function SignupCredentialsStep({
           passwordToggleMode="icon"
           error={fieldErrors.password}
         />
-        <AppTextField
+        <AppTextField design="refined"
           label="تأكيد كلمة المرور"
           value={passwordConfirmation}
           onChangeText={onChangePasswordConfirmation}
@@ -235,7 +236,7 @@ export function SignupCredentialsStep({
 
       <SignupErrorNotice message={hasFieldErrors ? "" : error} />
       <View style={styles.action}>
-        <AppButton
+        <AppButton design="refined"
           title="التالي: نوع الحساب"
           icon="arrow-back"
           onPress={onContinue}
@@ -246,13 +247,13 @@ export function SignupCredentialsStep({
         <Text style={[styles.loginText, { color: colors.textSecondary }]}>
           لديك حساب بالفعل؟
         </Text>
-        <Link href="/login" asChild>
-          <Pressable accessibilityRole="button" style={styles.loginButton}>
+
+          <Pressable onPress={onExit} accessibilityRole="button" style={styles.loginButton}>
             <Text style={[styles.loginLink, { color: colors.primary }]}>
               تسجيل الدخول
             </Text>
           </Pressable>
-        </Link>
+
       </View>
     </View>
   );
@@ -268,8 +269,7 @@ const styles = StyleSheet.create({
   },
   title: {
     textAlign: "right",
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.xl,
+    ...Typography.pageTitle,
   },
   subtitle: {
     marginTop: Spacing.one,

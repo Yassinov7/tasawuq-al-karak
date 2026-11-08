@@ -1,10 +1,14 @@
 import { Pressable, StyleSheet, Text } from "react-native";
 
+import { AppTextField } from "@/components/ui/AppTextField";
 import { AppModal } from "@/components/ui/AppModal";
-import { Fonts, FontSizes } from "@/constants/theme";
+import { Fonts, FontSizes, Typography } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 
 type ForgotPasswordSectionProps = {
+  email: string;
+  error: string;
+  onChangeEmail: (value: string) => void;
   busy: boolean;
   message: string;
   visible: boolean;
@@ -15,6 +19,7 @@ type ForgotPasswordSectionProps = {
 };
 
 export function ForgotPasswordSection({
+  email, error, onChangeEmail,
   busy,
   message,
   visible,
@@ -37,12 +42,11 @@ export function ForgotPasswordSection({
           نسيت كلمة المرور؟
         </Text>
       </Pressable>
-      <AppModal
+      <AppModal design="refined"
         visible={visible}
         title="إعادة تعيين كلمة المرور"
         message={
-          message ||
-          "سنرسل رابط إعادة التعيين إلى البريد المكتوب في صفحة الدخول."
+          "أدخل بريدك الإلكتروني لإرسال رابط استعادة كلمة المرور."
         }
         icon="mail-outline"
         confirmText={
@@ -56,7 +60,10 @@ export function ForgotPasswordSection({
         busy={busy}
         onCancel={onCancel}
         onConfirm={message ? onCloseMessage : onSend}
-      />
+      >
+        <AppTextField design="refined" label="البريد الإلكتروني للاستعادة" value={email} onChangeText={onChangeEmail} error={error} disabled={busy} keyboardType="email-address" autoComplete="email" autoCapitalize="none" autoCorrect={false} returnKeyType="send" onSubmitEditing={message ? onCloseMessage : onSend} />
+        {message ? <Text accessibilityRole="alert" style={[Typography.body, { color: colors.successForeground, backgroundColor: colors.successSurface, padding: 12, borderRadius: 8, marginTop: 8, textAlign: "right" }]}>{message}</Text> : null}
+      </AppModal>
     </>
   );
 }

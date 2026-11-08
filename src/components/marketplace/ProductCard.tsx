@@ -1,3 +1,4 @@
+import { formatSypNumber } from "@/lib/money";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { AppBadge } from "@/components/ui/AppBadge";
@@ -131,7 +132,7 @@ export function ProductCard({
             },
           ]}
         >
-          {product.price.toLocaleString("en-US")}
+          {formatSypNumber(product.price)}
         </Text>
 
         <Text
@@ -142,7 +143,7 @@ export function ProductCard({
             },
           ]}
         >
-          {product.currency === "USD" ? "$" : "ل.س"}
+          {"ل.س"}
         </Text>
       </View>
 

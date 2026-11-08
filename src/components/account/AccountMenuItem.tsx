@@ -49,14 +49,14 @@ export function AccountMenuItem({
       </View>
       <View style={styles.content}>
         <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
-        {subtitle ? <Text numberOfLines={1} style={[styles.subtitle, { color: colors.textMuted }]}>{subtitle}</Text> : null}
+        {subtitle ? <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text> : null}
       </View>
       {badge ? (
         <View style={[styles.badge, { backgroundColor: colors.primaryLight }]}>
           <Text style={[styles.badgeText, { color: colors.primary }]}>{badge}</Text>
         </View>
       ) : null}
-      {loading ? <ActivityIndicator size="small" color={colors.primary} /> : <AppIcon name="chevron-back-outline" size={18} color={colors.textMuted} />}
+      {loading ? <ActivityIndicator size="small" color={colors.primary} /> : <AppIcon name="chevron-back-outline" size={18} color={colors.textSecondary} />}
     </Pressable>
   );
 }

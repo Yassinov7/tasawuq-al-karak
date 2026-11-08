@@ -1,3 +1,5 @@
+import { MerchantSettlementAdministration } from "@/components/admin/MerchantSettlementAdministration";
+import { formatSyp } from "@/lib/money";
 import { useCallback, useEffect, useState } from "react";
 import { useLocalSearchParams, useRouter, type Href } from "expo-router";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -6,7 +8,7 @@ import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 import { getSettlementBatches, getUnsettledEntitlements, type SettlementBatch } from "@/lib/merchant-settlements";
 
-const money = (amount: number, currency: string) => `${amount.toLocaleString("ar-SY", { maximumFractionDigits: 2 })} ${currency}`;
+const money = (amount: number, currency: string) => formatSyp(Number(amount), currency);
 
 export default function MerchantSettlements() {
   const { colors } = useTheme();
@@ -61,6 +63,7 @@ export default function MerchantSettlements() {
   }
 
   return <ScrollView style={[styles.screen, { backgroundColor: colors.background }]} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} />}>
+    <MerchantSettlementAdministration/><Text style={[styles.title,{color:colors.text}]}>التسويات السابقة — نظام مستقل</Text>
     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <Text style={[styles.title, { color: colors.text }]}>مستحقات غير مسوّاة</Text>
       {Object.keys(due).length

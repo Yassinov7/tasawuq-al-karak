@@ -1,17 +1,17 @@
-import { Link } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { BrandMark } from "@/components/brand/BrandMark";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { Fonts, FontSizes, Radius, Spacing } from "@/constants/theme";
+import { Fonts, FontSizes, Radius, Spacing, Typography, LayoutSpacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 
 type SignupIntroStepProps = {
   onContinue: () => void;
+  onExit: () => void;
 };
 
-export function SignupIntroStep({ onContinue }: SignupIntroStepProps) {
+export function SignupIntroStep({ onContinue, onExit }: SignupIntroStepProps) {
   const { colors } = useTheme();
 
   return (
@@ -28,7 +28,7 @@ export function SignupIntroStep({ onContinue }: SignupIntroStepProps) {
         </View>
       </View>
 
-      <Text style={[styles.eyebrow, { color: colors.accent }]}>
+      <Text style={[styles.eyebrow, { color: colors.warningForeground }]}>
         الكرك الشرقي
       </Text>
       <Text style={[styles.title, { color: colors.text }]}>
@@ -39,7 +39,7 @@ export function SignupIntroStep({ onContinue }: SignupIntroStepProps) {
       </Text>
 
       <View style={styles.action}>
-        <AppButton
+        <AppButton design="refined"
           title="ابدأ إنشاء حسابك"
           icon="arrow-back"
           onPress={onContinue}
@@ -50,13 +50,13 @@ export function SignupIntroStep({ onContinue }: SignupIntroStepProps) {
         <Text style={[styles.loginText, { color: colors.textSecondary }]}>
           لديك حساب بالفعل؟
         </Text>
-        <Link href="/login" asChild>
-          <Pressable accessibilityRole="button" style={styles.loginButton}>
+
+          <Pressable onPress={onExit} accessibilityRole="button" style={styles.loginButton}>
             <Text style={[styles.loginLink, { color: colors.primary }]}>
               تسجيل الدخول
             </Text>
           </Pressable>
-        </Link>
+
       </View>
     </View>
   );
@@ -70,13 +70,13 @@ const styles = StyleSheet.create({
     maxWidth: 500,
     alignSelf: "center",
     alignItems: "center",
-    paddingHorizontal: Spacing.five,
-    paddingTop: Spacing.five,
+    paddingHorizontal: LayoutSpacing.pageGutter,
+    paddingTop: LayoutSpacing.sectionGap,
     paddingBottom: Spacing.six,
   },
   brandCard: {
     width: "100%",
-    minHeight: 250,
+    minHeight: 190,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -98,9 +98,7 @@ const styles = StyleSheet.create({
   title: {
     marginTop: Spacing.one,
     textAlign: "center",
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.xl,
-    lineHeight: 34,
+    ...Typography.pageTitle,
   },
   subtitle: {
     maxWidth: 340,

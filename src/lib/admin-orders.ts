@@ -1,7 +1,11 @@
+import { getC3Contexts } from "@/lib/c3-orders";
+import type { C3Context } from "@/lib/c3-order-contract";
 import { supabase } from "@/lib/supabase";
+import { assertSypDocuments } from "@/lib/money";
 import type { Tables } from "@/types/database";
 
 export type AdminOrderDetail = {
+  c3?: C3Context;
   order: Tables<"customer_orders">;
   customer: Pick<Tables<"profiles">, "id" | "full_name" | "email"> | null;
   totals: Tables<"customer_order_totals">[];
@@ -29,6 +33,7 @@ export type AdminOrderListFilter =
   | "cancelled";
 
 export type AdminOrderSummary = {
+  reference?: string;
   id: string;
   orderNumber: number;
   status: Tables<"customer_orders">["status"];
@@ -172,19 +177,22 @@ export async function getAdminOrderPage({
     ]);
   }
 
+  const contexts = await getC3Contexts(orderIds);
   const result: AdminOrderPage = {
     orders: orders.map((order) => ({
       id: order.id,
       orderNumber: order.order_number,
+      reference: contexts[order.id]?.references[`ORD:${order.id}`],
       status: order.status,
       createdAt: order.created_at,
       customerName: customerNames.get(order.customer_id) ?? null,
       recipientName: order.recipient_name,
       storeCount: storeCounts.get(order.id) ?? 0,
-      totals: totalsByOrder.get(order.id) ?? [],
+      totals: (totalsByOrder.get(order.id) ?? []).map(total => contexts[order.id]?.pricing ? { ...total, total: contexts[order.id].pricing!.current.total } : total),
     })),
     hasMore: orders.length === pageSize,
   };
+  assertSypDocuments(result);
   orderPageCache.set(orderPageKey(filter, page, pageSize, normalizedSearch), { data: result, updatedAt: Date.now() });
   return result;
 }
@@ -267,10 +275,12 @@ export async function getAdminOrderDetail(
     ]);
   }
 
+  const context = (await getC3Contexts([orderId]))[orderId];
   const detail: AdminOrderDetail = {
-    order,
+    c3: context,
+    order: context?.pricing ? { ...order, delivery_fee: context.pricing.current.delivery_fee } : order,
     customer: customerResult.data ?? null,
-    totals: totalsResult.data ?? [],
+    totals: (totalsResult.data ?? []).map(total => context?.pricing ? { ...total, items_subtotal: context.pricing.current.items_amount, delivery_fee: context.pricing.current.delivery_fee, total: context.pricing.current.total } : total),
     deliveryTask,
     driver: driverResult.data ?? null,
     stores: storeOrders.map((storeOrder) => ({
@@ -281,6 +291,7 @@ export async function getAdminOrderDetail(
       statusHistory: historyByStoreOrder.get(storeOrder.id) ?? [],
     })),
   };
+  assertSypDocuments(detail);
   detailCache.set(orderId, { data: detail, updatedAt: Date.now() });
   return detail;
 }

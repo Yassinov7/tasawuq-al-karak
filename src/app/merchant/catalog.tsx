@@ -4,8 +4,9 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { MerchantOffersPanel } from "@/app/merchant/offers";
 import { MerchantProductsPanel } from "@/app/merchant/products";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { Fonts, FontSizes, Radius, Spacing } from "@/constants/theme";
+import { Typography, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
+import { catalogTab } from "@/lib/merchant-catalog";
 
 type CatalogTab = "products" | "offers";
 
@@ -31,8 +32,7 @@ export default function MerchantCatalogScreen() {
   const router = useRouter();
   const { colors } = useTheme();
 
-  const activeTab: CatalogTab =
-    params.tab === "offers" ? "offers" : "products";
+  const activeTab: CatalogTab = catalogTab(params.tab);
 
   const changeTab = (tab: CatalogTab) => {
     router.setParams({
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   },
 
   tabsWrapper: {
-    paddingHorizontal: Spacing.five,
+    paddingHorizontal: Spacing.four,
     paddingTop: Spacing.two,
     paddingBottom: Spacing.one,
   },
@@ -149,7 +149,8 @@ const styles = StyleSheet.create({
   tab: {
     position: "relative",
     flex: 1,
-    minHeight: 38,
+    minHeight: 48,
+    paddingVertical: Spacing.two,
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "center",
@@ -160,8 +161,7 @@ const styles = StyleSheet.create({
   },
 
   tabLabel: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.xs,
+    ...Typography.bodyStrong,
   },
 
   indicator: {

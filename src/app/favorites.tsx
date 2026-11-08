@@ -1,3 +1,4 @@
+import { formatSypNumber } from "@/lib/money";
 import { useRouter } from "expo-router";
 import {
   Alert,
@@ -230,7 +231,7 @@ export default function FavoritesScreen() {
                           },
                         ]}
                       >
-                        {product.price.toLocaleString("en-US")}
+                        {formatSypNumber(product.price)}
                       </Text>
 
                       <Text

@@ -4,9 +4,9 @@ import { AppEmptyState } from "@/components/ui/AppEmptyState";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { styles } from "@/components/search/searchStyles";
 
-type Props = { isInitial: boolean; colors: { primaryLight: string; border: string; surface: string; primary: string; text: string; textSecondary: string; textMuted: string }; quickSearches: string[]; query: string; searchText: string; filter: string; selectedCategoryId: string | null; currencyFilter: string; onQuickSearch: (value: string) => void; onResetFilters: () => void; };
+type Props = { isInitial: boolean; colors: { primaryLight: string; border: string; surface: string; primary: string; text: string; textSecondary: string; textMuted: string }; quickSearches: string[]; query: string; searchText: string; filter: string; selectedCategoryId: string | null; onQuickSearch: (value: string) => void; onResetFilters: () => void; };
 export function SearchEmptyState(props: Props) {
-  const { isInitial, colors, quickSearches, query, searchText, filter, selectedCategoryId, currencyFilter, onQuickSearch, onResetFilters } = props;
+  const { isInitial, colors, quickSearches, query, searchText, filter, selectedCategoryId, onQuickSearch, onResetFilters } = props;
   return isInitial ? (<>
           <View style={styles.emptyState}>
             <View
@@ -163,7 +163,7 @@ export function SearchEmptyState(props: Props) {
             >
               جرّب كلمة مختلفة أو أزل بعض الفلاتر.
             </Text>
-            {filter !== "all" || selectedCategoryId || currencyFilter !== "all" ? (
+            {filter !== "all" || selectedCategoryId  ? (
               <Pressable
                 onPress={onResetFilters}
                 accessibilityRole="button"

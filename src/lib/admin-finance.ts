@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
+import { assertSypDocuments } from "@/lib/money";
 
-export type FinanceCurrency = "SYP" | "USD";
+export type FinanceCurrency = "SYP";
 
 export type MerchantFinancialPosition = {
   merchant_id: string;
@@ -104,7 +105,7 @@ export type AdminInvoiceDetails = AdminInvoiceSummary & {
   ledgerEntries: LedgerEntry[];
 };
 
-export type AdminPaymentFilter = "all" | "SYP" | "USD" | "cash" | "external_transfer";
+export type AdminPaymentFilter = "all" | "SYP" | "cash" | "external_transfer";
 
 export type AdminPaymentSummary = Payment & {
   merchantName: string | null;
@@ -144,17 +145,14 @@ export type AdminSubscriptionDetails = AdminSubscriptionSummary & {
 };
 
 export type AdminCreditFilter = "all" | "enabled" | "disabled";
-export type AdminCreditCurrencyFilter = "all" | FinanceCurrency;
 export type AdminCreditSummary = MerchantFinancialPosition & { merchantName: string | null; storeName: string | null; autoRenew: boolean; overLimitAmount: number };
 export type AdminCreditPage = { records: AdminCreditSummary[]; hasMore: boolean; totalCount: number };
 export type AdminCreditDetails = AdminCreditSummary & { merchantPhone: string | null; merchantStatus: string | null };
 export type AdminCommissionFilter = "all" | "due" | "pending_delivery" | "void";
-export type AdminCommissionCurrencyFilter = "all" | FinanceCurrency;
 export type AdminCommissionSummary = Commission & { merchant_id: string; merchantName: string | null; storeName: string | null; customerOrderId: string | null; reversalTotal: number; reversalCount: number };
 export type AdminCommissionPage = { commissions: AdminCommissionSummary[]; hasMore: boolean; totalCount: number };
 export type AdminCommissionDetails = AdminCommissionSummary & { reversals: CommissionReversal[]; merchantPhone: string | null; merchantStatus: string | null; storeOrderStatus: string | null; storeOrderDeliveredAt: string | null };
 export type AdminLedgerFilter = "all" | "subscription_invoice" | "store_order_commission" | "payment_allocation" | "commission_reversal" | "manual_adjustment" | "ledger_reversal";
-export type AdminLedgerCurrencyFilter = "all" | FinanceCurrency;
 export type AdminLedgerSummary = LedgerEntry & { merchant_id: string; reversal_of: string | null; merchantName: string | null; storeName: string | null };
 export type AdminLedgerPage = { entries: AdminLedgerSummary[]; hasMore: boolean; totalCount: number };
 export type AdminLedgerDetails = AdminLedgerSummary & { merchantPhone: string | null; merchantStatus: string | null; invoiceId: string | null; paymentId: string | null; commissionId: string | null; relatedReversalId: string | null };
@@ -298,6 +296,7 @@ const financeClient = supabase as unknown as FinanceClient;
 
 function asRows<T>(result: { data: unknown[] | null; error: Error | null }): T[] {
   if (result.error) throw result.error;
+  assertSypDocuments(result.data);
   return (result.data ?? []) as T[];
 }
 
@@ -374,128 +373,91 @@ function subscriptionPeriodStatus(subscription: SubscriptionTiming, now = Date.n
 }
 
 export async function loadAdminFinanceDashboard(): Promise<AdminFinanceDashboard> {
-  const [merchants, invoicesResult, subscriptionsResult, paymentCounts, commissionCounts, ledgerCounts] = await Promise.all([
+  const [merchants, invoicesResult, subscriptionsResult, paymentCount, commissionCounts, ledgerCounts] = await Promise.all([
     loadMerchantFinanceSummaries(),
     financeClient.from("subscription_invoices").select("merchant_id,currency,status").order("created_at", { ascending: false }),
     financeClient.from("merchant_subscriptions").select("merchant_id,starts_at,expires_at").order("expires_at", { ascending: false }),
-    Promise.all((["SYP", "USD"] as FinanceCurrency[]).map(async (currency) => ({
-      currency,
-      count: await countRows(financeClient.from("subscription_payments").select("id", { count: "exact", head: true }).eq("currency", currency)),
-    }))),
-    Promise.all((["SYP", "USD"] as FinanceCurrency[]).map(async (currency) => {
-      const [dueCount, recordedCount, reversalCount] = await Promise.all([
-        countRows(financeClient.from("store_order_commissions").select("id", { count: "exact", head: true }).eq("currency", currency).eq("status", "due")),
-        countRows(financeClient.from("store_order_commissions").select("id", { count: "exact", head: true }).eq("currency", currency)),
-        countRows(financeClient.from("store_order_commission_reversals").select("id", { count: "exact", head: true }).eq("currency", currency)),
-      ]);
-      return { currency, dueCount, recordedCount, reversalCount };
-    })),
+    countRows(financeClient.from("subscription_payments").select("id", { count: "exact", head: true })),
+    Promise.all([
+      countRows(financeClient.from("store_order_commissions").select("id", { count: "exact", head: true }).eq("status", "due")),
+      countRows(financeClient.from("store_order_commissions").select("id", { count: "exact", head: true })),
+      countRows(financeClient.from("store_order_commission_reversals").select("id", { count: "exact", head: true })),
+    ]),
     Promise.all(["total", "subscription_invoice", "store_order_commission", "commission_reversal", "payment_allocation", "manual_adjustment", "ledger_reversal"].map(async (sourceType) => ({ sourceType, count: await countRows(sourceType === "total" ? financeClient.from("merchant_ledger_entries").select("id", { count: "exact", head: true }) : financeClient.from("merchant_ledger_entries").select("id", { count: "exact", head: true }).eq("source_type", sourceType)) }))),
   ]);
   const invoices = asRows<{ merchant_id: string; currency: FinanceCurrency; status: string }>(invoicesResult);
   const subscriptions = asRows<SubscriptionTiming>(subscriptionsResult);
   const positions = merchants.flatMap((merchant) => merchant.positions);
-  const currencies = (["SYP", "USD"] as FinanceCurrency[]).map((currency) => ({
+  const currency = "SYP" as const;
+  const summary = {
     currency,
-    invoiceOutstanding: positions.filter((position) => position.currency === currency).reduce((total, position) => total + Number(position.invoice_outstanding ?? 0), 0),
-    paymentsRecorded: positions.filter((position) => position.currency === currency).reduce((total, position) => total + Number(position.payments_recorded ?? 0), 0),
-    commissionsDue: positions.filter((position) => position.currency === currency).reduce((total, position) => total + Number(position.commissions_due ?? 0), 0),
-    openInvoiceCount: invoices.filter((invoice) => invoice.currency === currency && ["open", "partially_paid"].includes(invoice.status)).length,
-    openOnlyInvoiceCount: invoices.filter((invoice) => invoice.currency === currency && invoice.status === "open").length,
-    partiallyPaidInvoiceCount: invoices.filter((invoice) => invoice.currency === currency && invoice.status === "partially_paid").length,
-    paymentsAllocated: positions.filter((position) => position.currency === currency).reduce((total, position) => total + Number(position.payments_allocated ?? 0), 0),
-    unappliedPaymentBalance: positions.filter((position) => position.currency === currency).reduce((total, position) => total + Number(position.unapplied_payment_balance ?? 0), 0),
-    paymentCount: paymentCounts.find((item) => item.currency === currency)?.count ?? 0,
-  })).filter((summary) => summary.invoiceOutstanding || summary.paymentsRecorded || summary.commissionsDue || summary.openInvoiceCount);
+    invoiceOutstanding: positions.reduce((total, position) => total + Number(position.invoice_outstanding ?? 0), 0),
+    paymentsRecorded: positions.reduce((total, position) => total + Number(position.payments_recorded ?? 0), 0),
+    commissionsDue: positions.reduce((total, position) => total + Number(position.commissions_due ?? 0), 0),
+    openInvoiceCount: invoices.filter((invoice) => ["open", "partially_paid"].includes(invoice.status)).length,
+    openOnlyInvoiceCount: invoices.filter((invoice) => invoice.status === "open").length,
+    partiallyPaidInvoiceCount: invoices.filter((invoice) => invoice.status === "partially_paid").length,
+    paymentsAllocated: positions.reduce((total, position) => total + Number(position.payments_allocated ?? 0), 0),
+    unappliedPaymentBalance: positions.reduce((total, position) => total + Number(position.unapplied_payment_balance ?? 0), 0),
+    paymentCount,
+  };
+  // Keep the existing card-list contract, with at most one SYP summary.
+  const currencies = summary.invoiceOutstanding || summary.paymentsRecorded || summary.commissionsDue || summary.openInvoiceCount ? [summary] : [];
   const storeNames = new Map(merchants.map((merchant) => [merchant.merchantId, merchant.storeName]));
-  const openInvoicesByMerchantCurrency = new Map<string, number>();
+  const openInvoicesByMerchant = new Map<string, number>();
   for (const invoice of invoices.filter((item) => ["open", "partially_paid"].includes(item.status))) {
-    const key = `${invoice.merchant_id}:${invoice.currency}`;
-    openInvoicesByMerchantCurrency.set(key, (openInvoicesByMerchantCurrency.get(key) ?? 0) + 1);
+    openInvoicesByMerchant.set(invoice.merchant_id, (openInvoicesByMerchant.get(invoice.merchant_id) ?? 0) + 1);
   }
-  const invoiceActions = [...openInvoicesByMerchantCurrency.entries()].map(([key, count]) => {
-    const [merchantId, currency] = key.split(":") as [string, FinanceCurrency];
-    return { merchantId, kind: "open_invoices" as const, currency, count, storeName: storeNames.get(merchantId) ?? null };
-  });
+  const invoiceActions = [...openInvoicesByMerchant].map(([merchantId, count]) => ({ merchantId, kind: "open_invoices" as const, currency, count, storeName: storeNames.get(merchantId) ?? null }));
   const now = Date.now();
   const subscriptionActions = [...latestStartedSubscriptionPeriods(subscriptions, now).values()].flatMap((subscription) => {
     const remaining = new Date(subscription.expires_at).getTime() - now;
     if (remaining < -subscriptionGraceMs || remaining > subscriptionGraceMs) return [];
     return [{ merchantId: subscription.merchant_id, storeName: storeNames.get(subscription.merchant_id) ?? null, kind: remaining < 0 ? "grace_period" as const : "expiring_subscription" as const, expiresAt: subscription.expires_at }];
   });
-  const enabledMerchantIds = new Set(positions.filter((position) => position.credit_enabled).map((position) => position.merchant_id));
-  const creditCurrencies = (["SYP", "USD"] as FinanceCurrency[]).map((currency) => {
-    const allCurrencyPositions = positions.filter((position) => position.currency === currency);
-    const currencyPositions = allCurrencyPositions.filter((position) => position.credit_enabled);
-    return {
-      currency,
-      enabledCount: currencyPositions.length,
-      creditLimitTotal: currencyPositions.reduce((total, position) => total + Number(position.credit_limit ?? 0), 0),
-      effectiveExposureTotal: allCurrencyPositions.reduce((total, position) => total + Number(position.effective_exposure ?? 0), 0),
-      atOrOverLimitCount: currencyPositions.filter((position) => Number(position.effective_exposure ?? 0) >= Number(position.credit_limit ?? 0)).length,
-    };
-  }).filter((summary) => summary.enabledCount > 0 || summary.effectiveExposureTotal > 0);
-  const commissions = commissionCounts.map((count) => ({ ...count, dueAmount: positions.filter((position) => position.currency === count.currency).reduce((total, position) => total + Number(position.commissions_due ?? 0), 0) })).filter((summary) => summary.dueAmount > 0 || summary.recordedCount > 0 || summary.reversalCount > 0);
+  const creditPositions = positions.filter((position) => position.credit_enabled);
+  const enabledMerchantIds = new Set(creditPositions.map((position) => position.merchant_id));
+  const creditSummary = {
+    currency, enabledCount: creditPositions.length,
+    creditLimitTotal: creditPositions.reduce((total, position) => total + Number(position.credit_limit ?? 0), 0),
+    effectiveExposureTotal: positions.reduce((total, position) => total + Number(position.effective_exposure ?? 0), 0),
+    atOrOverLimitCount: creditPositions.filter((position) => Number(position.effective_exposure ?? 0) >= Number(position.credit_limit ?? 0)).length,
+  };
+  const creditCurrencies = creditSummary.enabledCount || creditSummary.effectiveExposureTotal > 0 ? [creditSummary] : [];
+  const [dueCount, recordedCount, reversalCount] = commissionCounts;
+  const commissionSummary = { currency, dueCount, recordedCount, reversalCount, dueAmount: summary.commissionsDue };
+  const commissions = commissionSummary.dueAmount > 0 || recordedCount > 0 || reversalCount > 0 ? [commissionSummary] : [];
   const ledgerCount = (sourceType: string) => ledgerCounts.find((item) => item.sourceType === sourceType)?.count ?? 0;
   return { merchants, currencies, actions: [...invoiceActions, ...subscriptionActions], subscriptions: subscriptionIndicatorsFromPeriods(subscriptions, now), credit: { enabledMerchantCount: enabledMerchantIds.size, noCreditMerchantCount: Math.max(0, merchants.length - enabledMerchantIds.size), currencies: creditCurrencies }, commissions, ledger: { totalCount: ledgerCount("total"), subscriptionCount: ledgerCount("subscription_invoice"), commissionCount: ledgerCount("store_order_commission"), correctionCount: ledgerCount("commission_reversal") + ledgerCount("manual_adjustment") + ledgerCount("ledger_reversal") } };
 }
 
 export async function loadFinancialIndicators(): Promise<FinancialIndicators> {
-  const currencies = ["SYP", "USD"] as const;
-  const invoiceCounts = await Promise.all(currencies.map(async (currency) => {
-    const count = (status?: "open" | "partially_paid" | "paid") => {
-      let query = financeClient.from("subscription_invoices").select("id", { count: "exact", head: true }).eq("currency", currency);
-      if (status) query = query.eq("status", status);
-      return countRows(query);
-    };
-    const [total, open, partiallyPaid, paid] = await Promise.all([count(), count("open"), count("partially_paid"), count("paid")]);
-    return { currency, total, open, partiallyPaid, paid };
-  }));
-  const [dueCommissionCounts, paymentCounts] = await Promise.all([
-    Promise.all(currencies.map(async (currency) => ({
-      currency,
-      count: await countRows(financeClient.from("store_order_commissions").select("id", { count: "exact", head: true }).eq("currency", currency).eq("status", "due")),
-    }))),
-    Promise.all(currencies.map(async (currency) => ({
-      currency,
-      count: await countRows(financeClient.from("subscription_payments").select("id", { count: "exact", head: true }).eq("currency", currency)),
-    }))),
-  ]);
-  const [merchants, subscriptionsResult] = await Promise.all([
+  const countInvoices = (status?: "open" | "partially_paid" | "paid") => {
+    let query = financeClient.from("subscription_invoices").select("id", { count: "exact", head: true });
+    if (status) query = query.eq("status", status);
+    return countRows(query);
+  };
+  const [invoiceCount, open, partiallyPaid, paid, dueCommissionCount, paymentCount, merchants, subscriptionsResult] = await Promise.all([
+    countInvoices(), countInvoices("open"), countInvoices("partially_paid"), countInvoices("paid"),
+    countRows(financeClient.from("store_order_commissions").select("id", { count: "exact", head: true }).eq("status", "due")),
+    countRows(financeClient.from("subscription_payments").select("id", { count: "exact", head: true })),
     loadMerchantFinanceSummaries(),
     financeClient.from("merchant_subscriptions").select("merchant_id,starts_at,expires_at"),
   ]);
-  const subscriptions = asRows<{ merchant_id: string; starts_at: string; expires_at: string }>(subscriptionsResult);
+  const subscriptions = asRows<SubscriptionTiming>(subscriptionsResult);
   const positions = merchants.flatMap((merchant) => merchant.positions);
-  const visibleCurrencies = new Set<FinanceCurrency>([
-    ...positions.map((position) => position.currency),
-    ...invoiceCounts.filter((item) => item.total > 0).map((item) => item.currency),
-    ...dueCommissionCounts.filter((item) => item.count > 0).map((item) => item.currency),
-  ]);
-
-  const currencyIndicators = [...visibleCurrencies].map((currency) => {
-    const currencyPositions = positions.filter((position) => position.currency === currency);
-    const invoiceCount = invoiceCounts.find((item) => item.currency === currency);
-    const dueCommissionCount = dueCommissionCounts.find((item) => item.currency === currency);
-    return {
-      currency,
-      invoiceOutstanding: currencyPositions.reduce((total, position) => total + Number(position.invoice_outstanding ?? 0), 0),
-      paymentsRecorded: currencyPositions.reduce((total, position) => total + Number(position.payments_recorded ?? 0), 0),
-      commissionsDue: currencyPositions.reduce((total, position) => total + Number(position.commissions_due ?? 0), 0),
-      effectiveExposure: currencyPositions.reduce((total, position) => total + Number(position.effective_exposure ?? 0), 0),
-      paymentsAllocated: currencyPositions.reduce((total, position) => total + Number(position.payments_allocated ?? 0), 0),
-      unappliedPaymentBalance: currencyPositions.reduce((total, position) => total + Number(position.unapplied_payment_balance ?? 0), 0),
-      paymentCount: paymentCounts.find((item) => item.currency === currency)?.count ?? 0,
-      invoiceCount: invoiceCount?.total ?? 0,
-      openInvoiceCount: (invoiceCount?.open ?? 0) + (invoiceCount?.partiallyPaid ?? 0),
-      openOnlyInvoiceCount: invoiceCount?.open ?? 0,
-      partiallyPaidInvoiceCount: invoiceCount?.partiallyPaid ?? 0,
-      paidInvoiceCount: invoiceCount?.paid ?? 0,
-      dueCommissionCount: dueCommissionCount?.count ?? 0,
-    };
-  }).sort((first, second) => first.currency.localeCompare(second.currency));
-
-  return { currencies: currencyIndicators, subscriptions: subscriptionIndicatorsFromPeriods(subscriptions) };
+  const summary: FinancialIndicatorCurrency = {
+    currency: "SYP", invoiceCount, openInvoiceCount: open + partiallyPaid,
+    openOnlyInvoiceCount: open, partiallyPaidInvoiceCount: partiallyPaid, paidInvoiceCount: paid,
+    dueCommissionCount, paymentCount,
+    invoiceOutstanding: positions.reduce((total, position) => total + Number(position.invoice_outstanding ?? 0), 0),
+    paymentsRecorded: positions.reduce((total, position) => total + Number(position.payments_recorded ?? 0), 0),
+    commissionsDue: positions.reduce((total, position) => total + Number(position.commissions_due ?? 0), 0),
+    effectiveExposure: positions.reduce((total, position) => total + Number(position.effective_exposure ?? 0), 0),
+    paymentsAllocated: positions.reduce((total, position) => total + Number(position.payments_allocated ?? 0), 0),
+    unappliedPaymentBalance: positions.reduce((total, position) => total + Number(position.unapplied_payment_balance ?? 0), 0),
+  };
+  return { currencies: positions.length || invoiceCount > 0 || dueCommissionCount > 0 ? [summary] : [], subscriptions: subscriptionIndicatorsFromPeriods(subscriptions) };
 }
 
 const invoicePageCache = new Map<string, { data: AdminInvoicePage; updatedAt: number }>();
@@ -506,7 +468,9 @@ const invoicePageKey = (filter: AdminInvoiceListFilter, page: number, pageSize: 
   `${filter}:${page}:${pageSize}:${search.trim().toLocaleLowerCase("ar-SY")}`;
 
 function rowsOrEmpty<T>(result: { data: unknown[] | null; error: Error | null }): T[] {
-  return result.error ? [] : (result.data ?? []) as T[];
+  if (result.error) return [];
+  assertSypDocuments(result.data);
+  return (result.data ?? []) as T[];
 }
 
 async function merchantIdsMatchingFinanceSearch(search: string): Promise<string[]> {
@@ -725,7 +689,7 @@ export async function getAdminPaymentPage({
     .from("subscription_payments")
     .select("id,merchant_id,currency,amount,method,external_reference,received_at,created_at", { count: "exact" })
     .order("received_at", { ascending: false });
-  if (filter === "SYP" || filter === "USD") query = query.eq("currency", filter);
+  if (filter === "SYP") query = query.eq("currency", filter);
   if (filter === "cash" || filter === "external_transfer") query = query.eq("method", filter);
   if (normalizedSearch) {
     const merchantIds = await merchantIdsMatchingFinanceSearch(normalizedSearch);
@@ -810,7 +774,8 @@ export async function getAdminPaymentDetails(paymentId: string, force = false): 
   const invoices = new Map(rowsOrEmpty<Pick<Invoice, "id" | "invoice_number" | "currency" | "total_amount" | "status">>(invoicesResult).map((invoice) => [invoice.id, invoice]));
   const merchant = merchantResult.error ? null : merchantResult.data as { contact_phone: string | null; status: string | null } | null;
   const allocationDetails = allocations.map((allocation) => ({ ...allocation, invoice: invoices.get(allocation.invoice_id) ?? null }));
-  const dataIntegrityError = summary.unappliedAmount === null || allocationDetails.some((allocation) => allocation.invoice && allocation.invoice.currency !== summary.currency);
+  assertSypDocuments(summary);
+  const dataIntegrityError = summary.unappliedAmount === null;
   const detail: AdminPaymentDetails = {
     ...summary,
     merchantPhone: merchant?.contact_phone ?? null,
@@ -824,17 +789,17 @@ export async function getAdminPaymentDetails(paymentId: string, force = false): 
 
 const creditPageCache = new Map<string, { data: AdminCreditPage; updatedAt: number }>();
 const creditDetailCache = new Map<string, { data: AdminCreditDetails | null; updatedAt: number }>();
-const creditPageKey = (filter: AdminCreditFilter, currency: AdminCreditCurrencyFilter, page: number, pageSize: number, search: string) => `${filter}:${currency}:${page}:${pageSize}:${search.trim().toLocaleLowerCase("ar-SY")}`;
-export function getCachedAdminCreditPage(filter: AdminCreditFilter, currency: AdminCreditCurrencyFilter, page: number, pageSize: number, search = "") { return creditPageCache.get(creditPageKey(filter, currency, page, pageSize, search)) ?? null; }
-export function isCachedAdminCreditPageFresh(filter: AdminCreditFilter, currency: AdminCreditCurrencyFilter, page: number, pageSize: number, search = "") { const cached = getCachedAdminCreditPage(filter, currency, page, pageSize, search); return Boolean(cached && Date.now() - cached.updatedAt < financeCacheTtlMs); }
-export function getCachedAdminCredit(merchantId: string, currency: FinanceCurrency) { return creditDetailCache.get(`${merchantId}:${currency}`) ?? null; }
-export function isCachedAdminCreditFresh(merchantId: string, currency: FinanceCurrency) { const cached = getCachedAdminCredit(merchantId, currency); return Boolean(cached && Date.now() - cached.updatedAt < financeCacheTtlMs); }
+const creditPageKey = (filter: AdminCreditFilter, page: number, pageSize: number, search: string) => `${filter}:${page}:${pageSize}:${search.trim().toLocaleLowerCase("ar-SY")}`;
+export function getCachedAdminCreditPage(filter: AdminCreditFilter, page: number, pageSize: number, search = "") { return creditPageCache.get(creditPageKey(filter, page, pageSize, search)) ?? null; }
+export function isCachedAdminCreditPageFresh(filter: AdminCreditFilter, page: number, pageSize: number, search = "") { const cached = getCachedAdminCreditPage(filter, page, pageSize, search); return Boolean(cached && Date.now() - cached.updatedAt < financeCacheTtlMs); }
+export function getCachedAdminCredit(merchantId: string) { return creditDetailCache.get(merchantId) ?? null; }
+export function isCachedAdminCreditFresh(merchantId: string) { const cached = getCachedAdminCredit(merchantId); return Boolean(cached && Date.now() - cached.updatedAt < financeCacheTtlMs); }
 
-export async function getAdminCreditPage({ filter, currency, page, pageSize = 20, force = false, search = "" }: { filter: AdminCreditFilter; currency: AdminCreditCurrencyFilter; page: number; pageSize?: number; force?: boolean; search?: string }): Promise<AdminCreditPage> {
-  const normalizedSearch = search.trim(); const cacheKey = creditPageKey(filter, currency, page, pageSize, normalizedSearch); const cached = creditPageCache.get(cacheKey);
+export async function getAdminCreditPage({ filter, page, pageSize = 20, force = false, search = "" }: { filter: AdminCreditFilter; page: number; pageSize?: number; force?: boolean; search?: string }): Promise<AdminCreditPage> {
+  const normalizedSearch = search.trim(); const cacheKey = creditPageKey(filter, page, pageSize, normalizedSearch); const cached = creditPageCache.get(cacheKey);
   if (!force && cached && Date.now() - cached.updatedAt < financeCacheTtlMs) return cached.data;
   let query = financeClient.from("merchant_financial_positions").select("merchant_id,currency,invoices_total,payments_allocated,invoice_outstanding,payments_recorded,unapplied_payment_balance,commissions_due,booked_exposure,effective_exposure,credit_enabled,credit_limit,credit_used,credit_available", { count: "exact" }).order("merchant_id", { ascending: true });
-  if (currency !== "all") query = query.eq("currency", currency);
+
   if (filter === "enabled") query = query.eq("credit_enabled", "true");
   if (filter === "disabled") query = query.eq("credit_enabled", "false");
   if (normalizedSearch) {
@@ -868,11 +833,12 @@ async function enrichCreditSummaries(positions: MerchantFinancialPosition[]): Pr
   return positions.map((position) => { const merchant = merchantsById.get(position.merchant_id); const exposure = Number(position.effective_exposure ?? 0); const limit = Number(position.credit_limit ?? 0); return { ...position, merchantName: merchant ? namesByOwner.get(merchant.owner_user_id) ?? null : null, storeName: storesByMerchant.get(position.merchant_id) ?? null, autoRenew: settingsByMerchant.get(position.merchant_id) ?? false, overLimitAmount: position.credit_enabled ? Math.max(0, exposure - limit) : 0 }; });
 }
 
-export async function getAdminCreditDetails(merchantId: string, currency: FinanceCurrency, force = false): Promise<AdminCreditDetails | null> {
-  const cacheKey = `${merchantId}:${currency}`; const cached = creditDetailCache.get(cacheKey); if (!force && cached && Date.now() - cached.updatedAt < financeCacheTtlMs) return cached.data;
-  const positionResult = await financeClient.from("merchant_financial_positions").select("merchant_id,currency,invoices_total,payments_allocated,invoice_outstanding,payments_recorded,unapplied_payment_balance,commissions_due,booked_exposure,effective_exposure,credit_enabled,credit_limit,credit_used,credit_available").eq("merchant_id", merchantId).eq("currency", currency).maybeSingle();
+export async function getAdminCreditDetails(merchantId: string, force = false): Promise<AdminCreditDetails | null> {
+  const cacheKey = merchantId; const cached = creditDetailCache.get(cacheKey); if (!force && cached && Date.now() - cached.updatedAt < financeCacheTtlMs) return cached.data;
+  const positionResult = await financeClient.from("merchant_financial_positions").select("merchant_id,currency,invoices_total,payments_allocated,invoice_outstanding,payments_recorded,unapplied_payment_balance,commissions_due,booked_exposure,effective_exposure,credit_enabled,credit_limit,credit_used,credit_available").eq("merchant_id", merchantId).maybeSingle();
   if (positionResult.error) throw positionResult.error;
   if (!positionResult.data) { creditDetailCache.set(cacheKey, { data: null, updatedAt: Date.now() }); return null; }
+  assertSypDocuments(positionResult.data);
   const [summary] = await enrichCreditSummaries([positionResult.data as MerchantFinancialPosition]);
   if (!summary) throw new Error("credit-position-invalid");
   const merchantResult = await financeClient.from("merchants").select("contact_phone,status").eq("id", merchantId).maybeSingle();
@@ -883,16 +849,16 @@ export async function getAdminCreditDetails(merchantId: string, currency: Financ
 
 const commissionPageCache = new Map<string, { data: AdminCommissionPage; updatedAt: number }>();
 const commissionDetailCache = new Map<string, { data: AdminCommissionDetails | null; updatedAt: number }>();
-const commissionPageKey = (filter: AdminCommissionFilter, currency: AdminCommissionCurrencyFilter, page: number, pageSize: number, search: string) => `${filter}:${currency}:${page}:${pageSize}:${search.trim().toLocaleLowerCase("ar-SY")}`;
-export function getCachedAdminCommissionPage(filter: AdminCommissionFilter, currency: AdminCommissionCurrencyFilter, page: number, pageSize: number, search = "") { return commissionPageCache.get(commissionPageKey(filter, currency, page, pageSize, search)) ?? null; }
-export function isCachedAdminCommissionPageFresh(filter: AdminCommissionFilter, currency: AdminCommissionCurrencyFilter, page: number, pageSize: number, search = "") { const cached = getCachedAdminCommissionPage(filter, currency, page, pageSize, search); return Boolean(cached && Date.now() - cached.updatedAt < financeCacheTtlMs); }
+const commissionPageKey = (filter: AdminCommissionFilter, page: number, pageSize: number, search: string) => `${filter}:${page}:${pageSize}:${search.trim().toLocaleLowerCase("ar-SY")}`;
+export function getCachedAdminCommissionPage(filter: AdminCommissionFilter, page: number, pageSize: number, search = "") { return commissionPageCache.get(commissionPageKey(filter, page, pageSize, search)) ?? null; }
+export function isCachedAdminCommissionPageFresh(filter: AdminCommissionFilter, page: number, pageSize: number, search = "") { const cached = getCachedAdminCommissionPage(filter, page, pageSize, search); return Boolean(cached && Date.now() - cached.updatedAt < financeCacheTtlMs); }
 export function getCachedAdminCommission(commissionId: string) { return commissionDetailCache.get(commissionId) ?? null; }
 export function isCachedAdminCommissionFresh(commissionId: string) { const cached = getCachedAdminCommission(commissionId); return Boolean(cached && Date.now() - cached.updatedAt < financeCacheTtlMs); }
 
-export async function getAdminCommissionPage({ filter, currency, page, pageSize = 20, force = false, search = "" }: { filter: AdminCommissionFilter; currency: AdminCommissionCurrencyFilter; page: number; pageSize?: number; force?: boolean; search?: string }): Promise<AdminCommissionPage> {
-  const normalizedSearch = search.trim(); const cacheKey = commissionPageKey(filter, currency, page, pageSize, normalizedSearch); const cached = commissionPageCache.get(cacheKey); if (!force && cached && Date.now() - cached.updatedAt < financeCacheTtlMs) return cached.data;
+export async function getAdminCommissionPage({ filter, page, pageSize = 20, force = false, search = "" }: { filter: AdminCommissionFilter; page: number; pageSize?: number; force?: boolean; search?: string }): Promise<AdminCommissionPage> {
+  const normalizedSearch = search.trim(); const cacheKey = commissionPageKey(filter, page, pageSize, normalizedSearch); const cached = commissionPageCache.get(cacheKey); if (!force && cached && Date.now() - cached.updatedAt < financeCacheTtlMs) return cached.data;
   let query = financeClient.from("store_order_commissions").select("id,store_order_id,merchant_id,currency,commission_rate,base_amount,commission_amount,status,due_at,created_at", { count: "exact" }).order("created_at", { ascending: false });
-  if (currency !== "all") query = query.eq("currency", currency); if (filter !== "all") query = query.eq("status", filter);
+  if (filter !== "all") query = query.eq("status", filter);
   if (normalizedSearch) { const merchantIds = await merchantIdsMatchingFinanceSearch(normalizedSearch); const isId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalizedSearch); const clauses = [isId ? `id.eq.${normalizedSearch}` : "", isId ? `store_order_id.eq.${normalizedSearch}` : "", isId ? `merchant_id.eq.${normalizedSearch}` : "", merchantIds.length ? `merchant_id.in.(${merchantIds.join(",")})` : ""].filter(Boolean); if (!clauses.length) { const empty = { commissions: [], hasMore: false, totalCount: 0 }; commissionPageCache.set(cacheKey, { data: empty, updatedAt: Date.now() }); return empty; } query = query.or(clauses.join(",")); }
   const commissionsResult = await query.range(page * pageSize, (page + 1) * pageSize - 1); if (commissionsResult.error) throw commissionsResult.error; const commissions = (commissionsResult.data ?? []) as (Commission & { merchant_id: string })[];
   const result = { commissions: await enrichCommissionSummaries(commissions), hasMore: commissions.length === pageSize, totalCount: commissionsResult.count ?? commissions.length }; commissionPageCache.set(cacheKey, { data: result, updatedAt: Date.now() }); return result;
@@ -914,11 +880,11 @@ export async function getAdminCommissionDetails(commissionId: string, force = fa
 }
 
 const ledgerPageCache = new Map<string, { data: AdminLedgerPage; updatedAt: number }>(); const ledgerDetailCache = new Map<string, { data: AdminLedgerDetails | null; updatedAt: number }>();
-const ledgerPageKey = (filter: AdminLedgerFilter, currency: AdminLedgerCurrencyFilter, page: number, pageSize: number, search: string) => `${filter}:${currency}:${page}:${pageSize}:${search.trim().toLocaleLowerCase("ar-SY")}`;
-export function getCachedAdminLedgerPage(filter: AdminLedgerFilter, currency: AdminLedgerCurrencyFilter, page: number, pageSize: number, search = "") { return ledgerPageCache.get(ledgerPageKey(filter, currency, page, pageSize, search)) ?? null; }
-export function isCachedAdminLedgerPageFresh(filter: AdminLedgerFilter, currency: AdminLedgerCurrencyFilter, page: number, pageSize: number, search = "") { const cached = getCachedAdminLedgerPage(filter, currency, page, pageSize, search); return Boolean(cached && Date.now() - cached.updatedAt < financeCacheTtlMs); }
+const ledgerPageKey = (filter: AdminLedgerFilter, page: number, pageSize: number, search: string) => `${filter}:${page}:${pageSize}:${search.trim().toLocaleLowerCase("ar-SY")}`;
+export function getCachedAdminLedgerPage(filter: AdminLedgerFilter, page: number, pageSize: number, search = "") { return ledgerPageCache.get(ledgerPageKey(filter, page, pageSize, search)) ?? null; }
+export function isCachedAdminLedgerPageFresh(filter: AdminLedgerFilter, page: number, pageSize: number, search = "") { const cached = getCachedAdminLedgerPage(filter, page, pageSize, search); return Boolean(cached && Date.now() - cached.updatedAt < financeCacheTtlMs); }
 export function getCachedAdminLedger(id: string) { return ledgerDetailCache.get(id) ?? null; } export function isCachedAdminLedgerFresh(id: string) { const cached = getCachedAdminLedger(id); return Boolean(cached && Date.now() - cached.updatedAt < financeCacheTtlMs); }
-export async function getAdminLedgerPage({ filter, currency, page, pageSize = 20, force = false, search = "" }: { filter: AdminLedgerFilter; currency: AdminLedgerCurrencyFilter; page: number; pageSize?: number; force?: boolean; search?: string }): Promise<AdminLedgerPage> { const normalized = search.trim(); const key = ledgerPageKey(filter, currency, page, pageSize, normalized); const cached = ledgerPageCache.get(key); if (!force && cached && Date.now() - cached.updatedAt < financeCacheTtlMs) return cached.data; let query = financeClient.from("merchant_ledger_entries").select("id,merchant_id,currency,effect,source_type,source_id,amount,reversal_of,created_at", { count: "exact" }).order("created_at", { ascending: false }); if (currency !== "all") query = query.eq("currency", currency); if (filter !== "all") query = query.eq("source_type", filter); if (normalized) { const merchantIds = await merchantIdsMatchingFinanceSearch(normalized); const isId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalized); const clauses = [isId ? `id.eq.${normalized}` : "", isId ? `source_id.eq.${normalized}` : "", isId ? `merchant_id.eq.${normalized}` : "", merchantIds.length ? `merchant_id.in.(${merchantIds.join(",")})` : ""].filter(Boolean); if (!clauses.length) { const empty = { entries: [], hasMore: false, totalCount: 0 }; ledgerPageCache.set(key, { data: empty, updatedAt: Date.now() }); return empty; } query = query.or(clauses.join(",")); } const result = await query.range(page * pageSize, (page + 1) * pageSize - 1); if (result.error) throw result.error; const entries = (result.data ?? []) as (LedgerEntry & { merchant_id: string; reversal_of: string | null })[]; const data = { entries: await enrichLedger(entries), hasMore: entries.length === pageSize, totalCount: result.count ?? entries.length }; ledgerPageCache.set(key, { data, updatedAt: Date.now() }); return data; }
+export async function getAdminLedgerPage({ filter, page, pageSize = 20, force = false, search = "" }: { filter: AdminLedgerFilter; page: number; pageSize?: number; force?: boolean; search?: string }): Promise<AdminLedgerPage> { const normalized = search.trim(); const key = ledgerPageKey(filter, page, pageSize, normalized); const cached = ledgerPageCache.get(key); if (!force && cached && Date.now() - cached.updatedAt < financeCacheTtlMs) return cached.data; let query = financeClient.from("merchant_ledger_entries").select("id,merchant_id,currency,effect,source_type,source_id,amount,reversal_of,created_at", { count: "exact" }).order("created_at", { ascending: false }); if (filter !== "all") query = query.eq("source_type", filter); if (normalized) { const merchantIds = await merchantIdsMatchingFinanceSearch(normalized); const isId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalized); const clauses = [isId ? `id.eq.${normalized}` : "", isId ? `source_id.eq.${normalized}` : "", isId ? `merchant_id.eq.${normalized}` : "", merchantIds.length ? `merchant_id.in.(${merchantIds.join(",")})` : ""].filter(Boolean); if (!clauses.length) { const empty = { entries: [], hasMore: false, totalCount: 0 }; ledgerPageCache.set(key, { data: empty, updatedAt: Date.now() }); return empty; } query = query.or(clauses.join(",")); } const result = await query.range(page * pageSize, (page + 1) * pageSize - 1); if (result.error) throw result.error; const entries = (result.data ?? []) as (LedgerEntry & { merchant_id: string; reversal_of: string | null })[]; const data = { entries: await enrichLedger(entries), hasMore: entries.length === pageSize, totalCount: result.count ?? entries.length }; ledgerPageCache.set(key, { data, updatedAt: Date.now() }); return data; }
 async function enrichLedger(entries: (LedgerEntry & { merchant_id: string; reversal_of: string | null })[]): Promise<AdminLedgerSummary[]> { if (!entries.length) return []; const merchantIds = [...new Set(entries.map((entry) => entry.merchant_id))]; const [merchantsResult, storesResult] = await Promise.all([financeClient.from("merchants").select("id,owner_user_id").in("id", merchantIds), financeClient.from("stores").select("merchant_id,name").in("merchant_id", merchantIds)]); const merchants = rowsOrEmpty<{ id: string; owner_user_id: string }>(merchantsResult); const profilesResult = merchants.length ? await financeClient.from("profiles").select("id,full_name").in("id", merchants.map((merchant) => merchant.owner_user_id)) : { data: [], error: null }; const merchantById = new Map(merchants.map((merchant) => [merchant.id, merchant])); const names = new Map(rowsOrEmpty<{ id: string; full_name: string | null }>(profilesResult).map((profile) => [profile.id, profile.full_name])); const stores = new Map(rowsOrEmpty<{ merchant_id: string; name: string }>(storesResult).map((store) => [store.merchant_id, store.name])); return entries.map((entry) => { const merchant = merchantById.get(entry.merchant_id); return { ...entry, merchantName: merchant ? names.get(merchant.owner_user_id) ?? null : null, storeName: stores.get(entry.merchant_id) ?? null }; }); }
 export async function getAdminLedgerDetails(id: string, force = false): Promise<AdminLedgerDetails | null> { const cached = ledgerDetailCache.get(id); if (!force && cached && Date.now() - cached.updatedAt < financeCacheTtlMs) return cached.data; const result = await financeClient.from("merchant_ledger_entries").select("id,merchant_id,currency,effect,source_type,source_id,amount,reversal_of,created_at").eq("id", id).maybeSingle(); if (result.error) throw result.error; if (!result.data) { ledgerDetailCache.set(id, { data: null, updatedAt: Date.now() }); return null; } const [summary] = await enrichLedger([result.data as LedgerEntry & { merchant_id: string; reversal_of: string | null }]); if (!summary) throw new Error("ledger-entry-invalid"); const merchantResult = await financeClient.from("merchants").select("contact_phone,status").eq("id", summary.merchant_id).maybeSingle(); const merchant = merchantResult.error ? null : merchantResult.data as { contact_phone: string | null; status: string | null } | null; const detail = { ...summary, merchantPhone: merchant?.contact_phone ?? null, merchantStatus: merchant?.status ?? null, invoiceId: summary.source_type === "subscription_invoice" ? summary.source_id : null, paymentId: null, commissionId: summary.source_type === "store_order_commission" ? summary.source_id : null, relatedReversalId: summary.reversal_of }; ledgerDetailCache.set(id, { data: detail, updatedAt: Date.now() }); return detail; }
 
@@ -1082,7 +1048,7 @@ export async function loadMerchantFinanceDetails(merchantId: string): Promise<Me
   const [summaries, subscriptionsResult, plansResult, settingsResult, scheduledPlanChangeResult] = await Promise.all([
     loadMerchantFinanceSummaries(),
     financeClient.from("merchant_subscriptions").select("id,merchant_id,plan_id,plan_name_snapshot,duration_months,price_snapshot,currency_snapshot,starts_at,expires_at,commission_rate_snapshot").eq("merchant_id", merchantId).order("expires_at", { ascending: false }),
-    financeClient.from("subscription_plans").select("id,name,duration_months,price,currency,is_active,commission_rate").order("duration_months", { ascending: true }),
+    financeClient.from("subscription_plans").select("id,name,duration_months,price,is_active,commission_rate").order("duration_months", { ascending: true }),
     financeClient.from("merchant_billing_settings").select("merchant_id,auto_renew").eq("merchant_id", merchantId),
     financeClient.from("merchant_subscription_plan_changes").select("id,plan_id,plan_name_snapshot,duration_months,price_snapshot,currency_snapshot,commission_rate_snapshot,selected_at,superseded_at,consumed_by_subscription").eq("merchant_id", merchantId).order("selected_at", { ascending: false }),
   ]);
@@ -1133,6 +1099,10 @@ export async function loadMerchantFinanceRecordSection(merchantId: string, secti
 }
 
 export async function callFinanceRpc(name: string, args: Record<string, unknown>) {
+  assertSypDocuments(args);
+  if (Object.keys(args).some((key) => key.endsWith("_currency"))) {
+    throw new Error("Obsolete currency-selection RPC argument");
+  }
   const result = await financeClient.rpc(name, args);
   if (result.error) throw result.error;
   return result.data;

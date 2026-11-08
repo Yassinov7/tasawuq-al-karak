@@ -18,8 +18,8 @@ export function SignupErrorNotice({ message }: SignupErrorNoticeProps) {
       style={[
         styles.error,
         {
-          color: colors.error,
-          backgroundColor: colors.primaryLight,
+          color: colors.errorForeground,
+          backgroundColor: colors.errorSurface,
         },
       ]}
     >

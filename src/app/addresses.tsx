@@ -1,3 +1,4 @@
+import { formatSypNumber } from "@/lib/money";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -279,7 +280,7 @@ export default function AddressesScreen() {
               {addresses.map((address) => {
                 const busy = busyAddressId === address.id;
                 const zoneDescription = address.zone
-                  ? `${address.zone.name}${address.zone.is_active ? ` · ${address.zone.fixed_fee.toLocaleString("ar")} ل.س` : " · منطقة غير متاحة"}`
+                  ? `${address.zone.name}${address.zone.is_active ? ` · ${formatSypNumber(address.zone.fixed_fee)} ل.س` : " · منطقة غير متاحة"}`
                   : "منطقة التوصيل غير متاحة";
 
                 return (
@@ -364,7 +365,7 @@ export default function AddressesScreen() {
                   <View style={styles.zoneInfo}>
                     <Text style={[styles.zoneName, { color: colors.text }]}>{zone.name}</Text>
                     <Text style={[styles.zoneFee, { color: colors.textSecondary }]}>
-                      {zone.fixed_fee.toLocaleString("ar")} ل.س رسوم توصيل
+                      {formatSypNumber(zone.fixed_fee)} ل.س رسوم توصيل
                     </Text>
                   </View>
                   <AppIcon name={selected ? "radio-button-on" : "radio-button-off"} size={20} color={selected ? colors.primary : colors.textMuted} />

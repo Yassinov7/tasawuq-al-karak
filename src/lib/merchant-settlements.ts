@@ -1,12 +1,10 @@
 import { supabase } from "@/lib/supabase";
-import { newIdempotencyKey } from "@/lib/driver-cash";
+import { requireSyp } from "@/lib/money";
+import { allFinancialRows, centsAmount, moneyCents, sumMoney, validFinancialId } from '@/lib/financial-input';
 
-const client = supabase as unknown as {
-  from: (relation: string) => any;
-  rpc: (name: string, args: Record<string, unknown>) => Promise<{ data: string | null; error: Error | null }>;
-};
+const client = supabase;
 
-export type SettlementCurrency = "SYP" | "USD";
+export type SettlementCurrency = "SYP";
 export type SettlementEntitlement = {
   batch_entitlement_id?: string;
   merchant_order_entitlement_id: string;
@@ -47,8 +45,8 @@ const records = (value: unknown): DbRecord[] => Array.isArray(value)
 const record = (value: unknown): DbRecord => typeof value === "object" && value !== null ? value as DbRecord : {};
 const text = (row: DbRecord, field: string) => typeof row[field] === "string" ? row[field] : "";
 const nullableText = (row: DbRecord, field: string) => typeof row[field] === "string" ? row[field] : null;
-const amount = (row: DbRecord, field: string) => Number(row[field] ?? 0);
-const currency = (value: unknown): SettlementCurrency => value === "USD" ? "USD" : "SYP";
+const amount = (row: DbRecord, field: string) => { const value = row[field]; if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error('مبلغ التسوية غير مكتمل.'); return value; };
+const currency = (value: unknown): SettlementCurrency => requireSyp(value);
 
 const entitlement = (row: DbRecord): SettlementEntitlement => ({
   batch_entitlement_id: nullableText(row, "batch_entitlement_id") ?? undefined,
@@ -58,33 +56,25 @@ const entitlement = (row: DbRecord): SettlementEntitlement => ({
   store_order_id: text(row, "store_order_id"),
   delivered_at: text(row, "delivered_at"),
   current_entitlement_amount: amount(row, "current_entitlement_amount"),
-  paid_amount: amount(row, "paid_amount"),
-  remaining_amount: amount(row, "remaining_amount"),
+  paid_amount: row.paid_amount === undefined ? 0 : amount(row, "paid_amount"),
+  remaining_amount: row.remaining_amount === undefined ? amount(row, 'current_entitlement_amount') : amount(row, "remaining_amount"),
   gross_items_amount: row.gross_items_amount === undefined ? undefined : amount(row, "gross_items_amount"),
   commission_amount_at_delivery: row.commission_amount_at_delivery === undefined ? undefined : amount(row, "commission_amount_at_delivery"),
 });
 
 async function labels(merchantIds: string[]) {
-  if (!merchantIds.length) return new Map<string, { merchantName?: string; storeName?: string }>();
-  const [{ data: merchants, error: merchantError }, { data: stores, error: storeError }] = await Promise.all([
-    client.from("merchants").select("id,owner_user_id").in("id", merchantIds),
-    client.from("stores").select("merchant_id,name").in("merchant_id", merchantIds),
-  ]);
-  if (merchantError || storeError) throw merchantError ?? storeError;
-
-  const merchantRows = records(merchants);
-  const ownerIds = merchantRows.map((merchant) => text(merchant, "owner_user_id")).filter(Boolean);
-  const { data: profiles, error } = ownerIds.length
-    ? await client.from("profiles").select("id,full_name").in("id", ownerIds)
-    : { data: [], error: null };
-  if (error) throw error;
-
-  const profileNames = new Map(records(profiles).map((profile) => [text(profile, "id"), text(profile, "full_name")]));
-  const storeNames = new Map(records(stores).map((store) => [text(store, "merchant_id"), text(store, "name")]));
-  return new Map(merchantRows.map((merchant) => {
-    const merchantId = text(merchant, "id");
-    return [merchantId, { merchantName: profileNames.get(text(merchant, "owner_user_id")), storeName: storeNames.get(merchantId) }];
-  }));
+  const merchants: { id:string; owner_user_id:string }[] = [], stores: { id:string; merchant_id:string; name:string }[] = [];
+  for(let offset=0;offset<merchantIds.length;offset+=80){
+    const ids=merchantIds.slice(offset,offset+80);
+    const [m,s]=await Promise.all([
+      allFinancialRows(after=>{let q=client.from('merchants').select('id,owner_user_id').in('id',ids).order('id').limit(200);if(after)q=q.gt('id',after);return q;}),
+      allFinancialRows(after=>{let q=client.from('stores').select('id,merchant_id,name').in('merchant_id',ids).order('id').limit(200);if(after)q=q.gt('id',after);return q;}),
+    ]);merchants.push(...m);stores.push(...s);
+  }
+  const owners=[...new Set(merchants.map(row=>row.owner_user_id))], profiles: {id:string;full_name:string}[]=[];
+  for(let offset=0;offset<owners.length;offset+=80){const ids=owners.slice(offset,offset+80);profiles.push(...await allFinancialRows(after=>{let q=client.from('profiles').select('id,full_name').in('id',ids).order('id').limit(200);if(after)q=q.gt('id',after);return q;}));}
+  const profileNames=new Map(profiles.map(row=>[row.id,row.full_name])),storeNames=new Map(stores.map(row=>[row.merchant_id,row.name]));
+  return new Map(merchants.map(row=>[row.id,{merchantName:profileNames.get(row.owner_user_id),storeName:storeNames.get(row.id)}]));
 }
 
 const batch = (row: DbRecord): SettlementBatch => ({
@@ -95,38 +85,33 @@ const batch = (row: DbRecord): SettlementBatch => ({
 });
 
 export async function getSettlementBatches(search = ""): Promise<SettlementBatch[]> {
-  const { data, error } = await client.from("merchant_settlement_batches")
-    .select("id,merchant_id,currency,status,created_at,period_starts_at,period_ends_at,note")
-    .order("created_at", { ascending: false }).limit(100);
-  if (error) throw error;
-
-  const batches = records(data).map(batch);
-  const names = await labels([...new Set(batches.map((item) => item.merchant_id))]);
-  const positions = await Promise.all(batches.map((item) => client.from("merchant_settlement_batch_positions")
-    .select("current_entitlement_amount,paid_amount,remaining_amount").eq("batch_id", item.id)));
-  const rows = batches.map((item, index) => {
-    const entries = records(positions[index].data);
-    const totalAmount = entries.reduce((sum, entry) => sum + amount(entry, "current_entitlement_amount"), 0);
-    const paidAmount = entries.reduce((sum, entry) => sum + amount(entry, "paid_amount"), 0);
-    const remainingAmount = entries.reduce((sum, entry) => sum + amount(entry, "remaining_amount"), 0);
-    return { ...item, ...(names.get(item.merchant_id) ?? {}), totalAmount, paidAmount, remainingAmount };
+  const source = await allFinancialRows(after => {
+    let q = client.from("merchant_settlement_batches").select("id,merchant_id,currency,status,created_at,period_starts_at,period_ends_at,note").order("id").limit(200);
+    if (after) q = q.gt("id", after); return q;
   });
+  const batches = source.map(batch), names = await labels([...new Set(batches.map(item => item.merchant_id))]);
+  const positions = await allFinancialRows(after => {
+    let q = client.from("merchant_settlement_batch_positions").select("id:batch_entitlement_id,batch_id,current_entitlement_amount,paid_amount,remaining_amount").order("batch_entitlement_id").limit(200);
+    if (after) q = q.gt("batch_entitlement_id", after); return q;
+  });
+  const grouped = new Map<string, typeof positions>();
+  for (const row of positions) { const entries = grouped.get(row.batch_id!) ?? []; entries.push(row); grouped.set(row.batch_id!, entries); }
+  const rows = batches.map(item => { const entries = grouped.get(item.id) ?? []; return { ...item, ...(names.get(item.merchant_id) ?? {}), totalAmount: sumMoney(entries.map(row => amount(record(row),'current_entitlement_amount'))), paidAmount: sumMoney(entries.map(row => amount(record(row),'paid_amount'))), remainingAmount: sumMoney(entries.map(row => amount(record(row),'remaining_amount'))) }; });
   const query = search.trim().toLowerCase();
-  return query ? rows.filter((item) => `${item.merchantName ?? ""} ${item.storeName ?? ""} ${item.id}`.toLowerCase().includes(query)) : rows;
+  return rows.filter(item => !query || [item.merchantName,item.storeName,item.id].join(' ').toLowerCase().includes(query)).sort((a,b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id));
 }
-
 export async function getUnsettledEntitlements(): Promise<SettlementEntitlement[]> {
-  const { data, error } = await client.from("merchant_order_entitlement_positions")
-    .select("merchant_order_entitlement_id,merchant_id,currency,store_order_id,delivered_at,current_entitlement_amount")
-    .eq("status", "pending_settlement").order("delivered_at", { ascending: false }).limit(100);
-  if (error) throw error;
-  const bound = await client.from("merchant_settlement_batch_entitlements").select("merchant_order_entitlement_id");
-  if (bound.error) throw bound.error;
-  const used = new Set(records(bound.data).map((item) => text(item, "merchant_order_entitlement_id")));
-  return records(data).filter((item) => !used.has(text(item, "merchant_order_entitlement_id"))).map((item) => {
-    const current = amount(item, "current_entitlement_amount");
-    return { ...entitlement(item), paid_amount: 0, remaining_amount: current };
-  });
+  const [positions, inclusions, batches, allocations] = await Promise.all([
+    allFinancialRows(after => { let q = client.from('merchant_order_entitlement_positions').select('id:merchant_order_entitlement_id,merchant_order_entitlement_id,merchant_id,currency,store_order_id,delivered_at,current_entitlement_amount').eq('status','pending_settlement').order('merchant_order_entitlement_id').limit(200); if(after) q=q.gt('merchant_order_entitlement_id',after); return q; }),
+    allFinancialRows(after => { let q=client.from('merchant_settlement_batch_entitlements').select('id,batch_id,merchant_order_entitlement_id,amount_snapshot').order('id').limit(200);if(after)q=q.gt('id',after);return q; }),
+    allFinancialRows(after => { let q=client.from('merchant_settlement_batches').select('id,status').order('id').limit(200);if(after)q=q.gt('id',after);return q; }),
+    allFinancialRows(after => { let q=client.from('merchant_settlement_payment_allocations').select('id,batch_entitlement_id,amount').order('id').limit(200);if(after)q=q.gt('id',after);return q; }),
+  ]);
+  const status=new Map(batches.map(row=>[row.id,row.status])), byId=new Map(inclusions.map(row=>[row.id,row])), paid=new Map<string,bigint>(), reserved=new Map<string,bigint>();
+  for(const row of allocations){const inclusion=byId.get(row.batch_entitlement_id);if(!inclusion)throw new Error('Incomplete settlement allocation');const id=inclusion.merchant_order_entitlement_id;paid.set(id,(paid.get(id)??0n)+moneyCents(row.amount));}
+  for(const row of inclusions){if(!status.has(row.batch_id))throw new Error('Incomplete settlement batch');if(status.get(row.batch_id)==='open')reserved.set(row.merchant_order_entitlement_id,(reserved.get(row.merchant_order_entitlement_id)??0n)+moneyCents(row.amount_snapshot));}
+  // Same reservation equation as create_merchant_settlement_batch, including later entitlement increases.
+  return positions.flatMap(row=>{const id=row.merchant_order_entitlement_id!;const available=moneyCents(amount(record(row),'current_entitlement_amount'))-(paid.get(id)??0n)-(reserved.get(id)??0n);return available>0n?[{...entitlement(record(row)),paid_amount:centsAmount(paid.get(id)??0n),remaining_amount:centsAmount(available)}]:[];}).sort((a,b)=>b.delivered_at.localeCompare(a.delivered_at));
 }
 
 export async function getSettlementDetails(batchId: string): Promise<SettlementDetails | null> {
@@ -134,17 +119,16 @@ export async function getSettlementDetails(batchId: string): Promise<SettlementD
   if (error) throw error;
   if (!rawBatch) return null;
   const settlement = batch(record(rawBatch));
-  const [{ data: positions, error: positionError }, { data: payments, error: paymentError }] = await Promise.all([
-    client.from("merchant_settlement_batch_positions").select("*").eq("batch_id", batchId).order("delivered_at", { ascending: false }),
-    client.from("merchant_settlement_payments").select("id,amount,paid_at,external_reference,note").eq("batch_id", batchId).order("paid_at", { ascending: false }),
+  const [positions, payments] = await Promise.all([
+    allFinancialRows(after => { let q = client.from('merchant_settlement_batch_positions').select('*,id:batch_entitlement_id').eq('batch_id',batchId).order('batch_entitlement_id').limit(200); if(after)q=q.gt('batch_entitlement_id',after);return q; }),
+    allFinancialRows(after => { let q=client.from('merchant_settlement_payments').select('id,amount,paid_at,external_reference,note').eq('batch_id',batchId).order('id').limit(200);if(after)q=q.gt('id',after);return q; }),
   ]);
-  if (positionError || paymentError) throw positionError ?? paymentError;
 
   const named = await labels([settlement.merchant_id]);
   const entitlements = records(positions).map(entitlement);
-  const totalAmount = entitlements.reduce((sum, item) => sum + item.current_entitlement_amount, 0);
-  const paidAmount = entitlements.reduce((sum, item) => sum + item.paid_amount, 0);
-  const remainingAmount = entitlements.reduce((sum, item) => sum + item.remaining_amount, 0);
+  const totalAmount = sumMoney(entitlements.map(item => item.current_entitlement_amount));
+  const paidAmount = sumMoney(entitlements.map(item => item.paid_amount));
+  const remainingAmount = sumMoney(entitlements.map(item => item.remaining_amount));
   const paymentRows = records(payments).map((item) => ({
     id: text(item, "id"), amount: amount(item, "amount"), paid_at: text(item, "paid_at"),
     external_reference: nullableText(item, "external_reference"), note: text(item, "note"),
@@ -152,20 +136,22 @@ export async function getSettlementDetails(batchId: string): Promise<SettlementD
   return { ...settlement, ...(named.get(settlement.merchant_id) ?? {}), totalAmount, paidAmount, remainingAmount, entitlements, payments: paymentRows };
 }
 
-export async function createSettlement(input: { merchantId: string; currency: SettlementCurrency; ids: string[]; note?: string }) {
+export async function createSettlement(input: { merchantId: string; ids: string[]; note?: string; idempotencyKey: string }) {
+  validFinancialId(input.idempotencyKey);
   const { data, error } = await client.rpc("create_merchant_settlement_batch", {
-    target_merchant: input.merchantId, target_currency: input.currency, entitlement_ids: input.ids,
-    batch_idempotency_key: newIdempotencyKey(), period_start_value: null, period_end_value: null,
+    target_merchant: input.merchantId, entitlement_ids: input.ids,
+    batch_idempotency_key: input.idempotencyKey, period_start_value: null, period_end_value: null,
     batch_note: input.note?.trim() || null,
   });
   if (error) throw error;
   return data;
 }
 
-export async function recordSettlementPayment(input: { batchId: string; amount: number; allocations: { batch_entitlement_id: string; amount: number }[]; reference?: string; note?: string }) {
+export async function recordSettlementPayment(input: { batchId: string; amount: number; allocations: { batch_entitlement_id: string; amount: number }[]; reference?: string; note?: string; idempotencyKey: string }) {
+  validFinancialId(input.idempotencyKey);
   const { data, error } = await client.rpc("record_merchant_settlement_payment", {
     target_batch: input.batchId, payment_amount: input.amount, payment_allocations: input.allocations,
-    payment_idempotency_key: newIdempotencyKey(), payment_reference: input.reference?.trim() || null,
+    payment_idempotency_key: input.idempotencyKey, payment_reference: input.reference?.trim() || null,
     payment_note: input.note?.trim() || null,
   });
   if (error) throw error;

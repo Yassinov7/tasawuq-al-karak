@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { Stack } from "expo-router";
+import { useOnboardingExit } from "@/hooks/useOnboardingExit";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -45,6 +47,9 @@ export default function SignupScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const [page, setPage] = useState<1 | 2 | 3>(1);
 
+  const onBack = useCallback(() => { if (busy) return true; if (page > 1) { setPage(page === 3 ? 2 : 1); return true; } return false; }, [busy, page]);
+  const exitSignup = useOnboardingExit({ dirty: Boolean(fullName || email || password || passwordConfirmation || role), busy, onBack });
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [page]);
@@ -60,6 +65,7 @@ export default function SignupScreen() {
 
   return (
     <SafeAreaProvider>
+      <Stack.Screen options={{ gestureEnabled: false }} />
       <SafeAreaView
         edges={["top", "bottom"]}
         style={[styles.safeArea, { backgroundColor: colors.background }]}
@@ -70,10 +76,12 @@ export default function SignupScreen() {
         >
           <SignupProgress
             step={page}
+            onCancel={exitSignup}
+            busy={busy}
             onBack={
               page === 1
                 ? undefined
-                : () => goToPage(page === 3 ? 2 : 1)
+                : busy ? undefined : () => goToPage(page === 3 ? 2 : 1)
             }
           />
           <ScrollView
@@ -87,9 +95,10 @@ export default function SignupScreen() {
             ]}
           >
             {page === 1 ? (
-              <SignupIntroStep onContinue={() => goToPage(2)} />
+              <SignupIntroStep onExit={exitSignup} onContinue={() => goToPage(2)} />
             ) : page === 2 ? (
               <SignupCredentialsStep
+                onExit={exitSignup}
                 ageRange={ageRange}
                 email={email}
                 error={error}

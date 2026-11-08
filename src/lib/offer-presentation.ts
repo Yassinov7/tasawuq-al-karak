@@ -1,15 +1,15 @@
 import type { CustomerOffer } from "@/lib/customer-offers";
 import { calculateCustomerOffer } from "@/lib/customer-offers";
+import { formatSyp } from "@/lib/money";
 
 export function formatOfferRule(offer: CustomerOffer) {
-  const currency = offer.currency === "USD" ? "$" : "ل.س";
   if (offer.offer_type === "discount") {
     return offer.discount_method === "percentage"
       ? `خصم ${offer.discount_value ?? 0}%`
-      : `خصم ${(offer.discount_value ?? 0).toLocaleString("ar")} ${currency} لكل وحدة`;
+      : `خصم ${formatSyp(offer.discount_value ?? 0)} لكل وحدة`;
   }
   if (offer.offer_type === "bundle") {
-    return `سعر الباقة ${(offer.bundle_price ?? 0).toLocaleString("ar")} ${currency}`;
+    return `سعر الباقة ${formatSyp(offer.bundle_price ?? 0)}`;
   }
   const buy = offer.items.find((item) => item.itemRole === "buy");
   const reward = offer.items.find((item) => item.itemRole === "reward");

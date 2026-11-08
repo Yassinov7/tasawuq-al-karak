@@ -30,9 +30,7 @@ type CartContextValue = {
   selectedOfferIds: string[];
   itemCount: number;
   subtotal: number;
-  currency: "SYP" | "USD" | null;
-  hasMixedCurrencies: boolean;
-  loading: boolean;
+loading: boolean;
   syncError: string | null;
   addItem: (product: Product, quantity?: number) => Promise<boolean>;
   addOffer: (offerId: string) => Promise<boolean>;
@@ -243,19 +241,6 @@ export function CartProvider({ children }: PropsWithChildren) {
       return false;
     }
 
-    const currentCurrencies = new Set([
-      ...itemsRef.current.map((item) =>
-        products.find((candidate) => candidate.id === item.productId)?.currency ?? "SYP",
-      ),
-      ...selectedOfferIdsRef.current.flatMap((offerId) => {
-        const offer = offers.find((candidate) => candidate.id === offerId);
-        return offer ? [offer.currency] : [];
-      }),
-    ]);
-    if (currentCurrencies.size > 0 && !currentCurrencies.has(product.currency ?? "SYP")) {
-      setSyncError("لا يمكن جمع منتجات بعملات مختلفة في السلة نفسها.");
-      return false;
-    }
 
     const current = itemsRef.current.find((item) => item.productId === product.id);
     const minimum = product.minimumQuantity ?? 1;
@@ -266,7 +251,7 @@ export function CartProvider({ children }: PropsWithChildren) {
       product.id,
       normalizeCatalogQuantity((current?.quantity ?? 0) + nextQuantity),
     );
-  }, [authReady, loading, offers, products, saveItem]);
+  }, [authReady, loading, saveItem]);
 
   const addOffer = useCallback(async (offerId: string) => {
     if (loading || !authReady) {
@@ -283,24 +268,7 @@ export function CartProvider({ children }: PropsWithChildren) {
       setSyncError("هذا العرض لم يعد متاحًا.");
       return false;
     }
-    if (offer.items.some((item) => item.product.currency !== offer.currency)) {
-      setSyncError("عملة هذا العرض لا تطابق عملة أحد منتجاته؛ لا يمكن إضافته للسلة.");
-      return false;
-    }
 
-    const currentCurrencies = new Set([
-      ...itemsRef.current.map((item) =>
-        products.find((product) => product.id === item.productId)?.currency ?? "SYP",
-      ),
-      ...selectedOfferIdsRef.current.flatMap((selectedId) => {
-        const selected = offers.find((item) => item.id === selectedId);
-        return selected ? [selected.currency] : [];
-      }),
-    ]);
-    if (currentCurrencies.size > 0 && !currentCurrencies.has(offer.currency)) {
-      setSyncError("لا يمكن جمع منتجات أو عروض بعملات مختلفة في السلة نفسها.");
-      return false;
-    }
     if (selectedOfferIdsRef.current.includes(offerId)) {
       setSyncError("هذا العرض موجود بالفعل في سلتك.");
       return false;
@@ -313,7 +281,7 @@ export function CartProvider({ children }: PropsWithChildren) {
       });
       if (error) throw error;
     });
-  }, [authReady, enqueueWrite, loading, offers, products, updateSelectedOffers]);
+  }, [authReady, enqueueWrite, loading, offers, updateSelectedOffers]);
 
   const removeOffer = useCallback(async (offerId: string) => {
     if (!authReady) {
@@ -444,17 +412,7 @@ export function CartProvider({ children }: PropsWithChildren) {
       selectedOffers.length,
     [items, selectedOffers],
   );
-  const currencies = useMemo(
-    () => new Set([
-      ...items.map((item) => products.find((product) => product.id === item.productId)?.currency ?? "SYP"),
-      ...selectedOffers.map((offer) => offer.currency),
-    ]),
-    [items, products, selectedOffers],
-  );
-  const currency = currencies.size === 1 ? [...currencies][0] : null;
-  const hasMixedCurrencies = currencies.size > 1;
-  const subtotal = useMemo(() => {
-    if (hasMixedCurrencies) return 0;
+const subtotal = useMemo(() => {
     const productSubtotal = items.reduce((total, item) => {
       const product = products.find((candidate) => candidate.id === item.productId);
       const lineTotal = Math.round((product?.price ?? 0) * item.quantity * 100) / 100;
@@ -465,7 +423,7 @@ export function CartProvider({ children }: PropsWithChildren) {
       0,
     );
     return Math.round((productSubtotal + offerSubtotal) * 100) / 100;
-  }, [hasMixedCurrencies, items, products, selectedOffers]);
+  }, [items, products, selectedOffers]);
   const cartReady = authReady && !loading;
 
   const value = useMemo<CartContextValue>(() => ({
@@ -473,9 +431,7 @@ export function CartProvider({ children }: PropsWithChildren) {
     selectedOfferIds: cartReady ? selectedOfferIds : [],
     itemCount: cartReady ? itemCount : 0,
     subtotal: cartReady ? subtotal : 0,
-    currency: cartReady ? currency : null,
-    hasMixedCurrencies: cartReady && hasMixedCurrencies,
-    loading: !cartReady,
+loading: !cartReady,
     syncError,
     addItem,
     addOffer,
@@ -497,8 +453,7 @@ export function CartProvider({ children }: PropsWithChildren) {
     selectedOfferIds,
     itemCount,
     subtotal,
-    currency,
-    hasMixedCurrencies,
+
     syncError,
     addItem,
     addOffer,

@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import {
   KeyboardAvoidingView,
   Modal,
+  ScrollView,
   Platform,
   Pressable,
   StyleSheet,
@@ -9,11 +10,14 @@ import {
   View,
 } from "react-native";
 
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import { AppIcon } from "@/components/ui/AppIcon";
-import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
+import { FontSizes, Fonts, Radius, Spacing, Typography } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 
 type AppModalProps = {
+  design?: "legacy" | "refined";
   visible: boolean;
   title: string;
   message?: string;
@@ -26,9 +30,11 @@ type AppModalProps = {
   onConfirm?: () => void;
   onCancel: () => void;
   children?: ReactNode;
+  actions?: ReactNode;
 };
 
 export function AppModal({
+  design = "legacy",
   visible,
   title,
   message,
@@ -41,8 +47,12 @@ export function AppModal({
   onConfirm,
   onCancel,
   children,
+  actions,
 }: AppModalProps) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const refined = design === "refined";
+  const Content = refined ? ScrollView : View;
 
   return (
     <Modal
@@ -56,7 +66,8 @@ export function AppModal({
         style={[
           styles.overlay,
           {
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            backgroundColor: refined ? colors.overlayScrim : "rgba(0, 0, 0, 0.5)",
+            ...(refined ? { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 } : {}),
           },
         ]}
       >
@@ -64,11 +75,13 @@ export function AppModal({
 
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.keyboardContainer}
+          style={[styles.keyboardContainer, refined && { maxHeight: "100%", flexShrink: 1 }]}
         >
-          <View
+          <Content
+            {...(refined ? { keyboardShouldPersistTaps: "handled" as const, contentContainerStyle: { padding: 20 }, style: { maxHeight: "100%" as const, flexGrow: 0, borderRadius: 24, backgroundColor: colors.surface } } : {})}
             style={[
               styles.card,
+              refined && { padding: 0, maxHeight: "100%", flexGrow: 0 },
               {
                 backgroundColor: colors.surface,
                 borderColor: colors.border,
@@ -82,6 +95,7 @@ export function AppModal({
               onPress={onCancel}
               style={({ pressed }) => [
                 styles.closeButton,
+                refined && { minWidth: 44, minHeight: 44 },
                 { backgroundColor: colors.surfaceSecondary },
                 pressed && styles.pressed,
               ]}
@@ -110,6 +124,7 @@ export function AppModal({
           <Text
             style={[
               styles.title,
+              refined && Typography.sectionTitle,
               {
                 color: colors.text,
               },
@@ -133,13 +148,14 @@ export function AppModal({
 
           {children}
 
-          <View style={styles.actions}>
+          {actions ?? <View style={styles.actions}>
             {cancelText ? (
               <Pressable
                 onPress={onCancel}
                 disabled={busy}
                 style={({ pressed }) => [
                   styles.button,
+                  refined && { minHeight: 48, paddingVertical: 8 },
                   {
                     borderColor: colors.border,
                     backgroundColor: colors.surface,
@@ -165,6 +181,7 @@ export function AppModal({
               disabled={busy}
               style={({ pressed }) => [
                 styles.button,
+                refined && { minHeight: 48, paddingVertical: 8 },
                 {
                   backgroundColor: destructive ? colors.error : colors.primary,
                 },
@@ -175,15 +192,15 @@ export function AppModal({
                 style={[
                   styles.confirmText,
                   {
-                    color: colors.surface,
+                    color: refined ? destructive ? colors.onError : colors.onPrimary : colors.surface,
                   },
                 ]}
               >
                 {busy ? "جارٍ التنفيذ…" : confirmText}
               </Text>
             </Pressable>
-          </View>
-          </View>
+          </View>}
+          </Content>
         </KeyboardAvoidingView>
       </View>
     </Modal>

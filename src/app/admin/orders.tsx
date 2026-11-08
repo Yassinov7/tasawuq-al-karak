@@ -1,3 +1,4 @@
+import { formatSyp } from "@/lib/money";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type Href, useRouter } from "expo-router";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
@@ -15,7 +16,7 @@ const filters: { id: AdminOrderListFilter; label: string }[] = [
 ];
 const statusLabels: Record<string, string> = { submitted: "تم إرسال الطلب", in_progress: "قيد المعالجة", ready_for_delivery: "جاهز للتوصيل", out_for_delivery: "قيد التوصيل", delivered: "مكتمل", partially_cancelled: "أُلغي جزء من الطلب", cancelled: "ملغى" };
 const formatDate = (value: string) => new Date(value).toLocaleDateString("ar-SY");
-const formatAmount = (value: number, currency: string) => `${Number(value).toLocaleString("ar-SY", { maximumFractionDigits: 2 })} ${currency === "USD" ? "دولار" : "ل.س"}`;
+const formatAmount = (value: number, currency: string) => formatSyp(Number(value), currency);
 
 export default function AdminOrdersScreen() {
   const { colors } = useTheme();
@@ -76,7 +77,7 @@ export default function AdminOrdersScreen() {
 function OrderCard({ order, onPress }: { order: AdminOrderSummary; onPress: () => void }) {
   const { colors } = useTheme();
   const needsAttention = order.status === "submitted" || order.status === "in_progress";
-  return <Pressable onPress={onPress} style={({ pressed }) => [styles.card, { backgroundColor: colors.surface, borderColor: needsAttention ? colors.accent : colors.border, opacity: pressed ? 0.72 : 1 }]}><View style={styles.cardHead}><View style={styles.grow}><Text style={[styles.name, { color: colors.text }]}>طلب #{order.orderNumber}</Text><Text style={[styles.meta, { color: colors.textSecondary }]}>{formatDate(order.createdAt)}</Text></View><Text style={[styles.badge, { color: needsAttention ? colors.accentText : colors.primary, backgroundColor: needsAttention ? colors.accentLight : colors.primaryLight }]}>{statusLabels[order.status] ?? order.status}</Text></View><Text style={[styles.meta, { color: colors.textSecondary }]}>{order.customerName ?? order.recipientName}</Text><View style={[styles.amounts, { borderTopColor: colors.border }]}><Text style={[styles.meta, { color: colors.textSecondary }]}>{order.storeCount} {order.storeCount === 1 ? "متجر" : "متاجر"}</Text>{order.totals.length ? order.totals.map((total) => <Text key={total.currency} style={[styles.amount, { color: colors.text }]}>{formatAmount(total.total, total.currency)}</Text>) : <Text style={[styles.meta, { color: colors.textMuted }]}>لا يوجد إجمالي موثوق محفوظ</Text>}</View><AppIcon name="chevron-back-outline" size={19} color={colors.textSecondary} style={styles.chevron} /></Pressable>;
+  return <Pressable onPress={onPress} style={({ pressed }) => [styles.card, { backgroundColor: colors.surface, borderColor: needsAttention ? colors.accent : colors.border, opacity: pressed ? 0.72 : 1 }]}><View style={styles.cardHead}><View style={styles.grow}><Text style={[styles.name, { color: colors.text }]}>{order.reference ?? `طلب #${order.orderNumber}`}</Text><Text style={[styles.meta, { color: colors.textSecondary }]}>{formatDate(order.createdAt)}</Text></View><Text style={[styles.badge, { color: needsAttention ? colors.accentText : colors.primary, backgroundColor: needsAttention ? colors.accentLight : colors.primaryLight }]}>{statusLabels[order.status] ?? order.status}</Text></View><Text style={[styles.meta, { color: colors.textSecondary }]}>{order.customerName ?? order.recipientName}</Text><View style={[styles.amounts, { borderTopColor: colors.border }]}><Text style={[styles.meta, { color: colors.textSecondary }]}>{order.storeCount} {order.storeCount === 1 ? "متجر" : "متاجر"}</Text>{order.totals.length ? order.totals.map((total) => <Text key={total.currency} style={[styles.amount, { color: colors.text }]}>{formatAmount(total.total, total.currency)}</Text>) : <Text style={[styles.meta, { color: colors.textMuted }]}>لا يوجد إجمالي موثوق محفوظ</Text>}</View><AppIcon name="chevron-back-outline" size={19} color={colors.textSecondary} style={styles.chevron} /></Pressable>;
 }
 
 function EmptyState({ hasSearch, onRetry }: { hasSearch: boolean; onRetry: () => void }) {

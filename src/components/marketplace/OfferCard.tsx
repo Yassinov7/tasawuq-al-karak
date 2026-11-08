@@ -1,3 +1,4 @@
+import { formatSypNumber } from "@/lib/money";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -111,17 +112,17 @@ export function OfferCard({
         <View>
           {summary.savings > 0 ? (
             <Text style={[styles.savings, { color: colors.success }]}>
-              وفّر {summary.savings.toLocaleString("ar")} {offer.currency === "USD" ? "$" : "ل.س"}
+              وفّر {formatSypNumber(summary.savings)} {"ل.س"}
             </Text>
           ) : null}
           {summary.savings > 0 ? (
             <Text style={[styles.originalPrice, { color: colors.textMuted }]}>
-              {summary.originalTotal.toLocaleString("ar")} {offer.currency === "USD" ? "$" : "ل.س"}
+              {formatSypNumber(summary.originalTotal)} {"ل.س"}
             </Text>
           ) : null}
           <Text style={[styles.priceLabel, { color: colors.textMuted }]}>سعر العرض</Text>
           <Text style={[styles.price, { color: colors.primary }]}>
-            {summary.finalTotal.toLocaleString("ar")} {offer.currency === "USD" ? "$" : "ل.س"}
+            {formatSypNumber(summary.finalTotal)} {"ل.س"}
           </Text>
         </View>
         <View style={[styles.detailsAction, { backgroundColor: colors.primaryLight }]}>

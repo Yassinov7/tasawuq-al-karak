@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import {useSafeAreaInsets} from "react-native-safe-area-context";
+import {useState,type ReactNode} from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
 
 import { Spacing } from "@/constants/theme";
@@ -8,18 +9,21 @@ type AccountShellProps = {
   header: ReactNode;
   children: ReactNode;
   keyboardAware?: boolean;
+  safeBottom?: boolean;
   keyboardVerticalOffset?: number;
 };
 
 /** Shared page frame; account screens provide their own data and actions. */
-export function AccountShell({ header, children, keyboardAware = false, keyboardVerticalOffset = Platform.OS === "ios" ? 0 : 20 }: AccountShellProps) {
+export function AccountShell({ header, children, keyboardAware = false, safeBottom = false, keyboardVerticalOffset }: AccountShellProps) {
   const { colors } = useTheme();
+  const insets=useSafeAreaInsets();
+  const [headerHeight,setHeaderHeight]=useState(0);
 
   const content = (
     <ScrollView
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content,safeBottom&&{paddingBottom:Spacing.four+insets.bottom}]}
     >
       {children}
     </ScrollView>
@@ -27,12 +31,12 @@ export function AccountShell({ header, children, keyboardAware = false, keyboard
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
-      {header}
+      {header?<View onLayout={event=>setHeaderHeight(event.nativeEvent.layout.height)}>{header}</View>:null}
       {keyboardAware ? (
         <KeyboardAvoidingView
           style={styles.keyboardContainer}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={keyboardVerticalOffset}
+          keyboardVerticalOffset={keyboardVerticalOffset??headerHeight}
         >
           {content}
         </KeyboardAvoidingView>

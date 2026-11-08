@@ -1,3 +1,4 @@
+import { formatSyp } from "@/lib/money";
 export type Status = {
   status: string;
   review_note: string | null;
@@ -62,9 +63,6 @@ export const formatMoney = (
   value: number | undefined,
   currency: string | undefined,
 ) => {
-  const amount = Number(value ?? 0);
-
-  return `${amount.toLocaleString("ar-SY")} ${
-    currency === "USD" ? "دولار" : "ل.س"
-  }`;
+  if (value === undefined || currency !== "SYP") return "غير مثبت";
+  return formatSyp(Number(value), currency);
 };

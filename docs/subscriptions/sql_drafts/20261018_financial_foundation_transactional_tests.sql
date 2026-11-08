@@ -1,3 +1,7 @@
+-- ARCHIVED pre-SYP-only draft. DO NOT RUN against the current schema.
+-- Positive foreign-currency fixtures and old RPC signatures below are historical.
+-- Current checks: supabase/tests/syp_only_schema.sql and syp_only_integration.sql.
+
 -- STAGING ONLY. Every write below is rolled back.
 -- Replace both UUIDs with dedicated, approved test merchants; never run this
 -- against production customer or financial records.

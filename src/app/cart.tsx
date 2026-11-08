@@ -1,3 +1,4 @@
+import { formatSyp, formatSypNumber } from "@/lib/money";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -42,8 +43,7 @@ export default function CartScreen() {
     selectedOfferIds,
     itemCount,
     subtotal,
-    currency,
-    hasMixedCurrencies,
+
     loading,
     syncError,
     increaseItem,
@@ -356,15 +356,13 @@ export default function CartScreen() {
 
             <SummaryRow
               label="المجموع الفرعي"
-              value={hasMixedCurrencies
-                ? "لا يمكن جمع عملات مختلفة"
-                : `${subtotal.toLocaleString("en-US")} ${currency === "USD" ? "$" : "ل.س"}`}
+              value={formatSyp(subtotal)}
             />
 
             {totalSavings > 0 ? (
               <SummaryRow
                 label="وفرت من العروض"
-                value={`${totalSavings.toLocaleString("en-US")} ${currency === "USD" ? "$" : "ل.س"}`}
+                value={formatSyp(totalSavings)}
               />
             ) : null}
             <SummaryRow label="التوصيل" value="يُحسب حسب المنطقة في إتمام الطلب" />
@@ -399,7 +397,7 @@ export default function CartScreen() {
                     },
                   ]}
                 >
-                  {hasMixedCurrencies ? "—" : total.toLocaleString("en-US")}
+                  {formatSypNumber(total)}
                 </Text>
 
                 <Text
@@ -410,7 +408,7 @@ export default function CartScreen() {
                     },
                   ]}
                 >
-                  {hasMixedCurrencies ? "" : currency === "USD" ? "$" : "ل.س"}
+                  {"ل.س"}
                 </Text>
               </View>
             </View>
@@ -418,7 +416,6 @@ export default function CartScreen() {
 
           <Pressable
             disabled={
-              hasMixedCurrencies ||
               loading ||
               unavailableItems.length > 0 ||
               unavailableOfferIds.length > 0
@@ -433,7 +430,7 @@ export default function CartScreen() {
                 backgroundColor: colors.accent,
               },
               pressed && styles.pressed,
-              (hasMixedCurrencies || loading || unavailableItems.length > 0 || unavailableOfferIds.length > 0) && { opacity: 0.5 },
+              (loading || unavailableItems.length > 0 || unavailableOfferIds.length > 0) && { opacity: 0.5 },
             ]}
             accessibilityRole="button"
             accessibilityLabel="متابعة لإتمام الطلب"
@@ -953,7 +950,7 @@ function CartItemCard({
               },
             ]}
           >
-            {itemTotal.toLocaleString("en-US")}
+            {formatSypNumber(itemTotal)}
           </Text>
 
           <Text
@@ -964,7 +961,7 @@ function CartItemCard({
               },
             ]}
           >
-            {product.currency === "USD" ? "$" : "ل.س"}
+            {"ل.س"}
           </Text>
         </View>
       </View>
@@ -980,7 +977,7 @@ type OfferCartCardProps = {
 function OfferCartCard({ offer, onRemove }: OfferCartCardProps) {
   const { colors } = useTheme();
   const calculation = calculateCustomerOffer(offer);
-  const currencyLabel = offer.currency === "USD" ? "$" : "ل.س";
+  const currencyLabel = "ل.س";
 
   return (
     <View
@@ -1057,14 +1054,14 @@ function OfferCartCard({ offer, onRemove }: OfferCartCardProps) {
         <View style={{ alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between" }}>
           <Text style={{ color: colors.text, fontFamily: Fonts.semiBold }}>سعر العرض كاملًا</Text>
           <Text style={{ color: colors.primary, fontFamily: Fonts.bold, fontSize: FontSizes.md }}>
-            {calculation.finalTotal.toLocaleString("en-US")} {currencyLabel}
+            {formatSypNumber(calculation.finalTotal)} {currencyLabel}
           </Text>
         </View>
         {calculation.originalTotal > calculation.finalTotal ? (
           <View style={{ alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between" }}>
             <Text style={{ color: colors.textMuted, fontFamily: Fonts.regular, fontSize: FontSizes.xs }}>وفرت</Text>
             <Text style={{ color: colors.success, fontFamily: Fonts.medium, fontSize: FontSizes.xs }}>
-              {(calculation.originalTotal - calculation.finalTotal).toLocaleString("en-US")} {currencyLabel}
+              {formatSypNumber((calculation.originalTotal - calculation.finalTotal))} {currencyLabel}
             </Text>
           </View>
         ) : null}

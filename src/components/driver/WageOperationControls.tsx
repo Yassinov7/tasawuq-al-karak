@@ -1,0 +1,3 @@
+import {FinancialOperationControls} from '@/components/ui/FinancialOperationControls';
+import {useWageOperation,wageResultMessage} from '@/hooks/useWageOperation';
+export function WageOperationControls({operation}:{operation:ReturnType<typeof useWageOperation>}){return <FinancialOperationControls busy={operation.busy} error={operation.error} frozen={Boolean(operation.frozen)} result={operation.result} message={operation.result?wageResultMessage(operation.result):''} onRecover={()=>void operation.run(undefined,true)} onResume={()=>void operation.run()} onFinish={()=>void operation.finish()}/>;}

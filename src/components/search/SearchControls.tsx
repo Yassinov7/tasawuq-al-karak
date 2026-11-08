@@ -6,14 +6,12 @@ import { AppIcon } from "@/components/ui/AppIcon";
 
 type SearchFilter = "all" | "products" | "stores" | "categories";
 type ProductSort = "relevance" | "price-ascending" | "price-descending";
-type CurrencyFilter = "all" | "SYP" | "USD";
-
 type SearchControlsProps = {
   colors: { surface: string; border: string; text: string; textMuted: string; primary: string; accent: string; surfaceSecondary: string; textSecondary: string };
   searchText: string; filtersVisible: boolean; activeFilterCount: number; filter: SearchFilter;
-  filterCounts: Record<SearchFilter, number>; selectedCategoryId: string | null; currencyFilter: CurrencyFilter; productSort: ProductSort;
+  filterCounts: Record<SearchFilter, number>; selectedCategoryId: string | null; productSort: ProductSort;
   setSearchText: Dispatch<SetStateAction<string>>; setFiltersVisible: Dispatch<SetStateAction<boolean>>; setFilter: Dispatch<SetStateAction<SearchFilter>>;
-  setSelectedCategoryId: Dispatch<SetStateAction<string | null>>; setCurrencyFilter: Dispatch<SetStateAction<CurrencyFilter>>; setProductSort: Dispatch<SetStateAction<ProductSort>>;
+  setSelectedCategoryId: Dispatch<SetStateAction<string | null>>; setProductSort: Dispatch<SetStateAction<ProductSort>>;
   onQueryChange: (value: string) => void; onSubmit: () => void;
 };
 
@@ -23,7 +21,7 @@ const searchFilters: { id: SearchFilter; label: string; icon: React.ComponentPro
 ];
 
 export function SearchControls(props: SearchControlsProps) {
-  const { colors, searchText, filtersVisible, activeFilterCount, filter, filterCounts, selectedCategoryId, currencyFilter, productSort, setSearchText, setFiltersVisible, setFilter, setSelectedCategoryId, setCurrencyFilter, setProductSort, onQueryChange, onSubmit } = props;
+  const { colors, searchText, filtersVisible, activeFilterCount, filter, filterCounts, selectedCategoryId, productSort, setSearchText, setFiltersVisible, setFilter, setSelectedCategoryId, setProductSort, onQueryChange, onSubmit } = props;
   return (<>
         <View style={styles.searchRow}>
           <View
@@ -59,7 +57,6 @@ export function SearchControls(props: SearchControlsProps) {
                 onPress={() => {
                   setSearchText("");
                   setSelectedCategoryId(null);
-                  setCurrencyFilter("all");
                   setProductSort("relevance");
                   setFilter("all");
                 }}
@@ -134,13 +131,11 @@ export function SearchControls(props: SearchControlsProps) {
             <Text style={[styles.filterPanelTitle, { color: colors.text }]}>
               تصفية البحث
             </Text>
-            {filter !== "all" || selectedCategoryId || currencyFilter !== "all" ||
-            productSort !== "relevance" ? (
+            {filter !== "all" || selectedCategoryId || productSort !== "relevance" ? (
               <Pressable
                 onPress={() => {
                   setFilter("all");
                   setSelectedCategoryId(null);
-                  setCurrencyFilter("all");
                   setProductSort("relevance");
                 }}
                 accessibilityRole="button"
@@ -166,7 +161,6 @@ export function SearchControls(props: SearchControlsProps) {
                     setFilter(item.id);
                     if (item.id !== "products") {
                       setSelectedCategoryId(null);
-                      setCurrencyFilter("all");
                       setProductSort("relevance");
                     }
                   }}

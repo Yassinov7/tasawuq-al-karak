@@ -29,7 +29,6 @@ export type Product = {
   name: string;
   description: string;
   price: number;
-  currency?: "SYP" | "USD";
   unit: string;
   available: boolean;
   minimumQuantity?: number;

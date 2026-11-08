@@ -1,6 +1,6 @@
 import { StyleSheet } from "react-native";
 
-import { Fonts, FontSizes, Radius, Spacing } from "@/constants/theme";
+import { Fonts, FontSizes, Radius, Spacing, Typography, LayoutSpacing } from "@/constants/theme";
 
 export const styles = StyleSheet.create({
   screen: {
@@ -10,7 +10,7 @@ export const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: Spacing.five,
+    paddingHorizontal: LayoutSpacing.pageGutter,
     gap: Spacing.three,
   },
   loadingText: {
@@ -26,8 +26,7 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
   },
   emptyTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.lg,
+    ...Typography.sectionTitle,
     textAlign: "center",
   },
   emptyDescription: {
@@ -86,7 +85,7 @@ export const styles = StyleSheet.create({
   statusCard: {
     borderWidth: 1,
     borderRadius: Radius.xl,
-    padding: Spacing.five,
+    padding: LayoutSpacing.cardPadding,
     alignItems: "center",
     gap: Spacing.three,
   },
@@ -98,8 +97,7 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
   },
   statusTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.xl,
+    ...Typography.pageTitle,
     textAlign: "center",
   },
   statusDescription: {

@@ -1,8 +1,8 @@
+import { OnboardingFrame } from "@/components/auth/OnboardingFrame";
 import { useRouter, type Href } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Pressable,
   RefreshControl,
   ScrollView,
   Text,
@@ -29,6 +29,10 @@ import {
 import { supabase } from "@/lib/supabase";
 
 export default function ApplicationStatusScreen() {
+  const { user } = useAuth();
+  return <ApplicationStatusContent key={user?.id ?? "guest"} />;
+}
+function ApplicationStatusContent() {
   const router = useRouter();
   const {
     user,
@@ -175,7 +179,7 @@ export default function ApplicationStatusScreen() {
   };
 
   if (authLoading || loading || redirecting) {
-    return (
+    return (<OnboardingFrame title="حالة طلب الانضمام" >{(
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
 
@@ -183,11 +187,11 @@ export default function ApplicationStatusScreen() {
           جاري تحميل حالة الطلب...
         </Text>
       </View>
-    );
+    )}</OnboardingFrame>);
   }
 
   if (!status) {
-    return (
+    return (<OnboardingFrame title="حالة طلب الانضمام" >{(
       <ApplicationStatusEmptyState
         error={error}
         onRetry={() => {
@@ -196,73 +200,19 @@ export default function ApplicationStatusScreen() {
         }}
         onLogout={() => void handleLogout()}
       />
-    );
+    )}</OnboardingFrame>);
   }
 
   const content = statusText[status.status] ?? statusText.pending;
 
-  const toneColor =
-    content.tone === "accepted"
-      ? colors.primary
-      : content.tone === "rejected"
-        ? colors.error
-        : content.tone === "changes"
-          ? colors.primary
-          : colors.accent;
-
-  const toneBackground =
-    content.tone === "accepted"
-      ? colors.primaryLight
-      : content.tone === "rejected"
-        ? colors.surfaceSecondary
-        : content.tone === "changes"
-          ? colors.primaryLight
-          : colors.accentLight;
+  const toneColor = content.tone === 'rejected' ? colors.errorForeground : content.tone === 'changes' ? colors.infoForeground : content.tone === 'accepted' ? colors.successForeground : colors.warningForeground;
+  const toneBackground = content.tone === 'rejected' ? colors.errorSurface : content.tone === 'changes' ? colors.infoSurface : content.tone === 'accepted' ? colors.successSurface : colors.warningSurface;
 
   const isMerchant = role === "merchant";
   const isAccepted = status.status === "accepted";
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="رجوع"
-          onPress={() => router.back()}
-          hitSlop={10}
-          style={styles.headerButton}
-        >
-          <AppIcon name="arrow-forward" size={22} color={colors.text} />
-        </Pressable>
-
-        <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            حالة الطلب
-          </Text>
-
-          <Text
-            style={[styles.headerSubtitle, { color: colors.textSecondary }]}
-          >
-            متابعة حالة طلب الانتساب
-          </Text>
-        </View>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="تحديث حالة الطلب"
-          onPress={() => void loadStatus(true)}
-          disabled={refreshing}
-          hitSlop={10}
-          style={styles.headerButton}
-        >
-          {refreshing ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <AppIcon name="refresh-outline" size={21} color={colors.text} />
-          )}
-        </Pressable>
-      </View>
-
+    <OnboardingFrame title="حالة طلب الانضمام">
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
@@ -455,35 +405,36 @@ export default function ApplicationStatusScreen() {
               >
                 {isMerchant
                   ? "يمكنك الآن الانتقال إلى لوحة التاجر وإدارة متجرك."
-                  : "يمكنك الآن متابعة محفظتك والعمليات المرتبطة بحسابك."}
+                  : "يمكنك الآن الانتقال إلى مساحة السائق ومتابعة توصيلاتك."}
               </Text>
             </View>
           </View>
         ) : null}
 
         <View style={styles.actions}>
+          {["changes_requested", "rejected"].includes(status.status) ? <AppButton design="refined" title="تعديل الطلب وإعادة تقديمه" onPress={() => router.push((isMerchant ? "/merchant-application?edit=1" : "/driver-application?edit=1") as Href)} /> : null}
           {isAccepted && isMerchant ? (
-            <AppButton
+            <AppButton design="refined"
               title="إدارة المتجر"
               onPress={() => router.replace("/merchant" as Href)}
             />
           ) : null}
 
           {isAccepted && !isMerchant ? (
-            <AppButton
+            <AppButton design="refined"
               title="فتح مساحة السائق"
               onPress={() => router.replace("/driver" as Href)}
             />
           ) : null}
 
-          <AppButton
+          <AppButton design="refined"
             title="تحديث الحالة"
             variant="outline"
             onPress={() => void loadStatus(true)}
             loading={refreshing}
           />
 
-          <AppButton
+          <AppButton design="refined"
             title="تسجيل الخروج"
             variant="outline"
             onPress={() => void handleLogout()}
@@ -494,6 +445,6 @@ export default function ApplicationStatusScreen() {
           يمكنك سحب الصفحة إلى الأسفل لتحديث حالة الطلب.
         </Text>
       </ScrollView>
-    </View>
+    </OnboardingFrame>
   );
 }

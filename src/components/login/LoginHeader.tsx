@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 
 import { BrandMark } from "@/components/brand/BrandMark";
-import { Fonts, FontSizes, Radius, Spacing } from "@/constants/theme";
+import { Fonts, FontSizes, Radius, Spacing, Typography } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 
 export function LoginHeader() {
@@ -20,7 +20,7 @@ export function LoginHeader() {
         </View>
         <View style={styles.brandCopy}>
           <Text style={[styles.brandName, { color: colors.text }]}>تسوق</Text>
-          <Text style={[styles.brandRegion, { color: colors.textMuted }]}>
+          <Text style={[styles.brandRegion, { color: colors.textSecondary }]}>
             الكرك الشرقي
           </Text>
         </View>
@@ -70,9 +70,7 @@ const styles = StyleSheet.create({
   },
   title: {
     textAlign: "right",
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.xxl,
-    lineHeight: 39,
+    ...Typography.pageTitle,
   },
   subtitle: {
     marginTop: Spacing.one,

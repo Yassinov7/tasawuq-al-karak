@@ -8,6 +8,7 @@ export function productEditForm(product: EditProductRecord): ProductForm {
 }
 export function validateProductEdit(form:ProductForm,categories:readonly {id:string}[],baseline:EditProductRecord) {
   const result=validateProduct(form,categories);
+  if (form.categoryId === baseline.category_id) delete result.errors.categoryId;
   // Retain an existing legacy unit verbatim; never silently convert stored units.
   if(form.unit===baseline.selling_unit && form.unit.trim()) delete result.errors.unit;
   return result;
@@ -67,7 +68,7 @@ export function createProductEditSaver(api:ProductEditApi) {
   if(busy)return false;busy=true;
   try{
    await api.persist(attempt);await api.assertScope(attempt);
-   if(!await api.category(attempt.values.category_id))throw new Error("لم يعد التصنيف نشطًا.");
+   if(attempt.values.category_id !== attempt.baseline.category_id && !await api.category(attempt.values.category_id))throw new Error("لم يعد التصنيف نشطًا.");
    let product=await api.product(attempt);
    if(!product)throw new Error("المنتج غير متاح لهذا المتجر.");
    if(!editProductMatches(product,attempt)){

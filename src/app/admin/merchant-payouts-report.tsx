@@ -1,2 +1,2 @@
-import { FinancialReportScreen } from "@/components/admin/FinancialReportScreen";
-export default function MerchantPayoutsReport() { return <FinancialReportScreen kind="merchant" />; }
+import { Redirect } from "expo-router";
+export default function PreviousFinanceRoute(){return <Redirect href="/admin/finance"/>;}

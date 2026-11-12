@@ -1,3 +1,6 @@
+import { ToastProvider } from "@/context/ToastContext";
+import { PushBridge } from "@/components/notifications/PushBridge";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   Cairo_400Regular,
   Cairo_500Medium,
@@ -15,6 +18,7 @@ import { AppBottomNav } from "@/components/navigation/AppBottomNav";
 import { BottomNavHeight } from "@/constants/theme";
 import { CartProvider } from "@/context/CartContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { AppDialogProvider } from "@/context/AppDialogContext";
 import { CustomerCatalogProvider } from "@/context/CustomerCatalogContext";
 import { FavoritesProvider } from "@/context/FavoritesContext";
 import { NotificationProvider } from "@/context/NotificationContext";
@@ -34,6 +38,7 @@ const MAIN_ROUTES = [
   "/merchant/account",
   "/driver",
   "/driver/orders",
+  "/driver/cash-account",
   "/driver/account",
 ] as const;
 
@@ -78,6 +83,7 @@ export default function RootLayout() {
     Cairo_500Medium,
     Cairo_600SemiBold,
     Cairo_700Bold,
+    ...Ionicons.font,
   });
 
   useEffect(() => {
@@ -95,7 +101,9 @@ export default function RootLayout() {
       <AuthProvider>
         <SettingsProvider>
           <ThemeProvider>
+            <AppDialogProvider><ToastProvider>
             <NotificationProvider>
+              <PushBridge/>
               <FavoritesProvider>
                 <CustomerCatalogProvider>
                   <CartProvider>
@@ -104,6 +112,7 @@ export default function RootLayout() {
                 </CustomerCatalogProvider>
               </FavoritesProvider>
             </NotificationProvider>
+            </ToastProvider></AppDialogProvider>
           </ThemeProvider>
         </SettingsProvider>
       </AuthProvider>

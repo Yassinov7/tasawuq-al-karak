@@ -1,8 +1,11 @@
+import { readCategoryLabels } from "@/lib/catalog-categories";
+import { useOrderRealtime } from "@/hooks/useOrderRealtime";
 import {useCallback,useEffect,useMemo,useRef,useState} from "react";
 import {useFocusEffect,useNavigation,useRouter} from "expo-router";
 import {usePreventRemove} from "expo-router/react-navigation";
 import * as ImagePicker from "expo-image-picker";
-import {ActivityIndicator,BackHandler,KeyboardAvoidingView,Platform,ScrollView,Text,TextInput,View} from "react-native";
+import {ActivityIndicator,BackHandler,type ScrollView,Text,TextInput,View} from "react-native";
+import {KeyboardAwareScrollView} from "@/components/ui/KeyboardAwareScrollView";
 import {AppButton} from "@/components/ui/AppButton";
 import {AppModal} from "@/components/ui/AppModal";
 import {MerchantProductForm,productEditorStyles as styles} from "@/components/merchant/MerchantProductForm";
@@ -18,10 +21,11 @@ import {abandonProductEditAttempt,clearProductEditAttempt,createProductEditSessi
 
 type Loaded=Awaited<ReturnType<typeof loadEditableProduct>>;
 export function MerchantEditProduct({ownerId,productId}:{ownerId:string;productId:string}){
- const {colors}=useTheme(),{headerHeight,setNotice}=useMerchantWorkspace(),{refreshProductAvailability}=useCustomerCatalog();
+ const {colors}=useTheme(),{setNotice}=useMerchantWorkspace(),{refreshProductAvailability}=useCustomerCatalog();
  const router=useRouter(),navigation=useNavigation();
  const [form,setForm]=useState<ProductForm|null>(null),[media,setMedia]=useState<EditDraftMedia[]>([]);
  const [categories,setCategories]=useState<{id:string;name:string}[]>([]),[ready,setReady]=useState(false),[loading,setLoading]=useState(true);
+ const [historicalCategoryName,setHistoricalCategoryName]=useState<string>();
  const [categoryError,setCategoryError]=useState(false),[loadError,setLoadError]=useState(false);
  const [error,setError]=useState(''),[progress,setProgress]=useState(''),[busy,setBusy]=useState(false),[picking,setPicking]=useState(false);
  const [attempt,setAttempt]=useState<ProductEditAttempt|null>(null),[errors,setErrors]=useState<Partial<Record<keyof ProductForm,string>>>({});
@@ -29,6 +33,7 @@ export function MerchantEditProduct({ownerId,productId}:{ownerId:string;productI
  const alive=useRef(true),focused=useRef(true),busyRef=useRef(false),pickingRef=useRef(false),allowExit=useRef(false);
  const initial=useRef<Loaded|null>(null),request=useRef<AbortController|null>(null),pendingExit=useRef<(()=>void)|null>(null);
  const refs=useRef<Partial<Record<keyof ProductForm,TextInput|null>>>({}),scroll=useRef<ScrollView>(null),sectionY=useRef(0),categoryY=useRef(0);
+ const pricingY=useRef(0),unitY=useRef(0);
  const gate=useMemo(()=>createProductEditLoadGate(),[]),session=useMemo(()=>createProductEditSession(),[]);
  const [baselineView,setBaselineView]=useState<{form:ProductForm;keys:string[]}|null>(null);
  const dirty=Boolean(attempt)||(form!==null&&baselineView!==null&&(JSON.stringify(form)!==JSON.stringify(baselineView.form)||JSON.stringify(media.map(item=>item.key))!==JSON.stringify(baselineView.keys)));
@@ -46,10 +51,10 @@ export function MerchantEditProduct({ownerId,productId}:{ownerId:string;productI
   const handler=BackHandler.addEventListener('hardwareBackPress',()=>{requestExit(leave);return true;});
   return()=>{focused.current=false;session.deactivate();handler.remove();};
  },[leave,requestExit,session]));
- const load=useCallback(async()=>{
+ const load=useCallback(async(quiet=false)=>{
   const latest=gate.begin();request.current?.abort();request.current=new AbortController();const signal=request.current.signal;
   const current=()=>alive.current&&!signal.aborted&&latest();
-  setLoading(true);setError('');
+  if (!quiet) { setLoading(true);setError(''); }
   try{
    if(!initial.current){
     const data=await loadEditableProduct(ownerId,productId,signal);if(!current())return;
@@ -58,12 +63,23 @@ export function MerchantEditProduct({ownerId,productId}:{ownerId:string;productI
     setForm(pending?{...pending.form}:data.form);setMedia(pending?pending.media.map(item=>({...item})):data.media);setAttempt(pending);
    }
    setLoadError(false);setReady(true);
-   try{const options=await readProductCategories(signal);if(!current())return;setCategories(options);setCategoryError(false);}
+   try {
+    const options = await readProductCategories(signal);
+    const baselineId = initial.current.product.category_id;
+    const historical = options.some(option => option.id === baselineId) ? undefined
+      : (await readCategoryLabels("product", [baselineId], signal)).get(baselineId)?.name;
+    if (!current()) return;
+    setCategories(options);setHistoricalCategoryName(historical);setCategoryError(false);
+   }
    catch{if(current()){setCategoryError(true);setError('تعذر تحميل التصنيفات. مدخلاتك محفوظة في الصفحة؛ أعد المحاولة.');}}
   }catch{if(current()){setReady(false);setLoadError(true);setError('تعذر تحميل المنتج أو التحقق من ملكيته أو استكمال تعديل سابق. أعد المحاولة؛ لن نعرض أو نعدل منتجًا غير متاح لهذا المتجر.');}}
   finally{if(current())setLoading(false);}
  },[gate,ownerId,productId]);
  useEffect(()=>{alive.current=true;const timer=setTimeout(()=>{void load();},0);return()=>{clearTimeout(timer);alive.current=false;request.current?.abort();gate.cancel();};},[gate,load]);
+  useOrderRealtime({ channelName: `product-editor-categories:${ownerId}`, enabled: ready,
+    subscriptions: [{ table: "catalog_category_revision" }], onChange: () => {
+      if (!busyRef.current && !pickingRef.current) return load(true);
+    } });
  const change=<K extends keyof ProductForm>(key:K,value:ProductForm[K])=>{
   if(busyRef.current||pickingRef.current||attempt)return;
   setForm(previous=>previous?{...previous,[key]:value}:previous);setErrors(previous=>({...previous,[key]:undefined}));
@@ -92,11 +108,15 @@ export function MerchantEditProduct({ownerId,productId}:{ownerId:string;productI
   if(!attempt){
    const validation=validateProductEdit(form,categories,initial.current.product);setErrors(validation.errors);
    const field=Object.keys(validation.errors)[0] as keyof ProductForm|undefined;
-   if(field){if(refs.current[field])refs.current[field]?.focus();else scroll.current?.scrollTo({y:sectionY.current+categoryY.current,animated:true});return;}
+   if(field){
+    if(refs.current[field]) refs.current[field]?.focus();
+    else scroll.current?.scrollTo({y:field==='unit'?pricingY.current+unitY.current:sectionY.current+categoryY.current,animated:true});
+    return;
+   }
   }
   busyRef.current=true;setBusy(true);setError('');let confirmed=false,started=Boolean(attempt);
   try{
-   if(!attempt){
+   if(!attempt && form.categoryId !== initial.current.product.category_id){
     const options=await readProductCategories();if(!alive.current||!focused.current)return;setCategories(options);
     if(!options.some(option=>option.id===form.categoryId)){setErrors(previous=>({...previous,categoryId:'لم يعد التصنيف نشطًا. اختر تصنيفًا آخر.'}));scroll.current?.scrollTo({y:sectionY.current+categoryY.current,animated:true});return;}
    }
@@ -120,17 +140,18 @@ export function MerchantEditProduct({ownerId,productId}:{ownerId:string;productI
   finally{busyRef.current=false;if(alive.current)setBusy(false);}
   if(!alive.current||!focused.current)return;pendingExit.current=null;setExitOpen(false);allowExit.current=true;action?.();
  };
- return <KeyboardAvoidingView style={[styles.screen,{backgroundColor:colors.background}]} behavior={Platform.OS==='ios'?'padding':'height'} keyboardVerticalOffset={headerHeight}>
-  <ScrollView ref={scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-   {loading?<View style={styles.status}><ActivityIndicator color={colors.primary}/><Text style={[styles.body,{color:colors.textSecondary}]}>جارٍ تحميل المنتج والتصنيفات…</Text></View>:null}
-   {error?<View style={[styles.message,{backgroundColor:colors.errorSurface,borderColor:colors.errorBorder}]}><Text accessibilityLiveRegion="polite" style={[styles.body,{color:colors.errorForeground}]}>{error}</Text>{loadError||categoryError?<AppButton design="refined" title="إعادة المحاولة" variant="outline" disabled={loading||busy||picking} onPress={()=>{void load();}}/>:null}</View>:null}
+ return <View style={[styles.screen,{backgroundColor:colors.background}]}>
+  <KeyboardAwareScrollView ref={scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+   {loading&&!form?<View style={styles.status}><ActivityIndicator color={colors.primary}/><Text style={[styles.body,{color:colors.textSecondary}]}>جارٍ تحميل المنتج والتصنيفات…</Text></View>:null}
+   {error&&(loadError||categoryError||!ready)?<View style={[styles.message,{backgroundColor:colors.errorSurface,borderColor:colors.errorBorder}]}><Text accessibilityLiveRegion="polite" style={[styles.body,{color:colors.errorForeground}]}>{error}</Text>{loadError||categoryError?<AppButton design="refined" title="إعادة المحاولة" variant="outline" disabled={loading||busy||picking} onPress={()=>{void load();}}/>:null}</View>:null}
    {attempt?<Text style={[styles.message,{color:colors.infoForeground,backgroundColor:colors.infoSurface,borderColor:colors.infoBorder}]}>هذه محاولة تعديل محفوظة للاستكمال. ثُبتت الحقول والوسائط حتى التحقق من النتيجة. إزالة الوسائط تعني إزالة روابطها عند الحفظ، مع إبقاء الملفات نفسها آمنة.</Text>:null}
-   {form&&ready?<MerchantProductForm form={form} media={media} categories={categories} errors={errors} locked={locked} ready={ready} loading={loading} picking={picking} busy={busy} progress={progress}
+   {form&&ready?<MerchantProductForm form={form} media={media} categories={categories} historicalCategoryName={form.categoryId === baselineView?.form.categoryId ? historicalCategoryName : undefined} errors={errors} locked={locked} ready={ready} loading={loading} picking={picking} busy={busy} progress={progress}
     change={change} onFieldRef={(key,input)=>{refs.current[key]=input;}} onFirstSectionLayoutY={value=>{sectionY.current=value;}} onCategoryLayoutY={value=>{categoryY.current=value;}}
+    onPricingLayoutY={value=>{pricingY.current=value;}} onUnitLayoutY={value=>{unitY.current=value;}}
     pick={type=>{void pick(type);}} onRemoveMedia={key=>{if(!busyRef.current&&!pickingRef.current&&!attempt)setMedia(previous=>previous.filter(item=>item.key!==key));}}
-    onSave={()=>{void save();}} onCancel={()=>requestExit(leave)} saveLabel={attempt?'التحقق والاستكمال':'حفظ التعديلات'} saveDisabled={loading||picking||categoryError||!categories.length}/>:<AppButton design="refined" title="العودة" variant="outline" onPress={()=>requestExit(leave)}/>}
-  </ScrollView>
+    onSave={()=>{void save();}} onCancel={()=>requestExit(leave)} saveLabel={attempt?'التحقق والاستكمال':'حفظ التعديلات'} saveError={categoryError ? undefined : error} saveDisabled={loading||picking||categoryError}/>:<AppButton design="refined" title="العودة" variant="outline" onPress={()=>requestExit(leave)}/>}
+  </KeyboardAwareScrollView>
   <AppModal design="refined" visible={exitOpen} title="مغادرة تعديل المنتج؟" message={attempt?'قد تكون بعض التغييرات محفوظة. المغادرة لا تعكس التعديلات المؤكدة ولا تحذف ملفات؛ سننهي المتابعة المحلية فقط إذا تأكدنا من وجود المنتج، وإلا نحتفظ بها للاستكمال.':'ستفقد التغييرات غير المحفوظة.'} confirmText="تجاهل التغييرات والمغادرة" cancelText="البقاء" destructive busy={busy} onCancel={()=>{pendingExit.current=null;setExitOpen(false);}} onConfirm={()=>{void discard();}}/>
   <AppModal design="refined" visible={busyExit} title="العملية قيد التنفيذ" message="انتظر انتهاء الحفظ أو التحقق قبل المغادرة." onCancel={()=>setBusyExit(false)}/>
- </KeyboardAvoidingView>;
+ </View>;
 }

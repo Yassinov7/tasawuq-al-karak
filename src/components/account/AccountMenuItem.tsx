@@ -13,6 +13,7 @@ type AccountMenuItemProps = {
   disabled?: boolean;
   loading?: boolean;
   isLast?: boolean;
+  compact?: boolean;
   onPress: () => void;
 };
 
@@ -25,6 +26,7 @@ export function AccountMenuItem({
   disabled = false,
   loading = false,
   isLast = false,
+  compact = false,
   onPress,
 }: AccountMenuItemProps) {
   const { colors } = useTheme();
@@ -35,6 +37,7 @@ export function AccountMenuItem({
       disabled={disabled || loading}
       style={({ pressed }) => [
         styles.row,
+        compact && styles.compactRow,
         { borderBottomColor: colors.border },
         isLast && styles.lastRow,
         (disabled || loading) && styles.disabled,
@@ -44,8 +47,8 @@ export function AccountMenuItem({
       accessibilityLabel={title}
       accessibilityState={{ disabled: disabled || loading, busy: loading }}
     >
-      <View style={[styles.icon, { backgroundColor: colors.primaryLight }]}>
-        <AppIcon name={icon} size={20} color={colors.primary} />
+      <View style={[styles.icon, compact && styles.compactIcon, { backgroundColor: compact ? colors.surfaceSelected : colors.primaryLight }]}>
+        <AppIcon name={icon} size={compact ? 18 : 20} color={colors.primary} />
       </View>
       <View style={styles.content}>
         <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
@@ -63,8 +66,10 @@ export function AccountMenuItem({
 
 const styles = StyleSheet.create({
   row: { alignItems: "center", borderBottomWidth: 1, flexDirection: "row-reverse", gap: Spacing.three, minHeight: 68, paddingHorizontal: Spacing.three, paddingVertical: Spacing.three },
+  compactRow: { minHeight: 48, borderBottomWidth: StyleSheet.hairlineWidth, gap: Spacing.two, paddingVertical: Spacing.one },
   lastRow: { borderBottomWidth: 0 },
   icon: { alignItems: "center", borderRadius: Radius.md, height: 40, justifyContent: "center", width: 40 },
+  compactIcon: { width: 32, height: 32 },
   content: { alignItems: "flex-end", flex: 1, minWidth: 0 },
   title: { fontFamily: Fonts.semiBold, fontSize: FontSizes.sm, textAlign: "right" },
   subtitle: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, marginTop: 2, textAlign: "right" },

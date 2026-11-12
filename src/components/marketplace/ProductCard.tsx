@@ -2,10 +2,9 @@ import { formatSypNumber } from "@/lib/money";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { AppBadge } from "@/components/ui/AppBadge";
-import { AppIcon } from "@/components/ui/AppIcon";
-import { ProductMediaPreview } from "@/components/marketplace/ProductMediaPreview";
+import { ShoppingCardImage } from "@/components/marketplace/ShoppingCardImage";
 import { RatingStars } from "@/components/marketplace/RatingStars";
-import type { Product } from "@/constants/catalog";
+import type { Product } from "@/types/catalog";
 import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
@@ -16,6 +15,8 @@ type ProductCardProps = {
   compact?: boolean;
   showStore?: boolean;
   showOffer?: boolean;
+  cardWidth?: number;
+  storeName?: string;
 };
 
 export function ProductCard({
@@ -24,33 +25,29 @@ export function ProductCard({
   compact = false,
   showStore = true,
   showOffer = false,
+  cardWidth,
+  storeName,
 }: ProductCardProps) {
   const { colors } = useTheme();
   const { categories, stores, productRatings } = useCustomerCatalog();
-  const { width } = useWindowDimensions();
+  const { width, fontScale } = useWindowDimensions();
 
   const category = categories.find((item) => item.id === product.categoryId);
 
-  const store = stores.find((item) => item.id === product.storeId);
+  const store = storeName ?? stores.find((item) => item.id === product.storeId)?.name;
   const rating = productRatings.get(product.id);
 
-  const iconSize = compact ? 30 : 34;
   const media = product.media?.find((item) => item.type === "image");
-  const mediaWidth = Math.max(
-    80,
-    compact
-      ? (width - Spacing.four * 2 - Spacing.three) / 2 - Spacing.three * 2
-      : 175 - Spacing.three * 2,
-  );
 
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={product.name}
+      accessibilityLabel={[product.name, showStore ? store : undefined, formatSypNumber(product.price) + " ل.س", product.unit, !product.available ? "غير متوفر" : undefined].filter(Boolean).join("، ")}
       style={({ pressed }) => [
         styles.card,
-        compact ? (width < 360 ? styles.singleColumnCard : styles.compactCard) : styles.normalCard,
+        compact ? (width < 360 || fontScale > 1.25 ? styles.singleColumnCard : styles.compactCard) : styles.normalCard,
+        cardWidth === undefined ? undefined : { width: cardWidth },
         {
           backgroundColor: colors.surface,
           borderColor: colors.border,
@@ -69,20 +66,7 @@ export function ProductCard({
           },
         ]}
       >
-        {media ? (
-          <ProductMediaPreview
-            media={media}
-            width={mediaWidth}
-            height={compact ? 105 : 110}
-            fallbackIcon={category?.icon ?? "cube-outline"}
-          />
-        ) : (
-          <AppIcon
-            name={category?.icon ?? "cube-outline"}
-            size={iconSize}
-            color={colors.primary}
-          />
-        )}
+        <ShoppingCardImage uri={media?.uri} icon={category?.icon ?? "cube-outline"} />
 
         {showOffer && product.offer ? (
           <View style={styles.offerBadge}>
@@ -119,7 +103,7 @@ export function ProductCard({
           ]}
           numberOfLines={1}
         >
-          {store.name}
+          {store}
         </Text>
       ) : null}
 
@@ -213,20 +197,20 @@ const styles = StyleSheet.create({
     marginTop: Spacing.three,
     fontFamily: Fonts.bold,
     fontSize: FontSizes.sm,
-    lineHeight: 19,
     textAlign: "right",
   },
 
   store: {
     marginTop: 3,
     fontFamily: Fonts.regular,
-    fontSize: 10,
+    fontSize: FontSizes.xs,
     textAlign: "right",
   },
 
   priceRow: {
     flexDirection: "row-reverse",
     alignItems: "baseline",
+    flexWrap: "wrap",
     gap: 3,
     marginTop: Spacing.three,
   },
@@ -238,13 +222,13 @@ const styles = StyleSheet.create({
 
   currency: {
     fontFamily: Fonts.medium,
-    fontSize: 9,
+    fontSize: FontSizes.xs,
   },
 
   unit: {
     marginTop: 2,
     fontFamily: Fonts.regular,
-    fontSize: 10,
+    fontSize: FontSizes.xs,
     textAlign: "right",
   },
 
@@ -258,7 +242,7 @@ const styles = StyleSheet.create({
 
   unavailableText: {
     fontFamily: Fonts.medium,
-    fontSize: 10,
+    fontSize: FontSizes.xs,
   },
 
   ratingRow: {
@@ -270,6 +254,6 @@ const styles = StyleSheet.create({
 
   ratingText: {
     fontFamily: Fonts.medium,
-    fontSize: 10,
+    fontSize: FontSizes.xs,
   },
 });

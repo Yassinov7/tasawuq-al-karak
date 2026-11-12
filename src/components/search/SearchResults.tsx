@@ -1,16 +1,19 @@
-import type { Category, Product, Store } from "@/constants/catalog";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import type { Category, Product, Store } from "@/types/catalog";
+import { ScrollView, Text, View } from "react-native";
 
 import { CategoryChip } from "@/components/marketplace/CategoryChip";
+import { StoreCard } from "@/components/marketplace/StoreCard";
+import { useCustomerStoreLogos } from "@/hooks/useCustomerStoreLogos";
 import { ProductCard } from "@/components/marketplace/ProductCard";
 import { styles } from "@/components/search/searchStyles";
 import { AppIcon } from "@/components/ui/AppIcon";
 
 type Colors = { border: string; text: string; textMuted: string; textSecondary: string; primary: string; primaryLight: string; surface: string; surfaceSecondary: string; accent: string };
-type Props = { colors: Colors; query: string; searchText: string; totalResults: number; visibleResults: { categories: Category[]; stores: Store[]; products: Product[] }; storeCategories: Category[]; onCategoryPress: (name: string) => void; onStorePress: (id: string) => void; onProductPress: (id: string) => void; };
+type Props = { colors: Colors; query: string; searchText: string; totalResults: number; visibleResults: { categories: Category[]; stores: Store[]; products: Product[] }; onCategoryPress: (name: string) => void; onStorePress: (id: string) => void; onProductPress: (id: string) => void; };
 
 export function SearchResults(props: Props) {
-  const { colors, query, searchText, totalResults, visibleResults, storeCategories, onCategoryPress, onStorePress, onProductPress } = props;
+  const { colors, query, searchText, totalResults, visibleResults, onCategoryPress, onStorePress, onProductPress } = props;
+  const { logos } = useCustomerStoreLogos(visibleResults.stores.map(store => store.id));
   return (
           <View style={styles.results}>
             <View
@@ -95,7 +98,7 @@ export function SearchResults(props: Props) {
                       key={category.id}
                       label={category.name}
                       icon={category.icon}
-                      onPress={() => onCategoryPress(category.name)}
+                      onPress={() => onCategoryPress(category.id)}
                     />
                   ))}
                 </ScrollView>
@@ -111,121 +114,10 @@ export function SearchResults(props: Props) {
                 />
 
                 <View style={styles.storeResults}>
-                  {visibleResults.stores.map((store) => {
-                    const category = storeCategories.find((item) =>
-                      store.categoryIds.includes(item.id));
-
-                    return (
-                      <Pressable
-                        key={store.id}
-                        onPress={() => onStorePress(store.id)}
-                        style={({ pressed }) => [
-                          styles.storeResult,
-                          {
-                            backgroundColor: colors.surface,
-                            borderColor: colors.border,
-                          },
-                          pressed && styles.pressed,
-                        ]}
-                      >
-                        <View
-                          style={[
-                            styles.storeResultIcon,
-                            {
-                              backgroundColor: colors.primaryLight,
-                            },
-                          ]}
-                        >
-                          <AppIcon
-                            name={category?.icon ?? "storefront-outline"}
-                            size={25}
-                            color={colors.primary}
-                          />
-                        </View>
-
-                        <View style={styles.storeResultInfo}>
-                          <Text
-                            style={[
-                              styles.storeResultName,
-                              {
-                                color: colors.text,
-                              },
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {store.name}
-                          </Text>
-
-                          <Text
-                            style={[
-                              styles.storeResultDescription,
-                              {
-                                color: colors.textSecondary,
-                              },
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {store.description}
-                          </Text>
-
-                          <View style={styles.storeResultMeta}>
-                            <View style={styles.storeMetaItem}>
-                              <AppIcon
-                                name="star"
-                                size={12}
-                                color={colors.accent}
-                              />
-
-                              <Text
-                                style={[
-                                  styles.storeMetaText,
-                                  {
-                                    color: colors.textMuted,
-                                  },
-                                ]}
-                              >
-                                {store.rating === undefined ? "—" : store.rating.toFixed(1)}
-                              </Text>
-                            </View>
-
-                            <View style={styles.storeMetaItem}>
-                              <AppIcon
-                                name="time-outline"
-                                size={12}
-                                color={colors.textMuted}
-                              />
-
-                              <Text
-                                style={[
-                                  styles.storeMetaText,
-                                  {
-                                    color: colors.textMuted,
-                                  },
-                                ]}
-                              >
-                                {store.deliveryTime}
-                              </Text>
-                            </View>
-                          </View>
-                        </View>
-
-                        <View
-                          style={[
-                            styles.storeArrow,
-                            {
-                              backgroundColor: colors.surfaceSecondary,
-                            },
-                          ]}
-                        >
-                          <AppIcon
-                            name="chevron-back"
-                            size={16}
-                            color={colors.textSecondary}
-                          />
-                        </View>
-                      </Pressable>
-                    );
-                  })}
+                  {visibleResults.stores.map(store => (
+                    <StoreCard key={store.id} store={store} logo={logos.get(store.id)} searchResult
+                      onPress={() => onStorePress(store.id)} />
+                  ))}
                 </View>
               </View>
             ) : null}

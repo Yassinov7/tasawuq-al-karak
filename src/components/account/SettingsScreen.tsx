@@ -203,9 +203,14 @@ function ThemeOption({
   );
 }
 
-export default function SettingsScreen({ embedded = false }: { embedded?: boolean } = {}) {
+export default function SettingsScreen({ embedded = false, preferencesOnly: appearanceOnly = false, backFallback }: {
+  embedded?: boolean;
+  preferencesOnly?: boolean;
+  backFallback?: (typeof accountHome)[keyof typeof accountHome];
+} = {}) {
   const router = useRouter();
   const account=usePersonalAccount();
+  const preferencesOnly = appearanceOnly || account.data?.role === "driver" || (account.loading && !account.data);
   const {
     themeMode,
     setThemeMode,settingsReady,themeSaving,settingsError,
@@ -220,7 +225,7 @@ export default function SettingsScreen({ embedded = false }: { embedded?: boolea
       router.back();
       return;
     }
-    router.replace(account.data?accountHome[account.data.role]:"/");
+    router.replace(backFallback ?? (account.data ? accountHome[account.data.role] : "/"));
   };
 
   return (
@@ -238,6 +243,7 @@ export default function SettingsScreen({ embedded = false }: { embedded?: boolea
         onBack={handleBack}
         cartCount={itemCount}
         mode={headerMode}
+        showNotifications={!preferencesOnly}
       /> : null}
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -246,7 +252,7 @@ export default function SettingsScreen({ embedded = false }: { embedded?: boolea
         <View style={styles.intro}>
           {settingsError?<Text accessibilityRole="alert" style={{fontFamily:Fonts.regular,color:colors.errorForeground,textAlign:"right"}}>{settingsError}</Text>:null}
 
-          <Text
+          {!preferencesOnly ? <Text
             style={[
               styles.subtitle,
               {
@@ -255,10 +261,10 @@ export default function SettingsScreen({ embedded = false }: { embedded?: boolea
             ]}
           >
             تحكم بتفضيلات حسابك وتجربة التطبيق
-          </Text>
+          </Text> : null}
         </View>
 
-        <Text
+        {!preferencesOnly ? <Text
           style={[
             styles.sectionTitle,
             {
@@ -267,7 +273,7 @@ export default function SettingsScreen({ embedded = false }: { embedded?: boolea
           ]}
         >
           التطبيق
-        </Text>
+        </Text> : null}
 
         <View
           style={[
@@ -360,7 +366,7 @@ export default function SettingsScreen({ embedded = false }: { embedded?: boolea
             </View>
           </View>
 
-          <View
+          {!preferencesOnly ? <View
             style={[
               styles.languageRow,
               {
@@ -413,9 +419,10 @@ export default function SettingsScreen({ embedded = false }: { embedded?: boolea
             >
               حاليًا
             </Text>
-          </View>
+          </View> : null}
         </View>
 
+        {!preferencesOnly ? <>
         <Text
           style={[
             styles.sectionTitle,
@@ -520,6 +527,7 @@ export default function SettingsScreen({ embedded = false }: { embedded?: boolea
             الإصدار 1.0.0
           </Text>
         </View>
+        </> : null}
       </ScrollView>
     </View>
   );

@@ -1,3 +1,4 @@
+import { categoryFilterIds, categoryPath } from "@/lib/category-tree";
 import { Href, useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import {
@@ -16,7 +17,7 @@ import { StoreDetailsHero } from "@/components/marketplace/StoreDetailsHero";
 import { RatingsSection } from "@/components/marketplace/RatingsSection";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppIcon } from "@/components/ui/AppIcon";
-import type { Product } from "@/constants/catalog";
+import type { Product } from "@/types/catalog";
 import { CustomerCatalogStatus } from "@/components/marketplace/CustomerCatalogStatus";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
@@ -44,6 +45,8 @@ export default function StoreDetailsScreen() {
 
   const [searchText, setSearchText] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const selectedIds = useMemo(() => selectedCategory === "all" ? null : categoryFilterIds(categories, selectedCategory), [categories, selectedCategory]);
+  const categoryNodes = useMemo(() => new Map(categories.map(category => [category.id, category])), [categories]);
 
   const store = useMemo(() => stores.find((item) => item.id === id), [id, stores]);
 
@@ -57,7 +60,8 @@ export default function StoreDetailsScreen() {
       storeProducts.map((product) => product.categoryId),
     );
 
-    return categories.filter((category) => categoryIds.has(category.id));
+    const parents = new Set(categories.filter(category => categoryIds.has(category.id)).map(category => category.parentId));
+    return categories.filter(category => categoryIds.has(category.id) || parents.has(category.id));
   }, [categories, storeProducts]);
 
   const filteredProducts = useMemo(() => {
@@ -65,7 +69,7 @@ export default function StoreDetailsScreen() {
 
     return storeProducts.filter((product) => {
       const matchesCategory =
-        selectedCategory === "all" || product.categoryId === selectedCategory;
+        !selectedIds || selectedIds.has(product.categoryId);
 
       if (!matchesCategory) {
         return false;
@@ -81,7 +85,7 @@ export default function StoreDetailsScreen() {
 
       return productName.includes(query) || description.includes(query);
     });
-  }, [searchText, selectedCategory, storeProducts]);
+  }, [searchText, selectedIds, storeProducts]);
 
   const popularProducts = useMemo(() => filteredProducts.slice(0, 6), [filteredProducts]);
 
@@ -93,12 +97,11 @@ export default function StoreDetailsScreen() {
             offer.store_id === store?.id &&
             offer.items.some(
               (item) =>
-                selectedCategory === "all" ||
-                item.product.categoryId === selectedCategory,
+                !selectedIds || selectedIds.has(item.product.categoryId),
             ),
         )
         .slice(0, 6),
-    [offers, selectedCategory, store?.id],
+    [offers, selectedIds, store?.id],
   );
 
   const primaryCategory = useMemo(
@@ -291,7 +294,7 @@ export default function StoreDetailsScreen() {
               {storeCategories.map((category) => (
                 <CategoryChip
                   key={category.id}
-                  label={category.name}
+                  label={categoryPath(category, categoryNodes)}
                   icon={category.icon}
                   active={selectedCategory === category.id}
                   onPress={() => setSelectedCategory(category.id)}

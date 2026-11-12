@@ -3,8 +3,10 @@ export type Status = {
   status: string;
   review_note: string | null;
   submitted_at: string;
-  plan_price_snapshot?: number;
-  plan_currency_snapshot?: string;
+  public_reference: string;
+  plan_id?: string | null;
+  plan_price_snapshot?: number | null;
+  plan_currency_snapshot?: string | null;
 };
 
 export type StatusConfig = {
@@ -60,9 +62,9 @@ export const formatDate = (value: string) => {
 };
 
 export const formatMoney = (
-  value: number | undefined,
-  currency: string | undefined,
+  value: number | null | undefined,
+  currency: string | null | undefined,
 ) => {
-  if (value === undefined || currency !== "SYP") return "غير مثبت";
+  if (value == null || currency !== "SYP") return "غير مثبت";
   return formatSyp(Number(value), currency);
 };

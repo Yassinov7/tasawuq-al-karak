@@ -1,14 +1,14 @@
 import { c3Money, type C3Context } from "@/lib/c3-order-contract";
 
 export type DriverCollection =
-  | { state: "ready"; amount: number; source: "c3" | "legacy_obligation" | "legacy_server" }
+  | { state: "ready"; amount: number; source: "pricing" }
   | { state: "blocked" }
   | { state: "unavailable" };
 
 export function collectionFromContext(context: C3Context): DriverCollection {
   if (!context.pricing) return { state: "unavailable" };
   if (context.pricing.current.review_required) return { state: "blocked" };
-  return { state: "ready", amount: c3Money(context.pricing.current.total), source: "c3" };
+  return { state: "ready", amount: c3Money(context.pricing.current.total), source: "pricing" };
 }
 
 export function canProgressDriverCollection(value: DriverCollection | undefined): boolean {

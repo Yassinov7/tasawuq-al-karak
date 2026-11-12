@@ -1,7 +1,6 @@
 import { formatSypNumber } from "@/lib/money";
 import { useRouter } from "expo-router";
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,9 +16,11 @@ import { useCart } from "@/context/CartContext";
 import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useTheme } from "@/context/ThemeContext";
+import { useAppDialog } from "@/context/AppDialogContext";
 
 export default function FavoritesScreen() {
   const router = useRouter();
+  const { confirm } = useAppDialog();
   const { colors } = useTheme();
   const { itemCount } = useCart();
   const { categories, products, stores } = useCustomerCatalog();
@@ -31,17 +32,7 @@ export default function FavoritesScreen() {
   );
 
   const handleClearFavorites = () => {
-    Alert.alert("تفريغ المفضلة", "هل تريد إزالة جميع المنتجات من المفضلة؟", [
-      {
-        text: "إلغاء",
-        style: "cancel",
-      },
-      {
-        text: "تفريغ",
-        style: "destructive",
-        onPress: clearFavorites,
-      },
-    ]);
+    void confirm({ title: "تفريغ المفضلة", message: "هل تريد إزالة جميع المنتجات من المفضلة؟", confirmText: "تفريغ", cancelText: "إلغاء", destructive: true }).then(accepted => { if (accepted) clearFavorites(); });
   };
 
   return (

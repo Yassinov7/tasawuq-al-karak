@@ -6,7 +6,7 @@ import { useTheme } from "@/context/ThemeContext";
 
 type AppBadgeProps = {
   text: string;
-  variant?: "primary" | "accent" | "success" | "danger" | "neutral";
+  variant?: "primary" | "accent" | "success" | "danger" | "neutral" | "pending" | "info";
   icon?: React.ComponentProps<typeof AppIcon>["name"];
 };
 
@@ -14,25 +14,25 @@ export function AppBadge({ text, variant = "primary", icon }: AppBadgeProps) {
   const { colors } = useTheme();
 
   const backgroundColor =
-    variant === "primary"
+    variant === "pending" ? colors.pendingSurface : variant === "info" ? colors.infoSurface : variant === "primary"
       ? colors.primaryLight
       : variant === "accent"
         ? colors.accentLight
         : variant === "success"
-          ? colors.primaryLight
+          ? colors.successSurface
           : variant === "danger"
-            ? `${colors.error}20`
+            ? colors.errorSurface
             : colors.surfaceSecondary;
 
   const textColor =
-    variant === "primary"
+    variant === "pending" ? colors.pendingForeground : variant === "info" ? colors.infoForeground : variant === "primary"
       ? colors.primary
       : variant === "accent"
-        ? colors.accent
+        ? colors.warningForeground
         : variant === "success"
-          ? colors.success
+          ? colors.successForeground
           : variant === "danger"
-            ? colors.error
+            ? colors.errorForeground
             : colors.textSecondary;
 
   return (

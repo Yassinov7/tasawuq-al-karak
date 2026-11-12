@@ -1,2 +1,2 @@
-import { MerchantFinancialScreen } from '@/components/merchant/MerchantFinancialScreen';
-export default function InvoiceDetails() { return <MerchantFinancialScreen section="invoice" />; }
+import { Redirect } from "expo-router";
+export default function PreviousFinanceRoute(){return <Redirect href="/merchant/finance"/>;}

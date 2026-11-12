@@ -7,16 +7,17 @@ import {SharedAccountIdentity,SharedAccountMenu,AccountLogout} from "@/component
 type PlatformItem = {
   title: string;
   subtitle: string;
-  icon: "storefront-outline" | "bicycle-outline" | "pricetags-outline" | "wallet-outline" | "cash-outline";
-  route: "/admin/stores" | "/admin/drivers" | "/admin/plans?from=more" | "/admin/finance" | "/admin/driver-custody";
+  icon: "storefront-outline" | "bicycle-outline" | "pricetags-outline" | "wallet-outline" | "cash-outline" | "layers-outline" | "megaphone-outline";
+  route: "/admin/stores" | "/admin/drivers" | "/admin/plans?from=more" | "/admin/finance" | "/admin/driver-custody" | "/admin/categories" | "/admin/home-ads";
 };
 
 const platformItems: PlatformItem[] = [
   { title: "المتاجر القائمة", subtitle: "إدارة المتاجر المعتمدة وبياناتها", icon: "storefront-outline", route: "/admin/stores" },
+  { title: "إدارة التصنيفات", subtitle: "تصنيفات المتاجر والمنتجات", icon: "layers-outline", route: "/admin/categories" },
+  { title: "إعلانات الرئيسية", subtitle: "إدارة الإعلانات الممولة وفترات عرضها", icon: "megaphone-outline", route: "/admin/home-ads" },
   { title: "السائقون المعتمدون", subtitle: "متابعة السائقين والتوصيلات الحالية", icon: "bicycle-outline", route: "/admin/drivers" },
   { title: "خطط الاشتراك", subtitle: "إدارة الخطط المتاحة للمتقدمين الجدد", icon: "pricetags-outline", route: "/admin/plans?from=more" },
-  { title: "المالية والاشتراكات", subtitle: "الحسابات والفواتير والمدفوعات بالليرة السورية", icon: "wallet-outline", route: "/admin/finance" },
-  { title: "عهد السائقين", subtitle: "استلام النقد المؤكد ومتابعة العهدة بالليرة السورية", icon: "cash-outline", route: "/admin/driver-custody" },
+  { title: "المالية", subtitle: "الحسابات والفواتير والمدفوعات بالليرة السورية", icon: "wallet-outline", route: "/admin/finance" },
 ];
 
 export default function AdminMoreScreen(){

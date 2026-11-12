@@ -7,7 +7,7 @@ function load(file, mocks = {}) {
   const exports = {};
   const source = fs.readFileSync(path.join(root, file), 'utf8');
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, {
-    exports, Intl, Date, Number, URL, URLSearchParams,
+    exports, Intl, Date, Number, URL, URLSearchParams, AbortController,
     require(name) {
       if (Object.hasOwn(mocks, name)) return mocks[name];
       if (name === '@/lib/money') return load('src/lib/money.ts');

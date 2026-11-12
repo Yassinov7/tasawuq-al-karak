@@ -14,7 +14,7 @@ function getHeaderConfig(pathname: string): HeaderConfig {
   if (pathname === "/admin/orders" || pathname === "/admin/requests") return { title: "الطلبات" };
   if (pathname === "/admin/applications") return { title: "طلبات الانضمام" };
   if (pathname === "/admin/stores") return { title: "المتاجر", backTo: "/admin/more" };
-  if (pathname === "/admin/finance") return { title: "المالية والاشتراكات" };
+  if (pathname === "/admin/finance") return { title: "المالية" };
   if (pathname === "/admin/financial-indicators") return { title: "المؤشرات المالية", backTo: "/admin/finance" };
   if (pathname === "/admin/financial-reports") return { title: "التقارير المالية", backTo: "/admin/finance" };
   if (pathname === "/admin/cash-movement-report") return { title: "الحركة النقدية", backTo: "/admin/financial-reports" };
@@ -33,6 +33,8 @@ function getHeaderConfig(pathname: string): HeaderConfig {
   if (pathname.startsWith("/admin/merchant-settlement-details")) return { title: "تفاصيل التسوية", backTo: "/admin/merchant-settlements" };
   if (pathname === "/admin/driver-custody") return { title: "عهد السائقين", backTo: "/admin/finance" };
   if (pathname === "/admin/more") return { title: "المزيد" };
+  if (pathname === "/admin/categories") return { title: "إدارة التصنيفات", backTo: "/admin/more" };
+  if (pathname === "/admin/home-ads") return { title: "إعلانات الرئيسية", backTo: "/admin/more" };
   if (pathname === "/admin/drivers") return { title: "السائقون", backTo: "/admin/more" };
   if (pathname === "/admin/plans") return { title: "خطط الاشتراك", backTo: "/admin/finance" };
   if (pathname === "/admin/plan-form") return { title: "نموذج خطة الاشتراك", backTo: "/admin/plans" };
@@ -71,7 +73,7 @@ function AdminLayoutContent() {
   };
 
   return <View style={[styles.screen, { backgroundColor: colors.background }]}>
-    <AppHeader title={header.title} showBack={Boolean(header.backTo)} onBack={goBack} showNotifications={false} mode="business" />
+    <AppHeader title={header.title} showBack={Boolean(header.backTo)} onBack={goBack} showNotifications mode="business" />
     <Stack screenOptions={{ headerShown: false, animation: "fade", animationDuration: 180, contentStyle: { backgroundColor: colors.background, paddingBottom: BottomNavHeight + insets.bottom } }} />
     <AppBottomNav />
   </View>;

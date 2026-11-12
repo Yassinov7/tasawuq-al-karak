@@ -10,11 +10,11 @@
     "Related test/document list is name-based; operational tests must be preserved or rewritten, never discarded solely by name."
   ],
   "summary": {
-    "sourceFiles": 302,
+    "sourceFiles": 304,
     "replacementCandidates": 85,
     "mixedModules": 8,
-    "affectedSourceFiles": 188,
-    "migrations": 44,
+    "affectedSourceFiles": 185,
+    "migrations": 45,
     "declaredTables": 114
   },
   "sourceFiles": [
@@ -55,6 +55,7 @@
       "action": "KEEP_PATCH_INTEGRATION",
       "imports": [
         "src/lib/money.ts",
+        "src/components/admin/ApplicationPlanAssignment.tsx",
         "src/components/ui/AppButton.tsx",
         "src/components/ui/AppModal.tsx",
         "src/components/ui/AppTextField.tsx",
@@ -825,27 +826,13 @@
     },
     {
       "file": "src/app/driver-application.tsx",
-      "action": "KEEP_PATCH_INTEGRATION",
+      "action": "KEEP_BASELINE_REGRESSION",
       "imports": [
-        "src/components/auth/OnboardingFrame.tsx",
-        "src/hooks/useOnboardingDraft.ts",
-        "src/hooks/useOnboardingExit.ts",
-        "src/components/ui/AppButton.tsx",
-        "src/components/ui/AppIcon.tsx",
-        "src/components/ui/AppTextField.tsx",
-        "src/constants/theme.ts",
-        "src/context/AuthContext.tsx",
-        "src/context/ThemeContext.tsx",
-        "src/lib/supabase.ts"
+        "src/components/signup/ProfessionalApplicationScreen.tsx"
       ],
       "directDependents": [],
-      "literalRpcCalls": [
-        "submit_driver_application"
-      ],
-      "literalTableReads": [
-        "driver_applications",
-        "driver_applications"
-      ]
+      "literalRpcCalls": [],
+      "literalTableReads": []
     },
     {
       "file": "src/app/favorites.tsx",
@@ -1302,56 +1289,21 @@
     },
     {
       "file": "src/app/merchant-application-review.tsx",
-      "action": "KEEP_PATCH_INTEGRATION",
-      "imports": [
-        "src/lib/money.ts",
-        "src/components/ui/AppIcon.tsx",
-        "src/components/auth/OnboardingFrame.tsx",
-        "src/components/ui/AppButton.tsx",
-        "src/constants/theme.ts",
-        "src/context/AuthContext.tsx",
-        "src/context/ThemeContext.tsx",
-        "src/lib/local-cache.ts",
-        "src/lib/merchant-application-draft.ts",
-        "src/lib/supabase.ts"
-      ],
+      "action": "KEEP_BASELINE_REGRESSION",
+      "imports": [],
       "directDependents": [],
-      "literalRpcCalls": [
-        "submit_merchant_application"
-      ],
-      "literalTableReads": [
-        "merchant_applications",
-        "subscription_plans",
-        "store_categories"
-      ]
+      "literalRpcCalls": [],
+      "literalTableReads": []
     },
     {
       "file": "src/app/merchant-application.tsx",
-      "action": "KEEP_PATCH_INTEGRATION",
+      "action": "KEEP_BASELINE_REGRESSION",
       "imports": [
-        "src/lib/money.ts",
-        "src/components/ui/AppButton.tsx",
-        "src/components/ui/AppIcon.tsx",
-        "src/components/ui/AppTextField.tsx",
-        "src/constants/theme.ts",
-        "src/context/AuthContext.tsx",
-        "src/context/ThemeContext.tsx",
-        "src/lib/supabase.ts",
-        "src/lib/local-cache.ts",
-        "src/lib/merchant-application-draft.ts",
-        "src/components/auth/OnboardingFrame.tsx",
-        "src/hooks/useOnboardingDraft.ts",
-        "src/components/auth/DraftExitModal.tsx",
-        "src/components/merchant/MerchantCategorySelect.tsx",
-        "src/hooks/useOnboardingExit.ts"
+        "src/components/signup/ProfessionalApplicationScreen.tsx"
       ],
       "directDependents": [],
       "literalRpcCalls": [],
-      "literalTableReads": [
-        "subscription_plans",
-        "store_categories",
-        "merchant_applications"
-      ]
+      "literalTableReads": []
     },
     {
       "file": "src/app/notifications.tsx",
@@ -1522,14 +1474,16 @@
       "file": "src/app/signup.tsx",
       "action": "KEEP_BASELINE_REGRESSION",
       "imports": [
-        "src/hooks/useOnboardingExit.ts",
         "src/components/signup/SignupCredentialsStep.tsx",
-        "src/components/signup/SignupIntroStep.tsx",
         "src/components/signup/SignupProgress.tsx",
         "src/components/signup/SignupRoleStep.tsx",
-        "src/constants/theme.ts",
+        "src/components/signup/SignupReviewStep.tsx",
+        "src/components/signup/ProfessionalApplicationFields.tsx",
+        "src/components/signup/SignupErrorNotice.tsx",
+        "src/components/ui/AppButton.tsx",
         "src/context/ThemeContext.tsx",
-        "src/hooks/useSignup.ts"
+        "src/hooks/useSignup.ts",
+        "src/hooks/useOnboardingExit.ts"
       ],
       "directDependents": [],
       "literalRpcCalls": [],
@@ -1877,6 +1831,27 @@
       "literalTableReads": []
     },
     {
+      "file": "src/components/admin/ApplicationPlanAssignment.tsx",
+      "action": "KEEP_PATCH_INTEGRATION",
+      "imports": [
+        "src/components/merchant/MerchantCategorySelect.tsx",
+        "src/components/ui/AppButton.tsx",
+        "src/constants/theme.ts",
+        "src/context/ThemeContext.tsx",
+        "src/lib/money.ts",
+        "src/lib/supabase.ts"
+      ],
+      "directDependents": [
+        "src/app/admin/application-details.tsx"
+      ],
+      "literalRpcCalls": [
+        "assign_application_plan"
+      ],
+      "literalTableReads": [
+        "subscription_plans"
+      ]
+    },
+    {
       "file": "src/components/admin/C3DeliverySettings.tsx",
       "action": "KEEP_PATCH_INTEGRATION",
       "imports": [
@@ -2127,22 +2102,6 @@
       "literalTableReads": []
     },
     {
-      "file": "src/components/auth/DraftExitModal.tsx",
-      "action": "KEEP_BASELINE_REGRESSION",
-      "imports": [
-        "src/components/ui/AppButton.tsx",
-        "src/components/ui/AppModal.tsx",
-        "src/constants/theme.ts",
-        "src/context/ThemeContext.tsx",
-        "src/hooks/useOnboardingExit.ts"
-      ],
-      "directDependents": [
-        "src/app/merchant-application.tsx"
-      ],
-      "literalRpcCalls": [],
-      "literalTableReads": []
-    },
-    {
       "file": "src/components/auth/OnboardingFrame.tsx",
       "action": "KEEP_BASELINE_REGRESSION",
       "imports": [
@@ -2151,11 +2110,9 @@
       ],
       "directDependents": [
         "src/app/application-status.tsx",
-        "src/app/driver-application.tsx",
-        "src/app/merchant-application-review.tsx",
-        "src/app/merchant-application.tsx",
         "src/app/reset-password.tsx",
-        "src/app/verify-email.tsx"
+        "src/app/verify-email.tsx",
+        "src/components/signup/ProfessionalApplicationScreen.tsx"
       ],
       "literalRpcCalls": [],
       "literalTableReads": []
@@ -2188,8 +2145,7 @@
         "src/app/index.tsx",
         "src/app/verify-email.tsx",
         "src/components/about/AboutHeader.tsx",
-        "src/components/login/LoginHeader.tsx",
-        "src/components/signup/SignupIntroStep.tsx"
+        "src/components/login/LoginHeader.tsx"
       ],
       "literalRpcCalls": [],
       "literalTableReads": []
@@ -2755,8 +2711,9 @@
         "src/context/ThemeContext.tsx"
       ],
       "directDependents": [
-        "src/app/merchant-application.tsx",
-        "src/components/merchant/MerchantProductForm.tsx"
+        "src/components/admin/ApplicationPlanAssignment.tsx",
+        "src/components/merchant/MerchantProductForm.tsx",
+        "src/components/signup/ProfessionalApplicationFields.tsx"
       ],
       "literalRpcCalls": [],
       "literalTableReads": []
@@ -3153,17 +3110,82 @@
       "literalTableReads": []
     },
     {
+      "file": "src/components/signup/BirthDateField.tsx",
+      "action": "KEEP_BASELINE_REGRESSION",
+      "imports": [
+        "src/components/ui/AppTextField.tsx",
+        "src/constants/theme.ts",
+        "src/context/ThemeContext.tsx",
+        "src/lib/signup-data.ts"
+      ],
+      "directDependents": [
+        "src/components/signup/ProfessionalApplicationScreen.tsx",
+        "src/components/signup/SignupCredentialsStep.tsx"
+      ],
+      "literalRpcCalls": [],
+      "literalTableReads": []
+    },
+    {
+      "file": "src/components/signup/ProfessionalApplicationFields.tsx",
+      "action": "KEEP_BASELINE_REGRESSION",
+      "imports": [
+        "src/components/merchant/MerchantCategorySelect.tsx",
+        "src/components/ui/AppButton.tsx",
+        "src/components/ui/AppTextField.tsx",
+        "src/constants/theme.ts",
+        "src/context/ThemeContext.tsx",
+        "src/lib/supabase.ts",
+        "src/lib/signup-data.ts"
+      ],
+      "directDependents": [
+        "src/app/signup.tsx",
+        "src/components/signup/ProfessionalApplicationScreen.tsx"
+      ],
+      "literalRpcCalls": [],
+      "literalTableReads": [
+        "store_categories"
+      ]
+    },
+    {
+      "file": "src/components/signup/ProfessionalApplicationScreen.tsx",
+      "action": "KEEP_BASELINE_REGRESSION",
+      "imports": [
+        "src/components/auth/OnboardingFrame.tsx",
+        "src/components/signup/BirthDateField.tsx",
+        "src/components/signup/ProfessionalApplicationFields.tsx",
+        "src/components/ui/AppButton.tsx",
+        "src/constants/theme.ts",
+        "src/context/AuthContext.tsx",
+        "src/context/ThemeContext.tsx",
+        "src/hooks/useOnboardingExit.ts",
+        "src/lib/signup-data.ts",
+        "src/lib/account-routing.ts",
+        "src/lib/supabase.ts"
+      ],
+      "directDependents": [
+        "src/app/driver-application.tsx",
+        "src/app/merchant-application.tsx"
+      ],
+      "literalRpcCalls": [
+        "submit_professional_onboarding"
+      ],
+      "literalTableReads": [
+        "profiles",
+        "merchant_applications",
+        "driver_applications"
+      ]
+    },
+    {
       "file": "src/components/signup/SignupCredentialsStep.tsx",
       "action": "KEEP_BASELINE_REGRESSION",
       "imports": [
         "src/components/ui/AppButton.tsx",
-        "src/components/ui/AppIcon.tsx",
         "src/components/ui/AppTextField.tsx",
+        "src/components/signup/BirthDateField.tsx",
         "src/components/signup/SignupErrorNotice.tsx",
         "src/constants/theme.ts",
         "src/context/ThemeContext.tsx",
-        "src/hooks/useSignup.ts",
-        "src/types/profile-demographics.ts"
+        "src/lib/signup-data.ts"
       ],
       "directDependents": [
         "src/app/signup.tsx"
@@ -3179,24 +3201,10 @@
         "src/context/ThemeContext.tsx"
       ],
       "directDependents": [
+        "src/app/signup.tsx",
         "src/components/signup/SignupCredentialsStep.tsx",
+        "src/components/signup/SignupReviewStep.tsx",
         "src/components/signup/SignupRoleStep.tsx"
-      ],
-      "literalRpcCalls": [],
-      "literalTableReads": []
-    },
-    {
-      "file": "src/components/signup/SignupIntroStep.tsx",
-      "action": "KEEP_BASELINE_REGRESSION",
-      "imports": [
-        "src/components/brand/BrandMark.tsx",
-        "src/components/ui/AppButton.tsx",
-        "src/components/ui/AppIcon.tsx",
-        "src/constants/theme.ts",
-        "src/context/ThemeContext.tsx"
-      ],
-      "directDependents": [
-        "src/app/signup.tsx"
       ],
       "literalRpcCalls": [],
       "literalTableReads": []
@@ -3216,6 +3224,23 @@
       "literalTableReads": []
     },
     {
+      "file": "src/components/signup/SignupReviewStep.tsx",
+      "action": "KEEP_BASELINE_REGRESSION",
+      "imports": [
+        "src/components/ui/AppButton.tsx",
+        "src/components/ui/AppIcon.tsx",
+        "src/components/signup/SignupErrorNotice.tsx",
+        "src/constants/theme.ts",
+        "src/context/ThemeContext.tsx",
+        "src/lib/signup-data.ts"
+      ],
+      "directDependents": [
+        "src/app/signup.tsx"
+      ],
+      "literalRpcCalls": [],
+      "literalTableReads": []
+    },
+    {
       "file": "src/components/signup/SignupRoleStep.tsx",
       "action": "KEEP_BASELINE_REGRESSION",
       "imports": [
@@ -3224,7 +3249,7 @@
         "src/components/signup/SignupErrorNotice.tsx",
         "src/constants/theme.ts",
         "src/context/ThemeContext.tsx",
-        "src/hooks/useSignup.ts"
+        "src/lib/signup-data.ts"
       ],
       "directDependents": [
         "src/app/signup.tsx"
@@ -3290,24 +3315,23 @@
         "src/app/application-status.tsx",
         "src/app/cart.tsx",
         "src/app/checkout.tsx",
-        "src/app/driver-application.tsx",
         "src/app/index.tsx",
         "src/app/invoice.tsx",
         "src/app/merchant/index.tsx",
         "src/app/merchant/orders.tsx",
-        "src/app/merchant-application-review.tsx",
-        "src/app/merchant-application.tsx",
         "src/app/notifications.tsx",
         "src/app/offer-details.tsx",
         "src/app/order-details.tsx",
         "src/app/orders.tsx",
         "src/app/product-details.tsx",
         "src/app/reset-password.tsx",
+        "src/app/signup.tsx",
         "src/app/verify-email.tsx",
         "src/app/wallet.tsx",
         "src/components/account/PersonalInfoScreen.tsx",
         "src/components/account/SecurityScreen.tsx",
         "src/components/account/SharedAccountParts.tsx",
+        "src/components/admin/ApplicationPlanAssignment.tsx",
         "src/components/admin/C3DeliverySettings.tsx",
         "src/components/admin/CashHandoverQueue.tsx",
         "src/components/admin/DriverWageAdministration.tsx",
@@ -3318,7 +3342,6 @@
         "src/components/admin/TreasuryControl.tsx",
         "src/components/admin/TreasuryFinanceWorkflow.tsx",
         "src/components/application-status/ApplicationStatusEmptyState.tsx",
-        "src/components/auth/DraftExitModal.tsx",
         "src/components/auth/RoleRouteGuard.tsx",
         "src/components/driver/DeliveryTaskCard.tsx",
         "src/components/driver/DriverCustodyPanel.tsx",
@@ -3340,8 +3363,10 @@
         "src/components/merchant/MerchantStoreBranding.tsx",
         "src/components/merchant/OfferExpirationPicker.tsx",
         "src/components/merchant/SubscriptionAccountPanel.tsx",
+        "src/components/signup/ProfessionalApplicationFields.tsx",
+        "src/components/signup/ProfessionalApplicationScreen.tsx",
         "src/components/signup/SignupCredentialsStep.tsx",
-        "src/components/signup/SignupIntroStep.tsx",
+        "src/components/signup/SignupReviewStep.tsx",
         "src/components/signup/SignupRoleStep.tsx",
         "src/components/ui/AppEmptyState.tsx",
         "src/components/ui/FinancialOperationControls.tsx"
@@ -3401,7 +3426,6 @@
         "src/app/checkout.tsx",
         "src/app/driver/index.tsx",
         "src/app/driver/orders.tsx",
-        "src/app/driver-application.tsx",
         "src/app/favorites.tsx",
         "src/app/home/index.tsx",
         "src/app/home/offers.tsx",
@@ -3409,8 +3433,6 @@
         "src/app/invoice.tsx",
         "src/app/merchant/catalog.tsx",
         "src/app/merchant/index.tsx",
-        "src/app/merchant-application-review.tsx",
-        "src/app/merchant-application.tsx",
         "src/app/notifications.tsx",
         "src/app/offer-details.tsx",
         "src/app/order-details.tsx",
@@ -3448,9 +3470,8 @@
         "src/components/search/SearchControls.tsx",
         "src/components/search/SearchEmptyState.tsx",
         "src/components/search/SearchResults.tsx",
-        "src/components/signup/SignupCredentialsStep.tsx",
-        "src/components/signup/SignupIntroStep.tsx",
         "src/components/signup/SignupProgress.tsx",
+        "src/components/signup/SignupReviewStep.tsx",
         "src/components/signup/SignupRoleStep.tsx",
         "src/components/ui/AppBadge.tsx",
         "src/components/ui/AppButton.tsx",
@@ -3487,7 +3508,6 @@
         "src/components/account/SharedAccountParts.tsx",
         "src/components/admin/TreasuryControl.tsx",
         "src/components/admin/TreasuryFinanceWorkflow.tsx",
-        "src/components/auth/DraftExitModal.tsx",
         "src/components/driver/DriverCustodyPanel.tsx",
         "src/components/driver/DriverWagePanel.tsx",
         "src/components/login/ForgotPasswordSection.tsx",
@@ -3548,9 +3568,7 @@
         "src/app/admin/merchant-settlement-details.tsx",
         "src/app/admin/plan-form.tsx",
         "src/app/checkout.tsx",
-        "src/app/driver-application.tsx",
         "src/app/merchant/orders.tsx",
-        "src/app/merchant-application.tsx",
         "src/app/reset-password.tsx",
         "src/components/account/PersonalInfoScreen.tsx",
         "src/components/account/SecurityScreen.tsx",
@@ -3568,6 +3586,8 @@
         "src/components/merchant/MerchantOfferForm.tsx",
         "src/components/merchant/MerchantProductForm.tsx",
         "src/components/merchant/SubscriptionAccountPanel.tsx",
+        "src/components/signup/BirthDateField.tsx",
+        "src/components/signup/ProfessionalApplicationFields.tsx",
         "src/components/signup/SignupCredentialsStep.tsx"
       ],
       "literalRpcCalls": [],
@@ -3771,7 +3791,6 @@
         "src/app/driver/cash-account.tsx",
         "src/app/driver/index.tsx",
         "src/app/driver/orders.tsx",
-        "src/app/driver-application.tsx",
         "src/app/favorites.tsx",
         "src/app/home/index.tsx",
         "src/app/home/offers.tsx",
@@ -3782,15 +3801,12 @@
         "src/app/merchant/index.tsx",
         "src/app/merchant/orders.tsx",
         "src/app/merchant/_layout.tsx",
-        "src/app/merchant-application-review.tsx",
-        "src/app/merchant-application.tsx",
         "src/app/notifications.tsx",
         "src/app/offer-details.tsx",
         "src/app/order-details.tsx",
         "src/app/orders.tsx",
         "src/app/product-details.tsx",
         "src/app/reset-password.tsx",
-        "src/app/signup.tsx",
         "src/app/store-details.tsx",
         "src/app/stores.tsx",
         "src/app/verify-email.tsx",
@@ -3808,6 +3824,7 @@
         "src/components/account/SecurityScreen.tsx",
         "src/components/account/SettingsScreen.tsx",
         "src/components/account/SharedAccountParts.tsx",
+        "src/components/admin/ApplicationPlanAssignment.tsx",
         "src/components/admin/C3DeliverySettings.tsx",
         "src/components/admin/CashHandoverQueue.tsx",
         "src/components/admin/DriverWageAdministration.tsx",
@@ -3819,7 +3836,6 @@
         "src/components/admin/TreasuryControl.tsx",
         "src/components/admin/TreasuryFinanceWorkflow.tsx",
         "src/components/application-status/styles.ts",
-        "src/components/auth/DraftExitModal.tsx",
         "src/components/auth/OnboardingFrame.tsx",
         "src/components/auth/RoleRouteGuard.tsx",
         "src/components/driver/DeliveryTaskCard.tsx",
@@ -3864,10 +3880,13 @@
         "src/components/navigation/AppHeader.tsx",
         "src/components/orders/OrderTracking.tsx",
         "src/components/search/searchStyles.ts",
+        "src/components/signup/BirthDateField.tsx",
+        "src/components/signup/ProfessionalApplicationFields.tsx",
+        "src/components/signup/ProfessionalApplicationScreen.tsx",
         "src/components/signup/SignupCredentialsStep.tsx",
         "src/components/signup/SignupErrorNotice.tsx",
-        "src/components/signup/SignupIntroStep.tsx",
         "src/components/signup/SignupProgress.tsx",
+        "src/components/signup/SignupReviewStep.tsx",
         "src/components/signup/SignupRoleStep.tsx",
         "src/components/ui/AppBadge.tsx",
         "src/components/ui/AppButton.tsx",
@@ -3905,7 +3924,6 @@
         "src/app/driver/cash-account.tsx",
         "src/app/driver/index.tsx",
         "src/app/driver/orders.tsx",
-        "src/app/driver-application.tsx",
         "src/app/home/account.tsx",
         "src/app/home/index.tsx",
         "src/app/index.tsx",
@@ -3914,8 +3932,6 @@
         "src/app/merchant/orders.tsx",
         "src/app/merchant/product-editor.tsx",
         "src/app/merchant/_layout.tsx",
-        "src/app/merchant-application-review.tsx",
-        "src/app/merchant-application.tsx",
         "src/app/notifications.tsx",
         "src/app/order-details.tsx",
         "src/app/orders.tsx",
@@ -3941,6 +3957,7 @@
         "src/components/merchant/MerchantFinancialScreen.tsx",
         "src/components/merchant/MerchantSettlementPanel.tsx",
         "src/components/merchant/SubscriptionAccountPanel.tsx",
+        "src/components/signup/ProfessionalApplicationScreen.tsx",
         "src/context/CartContext.tsx",
         "src/context/NotificationContext.tsx",
         "src/hooks/usePersonalAccount.ts"
@@ -4145,7 +4162,6 @@
         "src/app/driver/cash-account.tsx",
         "src/app/driver/index.tsx",
         "src/app/driver/orders.tsx",
-        "src/app/driver-application.tsx",
         "src/app/favorites.tsx",
         "src/app/home/index.tsx",
         "src/app/home/offers.tsx",
@@ -4157,8 +4173,6 @@
         "src/app/merchant/index.tsx",
         "src/app/merchant/orders.tsx",
         "src/app/merchant/_layout.tsx",
-        "src/app/merchant-application-review.tsx",
-        "src/app/merchant-application.tsx",
         "src/app/notifications.tsx",
         "src/app/offer-details.tsx",
         "src/app/order-details.tsx",
@@ -4183,6 +4197,7 @@
         "src/components/account/SecurityScreen.tsx",
         "src/components/account/SettingsScreen.tsx",
         "src/components/account/SharedAccountParts.tsx",
+        "src/components/admin/ApplicationPlanAssignment.tsx",
         "src/components/admin/C3DeliverySettings.tsx",
         "src/components/admin/CashHandoverQueue.tsx",
         "src/components/admin/DriverWageAdministration.tsx",
@@ -4194,7 +4209,6 @@
         "src/components/admin/TreasuryControl.tsx",
         "src/components/admin/TreasuryFinanceWorkflow.tsx",
         "src/components/application-status/ApplicationStatusEmptyState.tsx",
-        "src/components/auth/DraftExitModal.tsx",
         "src/components/auth/OnboardingFrame.tsx",
         "src/components/auth/RoleRouteGuard.tsx",
         "src/components/brand/BrandMark.tsx",
@@ -4242,10 +4256,13 @@
         "src/components/navigation/AppBottomNav.tsx",
         "src/components/navigation/AppHeader.tsx",
         "src/components/orders/OrderTracking.tsx",
+        "src/components/signup/BirthDateField.tsx",
+        "src/components/signup/ProfessionalApplicationFields.tsx",
+        "src/components/signup/ProfessionalApplicationScreen.tsx",
         "src/components/signup/SignupCredentialsStep.tsx",
         "src/components/signup/SignupErrorNotice.tsx",
-        "src/components/signup/SignupIntroStep.tsx",
         "src/components/signup/SignupProgress.tsx",
+        "src/components/signup/SignupReviewStep.tsx",
         "src/components/signup/SignupRoleStep.tsx",
         "src/components/ui/AppBadge.tsx",
         "src/components/ui/AppButton.tsx",
@@ -4340,27 +4357,12 @@
       "literalTableReads": []
     },
     {
-      "file": "src/hooks/useOnboardingDraft.ts",
-      "action": "KEEP_PATCH_INTEGRATION",
-      "imports": [
-        "src/lib/local-cache.ts"
-      ],
-      "directDependents": [
-        "src/app/driver-application.tsx",
-        "src/app/merchant-application.tsx"
-      ],
-      "literalRpcCalls": [],
-      "literalTableReads": []
-    },
-    {
       "file": "src/hooks/useOnboardingExit.ts",
       "action": "KEEP_BASELINE_REGRESSION",
       "imports": [],
       "directDependents": [
-        "src/app/driver-application.tsx",
-        "src/app/merchant-application.tsx",
         "src/app/signup.tsx",
-        "src/components/auth/DraftExitModal.tsx"
+        "src/components/signup/ProfessionalApplicationScreen.tsx"
       ],
       "literalRpcCalls": [],
       "literalTableReads": []
@@ -4412,14 +4414,15 @@
       "imports": [
         "src/lib/account-routing.ts",
         "src/lib/supabase.ts",
-        "src/types/profile-demographics.ts"
+        "src/lib/signup-data.ts",
+        "src/lib/signup-data.ts"
       ],
       "directDependents": [
-        "src/app/signup.tsx",
-        "src/components/signup/SignupCredentialsStep.tsx",
-        "src/components/signup/SignupRoleStep.tsx"
+        "src/app/signup.tsx"
       ],
-      "literalRpcCalls": [],
+      "literalRpcCalls": [
+        "get_signup_capabilities"
+      ],
       "literalTableReads": []
     },
     {
@@ -4448,6 +4451,7 @@
         "src/app/index.tsx",
         "src/app/notifications.tsx",
         "src/components/auth/RoleRouteGuard.tsx",
+        "src/components/signup/ProfessionalApplicationScreen.tsx",
         "src/hooks/useLogin.ts",
         "src/hooks/useSignup.ts",
         "src/lib/notification-routing.ts"
@@ -5181,13 +5185,10 @@
         "src/lib/money.ts"
       ],
       "directDependents": [
-        "src/app/merchant-application-review.tsx",
-        "src/app/merchant-application.tsx",
         "src/components/merchant/MerchantAddProduct.tsx",
         "src/components/merchant/MerchantCatalogPanel.tsx",
         "src/components/merchant/MerchantEditProduct.tsx",
         "src/components/merchant/MerchantOfferEditor.tsx",
-        "src/hooks/useOnboardingDraft.ts",
         "src/lib/c3-orders.ts",
         "src/lib/delivery-collection-attempt.ts",
         "src/lib/driver-custody-c5.ts",
@@ -5223,17 +5224,6 @@
         "merchant_subscription_plan_changes",
         "subscription_plans"
       ]
-    },
-    {
-      "file": "src/lib/merchant-application-draft.ts",
-      "action": "KEEP_BASELINE_REGRESSION",
-      "imports": [],
-      "directDependents": [
-        "src/app/merchant-application-review.tsx",
-        "src/app/merchant-application.tsx"
-      ],
-      "literalRpcCalls": [],
-      "literalTableReads": []
     },
     {
       "file": "src/lib/merchant-catalog-api.ts",
@@ -5640,11 +5630,10 @@
         "src/app/driver/cash-account.tsx",
         "src/app/favorites.tsx",
         "src/app/merchant/orders.tsx",
-        "src/app/merchant-application-review.tsx",
-        "src/app/merchant-application.tsx",
         "src/app/offer-details.tsx",
         "src/app/product-details.tsx",
         "src/app/wallet.tsx",
+        "src/components/admin/ApplicationPlanAssignment.tsx",
         "src/components/admin/C3DeliverySettings.tsx",
         "src/components/application-status/model.ts",
         "src/components/marketplace/OfferCard.tsx",
@@ -5842,6 +5831,22 @@
       ]
     },
     {
+      "file": "src/lib/signup-data.ts",
+      "action": "KEEP_BASELINE_REGRESSION",
+      "imports": [],
+      "directDependents": [
+        "src/components/signup/BirthDateField.tsx",
+        "src/components/signup/ProfessionalApplicationFields.tsx",
+        "src/components/signup/ProfessionalApplicationScreen.tsx",
+        "src/components/signup/SignupCredentialsStep.tsx",
+        "src/components/signup/SignupReviewStep.tsx",
+        "src/components/signup/SignupRoleStep.tsx",
+        "src/hooks/useSignup.ts"
+      ],
+      "literalRpcCalls": [],
+      "literalTableReads": []
+    },
+    {
       "file": "src/lib/store-branding-contract.ts",
       "action": "KEEP_BASELINE_REGRESSION",
       "imports": [],
@@ -5936,13 +5941,13 @@
         "src/app/admin/index.tsx",
         "src/app/application-status.tsx",
         "src/app/checkout.tsx",
-        "src/app/driver-application.tsx",
-        "src/app/merchant-application-review.tsx",
-        "src/app/merchant-application.tsx",
         "src/app/notifications.tsx",
         "src/app/reset-password.tsx",
         "src/app/verify-email.tsx",
         "src/app/wallet.tsx",
+        "src/components/admin/ApplicationPlanAssignment.tsx",
+        "src/components/signup/ProfessionalApplicationFields.tsx",
+        "src/components/signup/ProfessionalApplicationScreen.tsx",
         "src/context/AuthContext.tsx",
         "src/context/CartContext.tsx",
         "src/context/NotificationContext.tsx",
@@ -6063,8 +6068,6 @@
       "action": "KEEP_BASELINE_REGRESSION",
       "imports": [],
       "directDependents": [
-        "src/components/signup/SignupCredentialsStep.tsx",
-        "src/hooks/useSignup.ts",
         "src/lib/merchant-account.ts",
         "src/lib/personal-account-model.ts",
         "src/types/database.ts"
@@ -10382,6 +10385,52 @@
           "line": 218
         }
       ]
+    },
+    {
+      "file": "supabase/migrations/20261115000100_essential_role_first_onboarding.sql",
+      "tables": [],
+      "declarations": [
+        {
+          "kind": "sequence",
+          "name": "onboarding_private.merchant_application_number",
+          "line": 20
+        },
+        {
+          "kind": "sequence",
+          "name": "onboarding_private.driver_application_number",
+          "line": 21
+        },
+        {
+          "kind": "function",
+          "name": "onboarding_private.application_reference",
+          "line": 24
+        },
+        {
+          "kind": "function",
+          "name": "onboarding_private.save_application",
+          "line": 37
+        },
+        {
+          "kind": "function",
+          "name": "public.create_profile_for_auth_user",
+          "line": 83
+        },
+        {
+          "kind": "function",
+          "name": "public.get_signup_capabilities",
+          "line": 111
+        },
+        {
+          "kind": "function",
+          "name": "public.submit_professional_onboarding",
+          "line": 117
+        },
+        {
+          "kind": "function",
+          "name": "public.assign_application_plan",
+          "line": 138
+        }
+      ]
     }
   ],
   "relatedTestAndDocumentationCandidates": [
@@ -10439,43 +10488,6 @@
     "supabase/verification/finance_c11_readiness.sql",
     "supabase/verification/finance_c12_cron_readonly.sql",
     "supabase/verification/finance_c12_test_readonly.sql",
-    "supabase/verification/finance_c3_readiness.sql",
-    "docs/finance-c10-integration.md",
-    "docs/finance-c11-safe-transition.md",
-    "docs/finance-c11-source-inventory.json",
-    "docs/finance-c12-supabase-test-runbook.md",
-    "docs/finance-c12-validation-results.json",
-    "docs/finance-c12-validation.md",
-    "docs/finance-c2-foundation.md",
-    "docs/finance-c3-delivery-pricing.md",
-    "docs/finance-c4-pickups-and-cash-cutover.md",
-    "docs/finance-c5-driver-custody.md",
-    "docs/finance-c6-driver-wages.md",
-    "docs/finance-c7-merchant-settlements.md",
-    "docs/finance-c8-subscriptions.md",
-    "docs/finance-c9-treasury.md",
-    "docs/subscriptions/01_CURRENT_STATE_AUDIT_AR.md",
-    "docs/subscriptions/02_BUSINESS_RULES_AR.md",
-    "docs/subscriptions/03_DATA_MODEL_PROPOSAL_AR.md",
-    "docs/subscriptions/04_FINANCIAL_FLOWS_AR.md",
-    "docs/subscriptions/05_RLS_RPC_SECURITY_AR.md",
-    "docs/subscriptions/06_MIGRATION_STRATEGY_AR.md",
-    "docs/subscriptions/07_TEST_MATRIX_AR.md",
-    "docs/subscriptions/08_IMPLEMENTATION_PLAN_AR.md",
-    "docs/subscriptions/09_PRODUCTION_SCHEMA_VERIFICATION_AR.md",
-    "docs/subscriptions/10_FINANCIAL_FOUNDATION_DESIGN_AR.md",
-    "docs/subscriptions/11_CREDIT_POLICY_AR.md",
-    "docs/subscriptions/12_MIGRATION_REVIEW_AR.md",
-    "docs/subscriptions/13_PHASE_7_3_REVIEW_NOTES_AR.md",
-    "docs/subscriptions/phase-10-1-migration-readiness.md",
-    "docs/subscriptions/phase-10-4-review-views-security.md",
-    "docs/subscriptions/phase-9-4-financial-reports.md",
-    "docs/subscriptions/phase-9-5-merchant-financial-account.md",
-    "docs/subscriptions/phase-9-6-safe-product-removal.md",
-    "docs/subscriptions/phase-9-7-security-review.md",
-    "docs/subscriptions/sql_drafts/20261018_financial_foundation_transactional_tests.sql",
-    "docs/subscriptions/sql_drafts/20261018_financial_foundation_verification_readonly.sql",
-    "docs/subscriptions/sql_drafts/20261018_merchant_approval_initial_invoice_transactional_tests.sql",
-    "docs/subscriptions/sql_drafts/20261018_order_delivery_metadata_readonly.sql"
+    "supabase/verification/finance_c3_readiness.sql"
   ]
 }

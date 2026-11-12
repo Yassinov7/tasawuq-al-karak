@@ -1,3 +1,4 @@
+import { useSafeBack } from "@/hooks/useSafeBack";
 import { usePathname, useRouter } from "expo-router";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -39,6 +40,7 @@ export function AppHeader({
   mode,
 }: AppHeaderProps) {
   const router = useRouter();
+  const safeBack = useSafeBack();
   const pathname = usePathname();
   const { unreadCount } = useNotifications();
   const { colors, isDark } = useTheme();
@@ -84,7 +86,7 @@ export function AppHeader({
         <View style={styles.side}>
           {showBack ? (
             <Pressable
-              onPress={onBack ?? (() => router.back())}
+              onPress={onBack ?? safeBack}
               style={({ pressed }) => [
                 styles.iconButton,
                 pressed && {

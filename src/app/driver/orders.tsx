@@ -1,8 +1,18 @@
-import { deliveryCollection } from "@/lib/delivery-collection-attempt";
-import { useRouter } from "expo-router";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { AppButton } from "@/components/ui/AppButton";
+import { AppTextField } from "@/components/ui/AppTextField";
+import { KeyboardAwareScrollView } from "@/components/ui/KeyboardAwareScrollView";
+import { LoadingSkeleton } from "@/components/ui/LoadingState";
+import { useDriverTaskRefresh } from "@/hooks/useDriverTaskRefresh";
+import type { DriverReadReason } from "@/lib/driver-read-queue";
 import {
-  ActivityIndicator,
+  Redirect,
+  useFocusEffect,
+  useLocalSearchParams,
+  useRouter,
+} from "expo-router";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  Keyboard,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -11,29 +21,31 @@ import {
   View,
 } from "react-native";
 
-import { DeliveryTaskCard } from "@/components/driver/DeliveryTaskCard";
+import {
+  DriverPickupPreview,
+  DriverTaskDestination,
+} from "@/components/driver/DriverTaskLocation";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppIcon } from "@/components/ui/AppIcon";
+import { FinancialAmount } from "@/components/ui/FinancialAmount";
 import {
-  FontSizes,
-  Fonts,
   MaxContentWidth,
   Radius,
   Spacing,
+  Typography,
 } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useOrderRealtime } from "@/hooks/useOrderRealtime";
-import { canProgressDriverCollection, driverCollectionMessage, DriverCollectionError } from "@/lib/driver-collection";
-import { confirmStorePickup } from "@/lib/store-pickups";
+import { driverCollectionMessage } from "@/lib/driver-collection";
 import {
   getDriverApplication,
   getDriverAssignedTasks,
-  updateDeliveryTaskStatus,
   type DriverAssignedTask,
 } from "@/lib/driver-deliveries";
 
 type OrdersView = "active" | "completed";
+const pageSize = 10;
 
 const taskStatusLabels: Record<DriverAssignedTask["status"], string> = {
   accepted: "بانتظار الاستلام",
@@ -45,202 +57,278 @@ const taskStatusLabels: Record<DriverAssignedTask["status"], string> = {
 };
 
 export default function DriverOrdersScreen() {
+  const { user } = useAuth();
+  const { taskId } = useLocalSearchParams<{ taskId?: string }>();
+  if (typeof taskId === "string" && taskId) {
+    return (
+      <Redirect
+        href={{ pathname: "/driver/task-details", params: { taskId } }}
+      />
+    );
+  }
+  return <DriverOrders key={user?.id ?? "guest"} />;
+}
+
+function DriverOrders() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const { colors } = useTheme();
+  const userId = user?.id;
   const [tasks, setTasks] = useState<DriverAssignedTask[]>([]);
   const [taskOwner, setTaskOwner] = useState<string>();
   const [view, setView] = useState<OrdersView>("active");
+  const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
+  const [loadedKey, setLoadedKey] = useState("");
+  const readKey = JSON.stringify([view, page, query]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
-  const [busyPickupId, setBusyPickupId] = useState<string | null>(null);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const readEpoch = useRef(0), owner = useRef(user?.id), actionLock = useRef(false);
+  const [readError, setReadError] = useState("");
+  const hasLoaded = useRef(false);
+  const readEpoch = useRef(0),
+    owner = useRef(user?.id);
   useLayoutEffect(() => {
-    const invalidateReads = () => { readEpoch.current++; };
+    const invalidateReads = () => {
+      readEpoch.current++;
+    };
     owner.current = user?.id;
     invalidateReads();
-    return () => { owner.current = undefined; invalidateReads(); };
+    return () => {
+      owner.current = undefined;
+      invalidateReads();
+    };
   }, [user?.id]);
 
+  useFocusEffect(
+    useCallback(() => {
+      owner.current = userId;
+      return () => {
+        owner.current = undefined;
+        readEpoch.current++;
+      };
+    }, [userId]),
+  );
+
   const loadTasks = useCallback(
-    async (refresh = false, background = false) => {
+    async (signal: AbortSignal, reason: DriverReadReason) => {
+      const refresh = reason === "manual",
+        background = reason === "change";
       if (authLoading) return;
       const epoch = ++readEpoch.current;
-      const expectedUser = user?.id;
-      const current = () => readEpoch.current === epoch && owner.current === expectedUser;
-      if (!user) {
+      const expectedUser = userId;
+      const current = () =>
+        !signal.aborted &&
+        readEpoch.current === epoch &&
+        owner.current === expectedUser;
+      if (!userId) {
         router.replace("/login");
         setLoading(false);
         return;
       }
 
-      if (refresh) setRefreshing(true);
-      else if (!background) setLoading(true);
-      setError(""); setNotice("");
+      if (refresh || (reason === "initial" && hasLoaded.current))
+        setRefreshing(true);
+      else if (!background && !hasLoaded.current) setLoading(true);
 
       try {
-        const application = await getDriverApplication(user.id);
+        const application = await getDriverApplication(userId, signal);
         if (!current()) return;
         if (!application || application.status !== "accepted") {
           router.replace("/application-status");
           return;
         }
-        const rows = await getDriverAssignedTasks(user.id);
-        if (current()) { setTasks(rows); setTaskOwner(expectedUser); }
+        const rows = await getDriverAssignedTasks(
+          userId,
+          undefined,
+          undefined,
+          signal,
+          { view, offset: page * pageSize, size: pageSize, search: query },
+        );
+        if (current()) {
+          setReadError("");
+          setTasks(rows);
+          setTaskOwner(expectedUser);
+          setLoadedKey(readKey);
+        }
       } catch {
         if (current()) {
-          setTasks(previous => previous.map(task => ({ ...task, collection: { state: "unavailable" } })));
-          setError("تعذر تحميل توصيلاتك ومبلغ التحصيل. تحقق من الاتصال ثم حاول مرة أخرى.");
+          setTasks((previous) =>
+            previous.map((task) => ({
+              ...task,
+              collection: { state: "unavailable" },
+            })),
+          );
+          setReadError(
+            "تعذر تحديث توصيلاتك ومبلغ التحصيل. المعروض آخر بيانات متاحة إن وجدت؛ حدّث قبل متابعة التحصيل.",
+          );
         }
       } finally {
-        if (current()) { setLoading(false); setRefreshing(false); }
+        if (current()) {
+          hasLoaded.current = true;
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
-    [authLoading, router, user],
+    [authLoading, router, userId, view, page, query, readKey],
   );
 
-  useEffect(() => {
-    const timer = setTimeout(() => void loadTasks(), 0);
-    return () => clearTimeout(timer);
-  }, [loadTasks]);
-
-  const realtimeParents = useMemo(() => taskOwner === user?.id ? [...new Set(tasks.map(task => task.customer_order_id))].sort().join(",") : "", [tasks, taskOwner, user?.id]);
-  const realtimeSubscriptions = useMemo(
-    () => user ? [
-      { table: "delivery_tasks" as const, filter: `driver_id=eq.${user.id}` },
-      ...(realtimeParents ? realtimeParents.split(",") : []).map(id => ({ table: "store_orders" as const, filter: `customer_order_id=eq.${id}` })),
-    ] : [],
-    [user, realtimeParents],
+  const refreshTasks = useDriverTaskRefresh(
+    loadTasks,
+    Boolean(userId && !authLoading),
   );
+
   const refreshFromRealtime = useCallback(() => {
-    void loadTasks(false, true);
-  }, [loadTasks]);
+    return refreshTasks("change");
+  }, [refreshTasks]);
   useOrderRealtime({
     channelName: `driver-assigned-deliveries:${user?.id ?? "guest"}`,
     enabled: Boolean(user && !authLoading),
-    subscriptions: realtimeSubscriptions,
+    subscriptions: userId
+      ? [
+          { table: "delivery_tasks", filter: `driver_id=eq.${userId}` },
+          { table: "store_orders" },
+        ]
+      : [],
+    sdkManagedRecovery: true,
+    acceptEvent: (table, { new: row }) => {
+      if (table !== "store_orders") return true;
+      if (!("customer_order_id" in row) || view !== "active") return false;
+      const orderId = row.customer_order_id;
+      return (
+        loadedKey !== readKey ||
+        (taskOwner === userId &&
+          tasks.some(
+            (task) =>
+              task.customer_order_id === orderId &&
+              (task.status === "accepted" || task.status === "picked_up"),
+          ))
+      );
+    },
     onChange: refreshFromRealtime,
   });
 
   const visibleTasks = useMemo(
     () =>
-      (taskOwner === user?.id ? tasks : []).filter((task) =>
-        view === "completed"
-          ? task.status === "delivered"
-          : task.status === "accepted" || task.status === "picked_up",
-      ),
-    [tasks, taskOwner, user?.id, view],
+      (taskOwner === user?.id && loadedKey === readKey ? tasks : [])
+        .slice(0, pageSize)
+        .filter((task) =>
+          view === "completed"
+            ? task.status === "delivered"
+            : task.status === "accepted" || task.status === "picked_up",
+        ),
+    [tasks, taskOwner, user?.id, view, loadedKey, readKey],
   );
 
-  const updateStatus = async (task: DriverAssignedTask) => {
-    const expectedUser = user?.id;
-    if (!expectedUser || owner.current !== expectedUser || actionLock.current) return;
-    if (!canProgressDriverCollection(task.collection)) { setError(driverCollectionMessage(task.collection)); return; }
-    actionLock.current = true;
-    const nextStatus = task.status === "accepted" ? "picked_up" : "delivered";
-    setBusyTaskId(task.id);
-    setError("");
-    try {
-      if (task.pickups?.state === "c4") {
-        const result = await deliveryCollection(expectedUser,task.id,task.pickups.pricingVersion);
-        if (owner.current !== expectedUser) return;
-        if (result.state === "unknown") setError("نتيجة التسليم والتحصيل غير محسومة؛ تحقق من المحاولة السابقة قبل أي قبض آخر.");
-        if (result.state === "rejected") setError("لم يُعتمد التسليم والتحصيل لهذه المحاولة؛ حدّث المهمة وراجع الاستلام والتسعير.");
-        await loadTasks(true);
-        if (owner.current === expectedUser) {
-          if (result.state === "completed") setNotice(result.kind === "zero_cash_delivery" ? "تأكد التسليم دون قبض نقدي؛ لا يوجد مبلغ للتحصيل." : "تأكد التسليم وتسجيل قبض المبلغ كاملًا.");
-          else setError(result.state === "unknown" ? "النتيجة غير محسومة؛ استخدم التحقق من المحاولة السابقة." : result.code === "zero_cash_economic_conflict" ? "توقف التسليم لوجود تعارض مالي مع المبلغ الصفري. راجع الإدارة." : "رُفضت المحاولة؛ حدّث المهمة وراجع الاستلام والتسعير قبل محاولة جديدة.");
-        }
-        return;
-      } else await updateDeliveryTaskStatus(task.customer_order_id, nextStatus, expectedUser);
-      if (owner.current === expectedUser) await loadTasks(true);
-    } catch (cause) {
-      if (owner.current === expectedUser) {
-        const collection = cause instanceof DriverCollectionError ? cause.collection : { state: "unavailable" as const };
-        setTasks(previous => previous.map(row => row.id === task.id ? { ...row, collection } : row));
-        setError(cause instanceof Error ? cause.message : "تعذر تأكيد حالة التوصيل. حدّث القائمة للتحقق من النتيجة.");
-      }
-    } finally {
-      actionLock.current = false;
-      setBusyTaskId(null);
-    }
+  const scopeReady = taskOwner === userId && loadedKey === readKey;
+  const waiting = loading || (!scopeReady && !readError);
+  const goToPage = (nextPage: number) => {
+    readEpoch.current++;
+    setReadError("");
+    setPage(nextPage);
   };
-  const pickupStore = async (task: DriverAssignedTask, storeOrderId: string) => {
-    const expectedUser = user?.id;
-    if (!expectedUser || owner.current !== expectedUser || actionLock.current || task.pickups?.state !== "c4"
-      || !canProgressDriverCollection(task.collection)) return;
-    actionLock.current = true; setBusyTaskId(task.id); setBusyPickupId(storeOrderId); setError("");
-    try {
-      const result = await confirmStorePickup(task.id, storeOrderId, expectedUser);
-      if (owner.current !== expectedUser) return;
-      if (result === "unknown") setError("تعذر حسم الاستلام. حدّث المهمة للتحقق؛ لا نفترض نجاح العملية أو نعيد إرسالها تلقائيًا.");
-      await loadTasks(true);
-      if (owner.current === expectedUser && result === "unknown") setError("نتيجة الاستلام غير محسومة؛ راجع حالة المتجر بعد التحديث قبل إعادة المحاولة.");
-    } catch { if (owner.current === expectedUser) setError("تعذر التحقق من الاستلام. حدّث المهمة ثم تحقق من حالة المتجر."); }
-    finally { actionLock.current = false; setBusyTaskId(null); setBusyPickupId(null); }
+  const searchFor = (value: string) => {
+    Keyboard.dismiss();
+    const next = value.trim();
+    setSearch(next);
+    if (page === 0 && query === next) {
+      void refreshTasks("manual");
+      return;
+    }
+    goToPage(0);
+    setQuery(next);
   };
 
-  const recoverCash = async (task: DriverAssignedTask) => {
-    const expectedUser=user?.id;
-    if (!expectedUser || task.pickups?.state!=="c4" || actionLock.current) return;
-    actionLock.current=true;setBusyTaskId(task.id);
-    try {
-      const result=await deliveryCollection(expectedUser,task.id,task.pickups.pricingVersion,true);
-      if (owner.current!==expectedUser) return;
-      await loadTasks(true);
-      if (owner.current===expectedUser) {
-        if (result.state==="completed") setNotice(result.kind === "zero_cash_delivery" ? "تأكد التسليم دون قبض نقدي؛ لا يوجد مبلغ للتحصيل." : "تأكد التسليم وتسجيل قبض المبلغ كاملًا.");
-        else setError(result.state==="rejected" ? result.code === "zero_cash_economic_conflict" ? "توقف التسليم لوجود تعارض مالي مع المبلغ الصفري. راجع الإدارة." : "رُفضت المحاولة المحفوظة؛ راجع المهمة قبل تأكيد جديد." : "النتيجة غير محسومة؛ لم نُعد إرسال عملية التحصيل.");
-      }
-    } catch { if(owner.current===expectedUser)setError("تعذر التحقق من المحاولة المحفوظة."); }
-    finally {actionLock.current=false;setBusyTaskId(null);}
-  };
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       <AppHeader title="توصيلاتي" />
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => void loadTasks(true)}
+            onRefresh={() => void refreshTasks("manual")}
             tintColor={colors.primary}
             colors={[colors.primary]}
           />
         }
       >
         <View style={styles.container}>
-          <View
-            style={[
-              styles.tabs,
-              { backgroundColor: colors.surfaceSecondary },
-            ]}
+          <View style={styles.searchRow}>
+            <View style={styles.searchField}>
+              <AppTextField
+                label="ابحث باستخدام رمز المهمة TSK-"
+                placeholder="TSK-…"
+                value={search}
+                onChangeText={setSearch}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={40}
+                returnKeyType="search"
+                onSubmitEditing={() => searchFor(search)}
+              />
+            </View>
+            <AppButton
+              compact
+              fullWidth={false}
+              title="بحث"
+              variant="outline"
+              icon="search-outline"
+              onPress={() => searchFor(search)}
+            />
+          </View>
+          {search || query ? (
+            <AppButton
+              compact
+              fullWidth={false}
+              title="مسح البحث"
+              variant="outline"
+              onPress={() => searchFor("")}
+            />
+          ) : null}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chips}
           >
             {(
               [
                 ["active", "الجارية"],
                 ["completed", "المكتملة"],
               ] as const
-            ).map(([value, label]) => {
-              const selected = view === value;
+            ).map(([key, label]) => {
+              const selected = view === key;
               return (
                 <Pressable
-                  key={value}
+                  key={key}
                   accessibilityRole="tab"
-                  accessibilityState={{ selected }}
-                  onPress={() => setView(value)}
+                  accessibilityState={{ selected, disabled: refreshing }}
+                  disabled={refreshing}
+                  onPress={() => {
+                    if (!selected) {
+                      setView(key);
+                      goToPage(0);
+                    }
+                  }}
                   style={[
-                    styles.tab,
-                    selected && { backgroundColor: colors.surface },
+                    styles.chip,
+                    {
+                      backgroundColor: selected
+                        ? colors.surfaceSelected
+                        : colors.surface,
+                      borderColor: selected
+                        ? colors.primary
+                        : colors.borderSubtle,
+                    },
                   ]}
                 >
                   <Text
                     style={[
-                      styles.tabText,
-                      { color: selected ? colors.primary : colors.textSecondary },
+                      styles.caption,
+                      {
+                        color: selected ? colors.primary : colors.textSecondary,
+                      },
                     ]}
                   >
                     {label}
@@ -248,141 +336,203 @@ export default function DriverOrdersScreen() {
                 </Pressable>
               );
             })}
-          </View>
-
-          {notice && taskOwner === user?.id ? <Text accessibilityRole="alert" style={[styles.error, { color: colors.successForeground }]}>{notice}</Text> : null}
-          {error ? (
-            <Text style={[styles.error, { color: colors.error }]}>{error}</Text>
-          ) : null}
-
-          {loading ? (
-            <ActivityIndicator size="large" color={colors.primary} />
-          ) : visibleTasks.length > 0 ? (
-            visibleTasks.map((task) => {
-              const active = task.status !== "delivered";
-              const nextAction =
-                task.status === "accepted" && task.pickups?.state !== "c4"
-                  ? { title: "تأكيد استلام الطلب", status: "picked_up" as const }
-                  : task.status === "picked_up"
-                    ? { title: task.pickups?.state === "c4" ? task.collection.state === "ready" && task.collection.amount === 0 ? "تأكيد التسليم — لا يوجد مبلغ للتحصيل" : "تأكيد التسليم وقبض المبلغ كاملًا" : "تأكيد تسليم الطلب", status: "delivered" as const }
-                    : null;
-
-              return (
-                <View key={task.id} style={{ gap: Spacing.two }}><DeliveryTaskCard
-                  orderNumber={task.customer_orders.order_number}
-                  reference={task.reference}
-                  zoneName={task.customer_orders.delivery_zone_name_snapshot}
-                  createdAt={task.created_at}
-                  assignedOrder={task.customer_orders}
-                  collection={task.collection}
-                  pickups={task.pickups}
-                  busyPickupId={busyPickupId}
-                  onConfirmPickup={id => void pickupStore(task, id)}
-                  onRetryCollection={() => void loadTasks(true)}
-                  actionDisabled={refreshing || busyTaskId !== null}
-                  taskStatus={task.status}
-                  statusLabel={taskStatusLabels[task.status]}
-                  actionTitle={nextAction?.title}
-                  actionIcon={
-                    nextAction?.status === "delivered"
-                      ? "checkmark-done-outline"
-                      : "bicycle-outline"
-                  }
-                  actionTone={
-                    nextAction?.status === "delivered" ? "success" : "accent"
-                  }
-                  actionLoading={busyTaskId === task.id}
-                  onAction={
-                    active && nextAction ? () => void updateStatus(task) : undefined
-                  }
-                />
-                {task.pickups?.state === "c4" ? <Pressable accessibilityRole="button" style={{ minHeight: 44, justifyContent: "center" }} disabled={busyTaskId!==null} onPress={() => void recoverCash(task)}>
-                  <Text style={{fontFamily:Fonts.medium,color:colors.primary,textAlign:"right",padding:Spacing.three}}>التحقق من محاولة التسليم والتحصيل السابقة</Text>
-                </Pressable> : null}</View>
-              );
-            })
-          ) : (
-            <View
-              style={[
-                styles.emptyCard,
-                { backgroundColor: colors.surface, borderColor: colors.border },
-              ]}
+          </ScrollView>
+          {readError ? (
+            <Text
+              accessibilityRole="alert"
+              style={[styles.caption, { color: colors.errorForeground }]}
             >
-              <AppIcon
-                name={view === "active" ? "bicycle-outline" : "checkmark-done-outline"}
-                size={28}
-                color={colors.textMuted}
+              {readError}
+            </Text>
+          ) : null}
+          {readError ? (
+            <AppButton
+              compact
+              fullWidth={false}
+              title="إعادة المحاولة"
+              variant="outline"
+              onPress={() => void refreshTasks("manual")}
+            />
+          ) : null}
+          {waiting ? (
+            <LoadingSkeleton cards={1} label="جارٍ تحميل توصيلاتك" />
+          ) : null}
+          {!waiting && !readError && scopeReady && !visibleTasks.length ? (
+            <Text style={[styles.caption, { color: colors.textSecondary }]}>
+              {query
+                ? "لا توجد مهام تطابق الرمز في الحالة المختارة."
+                : page > 0
+                  ? "لا توجد مهام في هذه الصفحة."
+                  : view === "active"
+                    ? "لا توجد توصيلات جارية."
+                    : "لا توجد توصيلات مكتملة."}
+            </Text>
+          ) : null}
+          {visibleTasks.map((task) => {
+            const active = task.status !== "delivered";
+            const picked = task.status === "picked_up";
+            const statusColor = !active
+              ? colors.successForeground
+              : picked
+                ? colors.infoForeground
+                : colors.warningForeground;
+            const statusSurface = !active
+              ? colors.successSurface
+              : picked
+                ? colors.infoSurface
+                : colors.warningSurface;
+            return (
+              <Pressable
+                key={task.id}
+                accessibilityRole="button"
+                accessibilityHint="يفتح تفاصيل المهمة"
+                onPress={() =>
+                  router.push({
+                    pathname: "/driver/task-details",
+                    params: { taskId: task.id },
+                  })
+                }
+                style={({ pressed }) => [
+                  styles.card,
+                  {
+                    backgroundColor: pressed
+                      ? colors.surfacePressed
+                      : colors.surface,
+                    borderColor: active ? statusColor : colors.borderSubtle,
+                  },
+                ]}
+              >
+                <View style={styles.row}>
+                  <Text
+                    style={[
+                      styles.reference,
+                      styles.flex,
+                      { color: colors.text },
+                    ]}
+                  >
+                    {task.reference ??
+                      `طلب رقم ${task.customer_orders.order_number}`}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.badge,
+                      { backgroundColor: statusSurface, color: statusColor },
+                    ]}
+                  >
+                    {taskStatusLabels[task.status]}
+                  </Text>
+                  <AppIcon
+                    name="chevron-back-outline"
+                    size={16}
+                    color={colors.textSecondary}
+                  />
+                </View>
+                {task.status === "accepted" && !readError ? (
+                  <DriverPickupPreview
+                    stores={task.customer_orders.store_orders}
+                  />
+                ) : null}
+                <DriverTaskDestination
+                  destination={task.customer_orders}
+                  active={active}
+                  stale={Boolean(readError)}
+                />
+                {active && !readError ? (
+                  task.collection.state === "ready" ? (
+                    <FinancialAmount
+                      label="المطلوب من العميل"
+                      amount={task.collection.amount}
+                    />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.caption,
+                        { color: colors.warningForeground },
+                      ]}
+                    >
+                      {driverCollectionMessage(task.collection)}
+                    </Text>
+                  )
+                ) : null}
+              </Pressable>
+            );
+          })}
+          {page > 0 || (scopeReady && tasks.length > pageSize) ? (
+            <View style={styles.row}>
+              <AppButton
+                compact
+                fullWidth={false}
+                title="السابق"
+                variant="outline"
+                disabled={refreshing || page === 0}
+                onPress={() => goToPage(page - 1)}
               />
-              <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                {view === "active"
-                  ? "لا توجد توصيلات جارية"
-                  : "لا توجد توصيلات مكتملة"}
+              <Text style={[styles.caption, { color: colors.textSecondary }]}>
+                صفحة {(page + 1).toLocaleString("ar-SY")}
               </Text>
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                {view === "active"
-                  ? "المهام التي تقبلها ستظهر هنا."
-                  : "ستظهر هنا الطلبات التي أكملت توصيلها."}
-              </Text>
+              <AppButton
+                compact
+                fullWidth={false}
+                title="التالي"
+                variant="outline"
+                disabled={refreshing || !scopeReady || tasks.length <= pageSize}
+                onPress={() => goToPage(page + 1)}
+              />
             </View>
-          )}
+          ) : null}
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.six,
-  },
+  screen: { flex: 1 },
+  content: { padding: Spacing.four, paddingBottom: Spacing.six },
   container: {
     width: "100%",
     maxWidth: MaxContentWidth,
     alignSelf: "center",
-    gap: Spacing.four,
+    gap: Spacing.two,
   },
-  tabs: {
-    flexDirection: "row-reverse",
-    gap: Spacing.one,
-    padding: Spacing.one,
-    borderRadius: Radius.lg,
-  },
-  tab: {
-    flex: 1,
+  chips: { flexDirection: "row-reverse", gap: Spacing.two },
+  chip: {
     minHeight: 44,
-    alignItems: "center",
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.three,
     justifyContent: "center",
+  },
+  card: {
     borderRadius: Radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.three,
+    gap: Spacing.two,
   },
-  tabText: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.sm,
-  },
-  error: {
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.sm,
-    textAlign: "right",
-  },
-  emptyCard: {
+  row: {
+    flexDirection: "row-reverse",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: Spacing.two,
-    padding: Spacing.six,
-    borderWidth: 1,
-    borderRadius: Radius.lg,
   },
-  emptyTitle: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.md,
-    textAlign: "center",
+  searchRow: {
+    flexDirection: "row-reverse",
+    flexWrap: "wrap",
+    alignItems: "flex-end",
+    gap: Spacing.two,
   },
-  emptyText: {
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    textAlign: "center",
+  searchField: { flexGrow: 1, flexBasis: 180, minWidth: 0 },
+  flex: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
+  reference: {
+    ...Typography.bodyStrong,
+    textAlign: "right",
+    writingDirection: "auto",
+  },
+  caption: { ...Typography.caption, textAlign: "right" },
+  badge: {
+    ...Typography.caption,
+    borderRadius: Radius.full,
+    paddingVertical: Spacing.half,
+    paddingHorizontal: Spacing.two,
   },
 });

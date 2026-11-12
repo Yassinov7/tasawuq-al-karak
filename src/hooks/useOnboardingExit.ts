@@ -1,29 +1,28 @@
 import { useCallback, useRef } from "react";
-import { Alert, BackHandler } from "react-native";
+import { BackHandler, Keyboard } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
+import { useAppDialog } from "@/context/AppDialogContext";
 
-export type DraftExitActions = { save: () => Promise<boolean>; discard: () => Promise<boolean>; cancel: () => void };
-
-export function useOnboardingExit({ dirty, busy, save, discard, onBack, confirmExit }: { dirty: boolean; busy: boolean; save?: () => Promise<void>; discard?: () => Promise<void>; onBack?: () => boolean; confirmExit?: (actions: DraftExitActions) => void }) {
+export function useOnboardingExit({ dirty, busy, onBack }: { dirty: boolean; busy: boolean; onBack?: () => boolean }) {
   const router = useRouter();
+  const { confirm } = useAppDialog();
   const open = useRef(false);
   const exit = useCallback(() => {
     if (busy || open.current) return;
-    const leave = async (action?: () => Promise<void>) => {
-      try { await action?.(); open.current = false; router.replace("/login"); return true; }
-      catch { if (!confirmExit) { open.current = false; Alert.alert("تعذر حفظ المسودة", "لم نغادر الصفحة. حاول مرة أخرى."); } return false; }
-    };
-    if (!dirty) { void leave(); return; }
+    Keyboard.dismiss();
+    if (!dirty) { router.replace("/login"); return; }
     open.current = true;
-    if (confirmExit) { confirmExit({ save: () => leave(save), discard: () => leave(discard), cancel: () => { open.current = false; } }); return; }
-    Alert.alert("مغادرة النموذج؟", "اختر ما تريد فعله بالبيانات المدخلة.", [
-      { text: "متابعة التعبئة", style: "cancel", onPress: () => { open.current = false; } },
-      ...(save ? [{ text: "حفظ المسودة والعودة", onPress: () => { void leave(save); } }] : []),
-      { text: "تجاهل التغييرات والعودة", style: "destructive", onPress: () => { void leave(discard); } },
-    ], { cancelable: false });
-  }, [busy, confirmExit, dirty, discard, router, save]);
+    void confirm({ title: "العودة دون حفظ؟", message: "لم تُرسل هذه البيانات بعد. يمكنك متابعة التعبئة أو تجاهلها والعودة.", confirmText: "تجاهل والعودة", cancelText: "متابعة التعبئة", destructive: true })
+      .then(accepted => { if (accepted) router.replace("/login"); })
+      .finally(() => { open.current = false; });
+  }, [busy, dirty, router, confirm]);
   useFocusEffect(useCallback(() => {
-    const subscription = BackHandler.addEventListener("hardwareBackPress", () => { if (!onBack?.()) exit(); return true; });
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      // Android back closes the keyboard before navigating a form step.
+      if (Keyboard.isVisible()) { Keyboard.dismiss(); return true; }
+      if (!onBack?.()) exit();
+      return true;
+    });
     return () => subscription.remove();
   }, [exit, onBack]));
   return exit;

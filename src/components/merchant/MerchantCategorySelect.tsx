@@ -1,26 +1,32 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { categoryPath } from "@/lib/category-tree";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { AppTextField } from "@/components/ui/AppTextField";
 import { LayoutSpacing, Radius, Shadows, Typography } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 
-export function MerchantCategorySelect({ categories, value, onChange, disabled, label = "تصنيف المتجر" }: {
-  categories: { id: string; name: string }[]; value: string; onChange: (id: string) => void; disabled?: boolean; label?: string;
+export function MerchantCategorySelect({ categories, value, onChange, disabled, historicalName, label = "تصنيف المتجر" }: {
+  categories: { id: string; name: string; parent_id?: string | null }[]; historicalName?: string; value: string; onChange: (id: string) => void; disabled?: boolean; label?: string;
 }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const selected = categories.find((category) => category.id === value);
-  const results = categories.filter((category) => category.name.includes(query.trim()));
+  const options = useMemo(() => {
+    const nodes = categories.map(category => ({ ...category, parentId: category.parent_id }));
+    const byId = new Map(nodes.map(category => [category.id, category]));
+    return nodes.map(category => ({ ...category, path: categoryPath(category, byId) }));
+  }, [categories]);
+  const selected = options.find(category => category.id === value);
+  const results = options.filter(category => category.path.includes(query.trim()));
   return <View style={{ gap: LayoutSpacing.rowGap }}>
     <Pressable accessibilityRole="combobox" accessibilityLabel={label} accessibilityState={{ expanded: open, disabled }} disabled={disabled}
       onPress={() => { setQuery(""); setOpen((previous) => !previous); }}
       style={[styles.trigger, { backgroundColor: colors.surface, borderColor: open ? colors.focusRing : colors.borderStrong }]}>
-      <Text style={[Typography.bodyStrong, styles.name, { color: colors.text }]}>{selected?.name ?? (value ? "التصنيف السابق غير متاح — اختر تصنيفًا" : `اختر ${label}`)}</Text>
+      <Text style={[Typography.bodyStrong, styles.name, { color: colors.text }]}>{selected?.path ?? (historicalName ? `${historicalName} · التصنيف الحالي غير متاح للاختيار` : value ? "التصنيف السابق غير متاح — اختر تصنيفًا" : `اختر ${label}`)}</Text>
       <AppIcon name={open ? "chevron-up" : "chevron-down"} size={20} color={colors.primary} />
     </Pressable>
     <Modal visible={open} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setOpen(false)}>
@@ -38,7 +44,7 @@ export function MerchantCategorySelect({ categories, value, onChange, disabled, 
               renderItem={({ item: category }) => <Pressable disabled={disabled} accessibilityRole="radio" accessibilityState={{ selected: category.id === value }}
           onPress={() => { onChange(category.id); setOpen(false); setQuery(""); }}
           style={({ pressed }) => [styles.option, { backgroundColor: pressed ? colors.surfacePressed : category.id === value ? colors.surfaceSelected : colors.surface }]}>
-          <Text style={[Typography.body, styles.name, { color: colors.text }]}>{category.name}</Text>
+          <Text style={[Typography.body, styles.name, { color: colors.text }]}>{category.path}</Text>
           {category.id === value ? <AppIcon name="checkmark-circle" size={20} color={colors.primary} /> : null}
         </Pressable>} />
           </View>

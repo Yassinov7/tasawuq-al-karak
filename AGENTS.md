@@ -1,326 +1,51 @@
-Tasawuq — AI Development Guidelines
+# Tasawuq — current project instructions
 
-Project
+Read [PROJECT_RULES.md](PROJECT_RULES.md) before every task and continue from [WORK_PROGRESS.md](WORK_PROGRESS.md). These files apply to the entire project and replace the earlier foundation-only guidance, preserved under `archive/legacy-reference/`.
 
-This is Tasawuq (تسوق), a mobile-first local marketplace application.
+Read [STORE_POLICIES.md](STORE_POLICIES.md) for signup, subscriptions, privacy, user content and store submission changes. Use the shared branded dialogs instead of native alerts and the shared keyboard-aware form container for onboarding inputs.
 
-Current regional identity:
+## Current authorized scope
 
-تسوق | الكرك الشرقي
+Treat Tasawuq (تسوق | الكرك الشرقي) as a clean rebuild using useful existing assets and components. Preserve the product's accounts, roles, marketplace catalog, stores, orders and delivery. Replace all previous financial systems with the simplified invoice/account/settlement model in `docs/implementation-master-plan.ar.md` and `docs/simple-finance-spec.ar.md`; the master plan takes precedence when they differ.
 
-The product is designed to start in Al-Karak Al-Sharqi and be expandable to other regions later.
+The simplified finance flow has passed owner-reported Android tests 1–5. Current work follows `docs/ui-ux-implementation-plan.ar.md`: session-safe live refresh, shared design components, role-specific financial views/forms, notifications, then the remaining screens. Preserve the accepted financial behavior. Per-task wages are the launch scope; salary remains implemented but deferred and not phone-validated. iPhone, remote push and unreported failure/concurrency scenarios remain open. Role-first signup requires birth date for everyone and a merchant-selected subscription plan. Do not rerun the cutover or rewrite tested migrations.
 
-The application is currently in the foundation stage. Do not implement future marketplace, ordering, delivery, payment, or financial features unless explicitly requested.
+## Execution
 
-Current Milestone
+- Deliver focused working increments. Do not repeatedly re-audit or rewrite plans instead of doing the authorized work.
+- Reuse or improve existing components. Refactor structure/design where it materially helps the current feature; avoid broad cosmetic rewrites and premature abstractions.
+- Write every owner-database change as a reviewed migration in `supabase/migrations/`. The owner applies it. Never run SQL, push, reset, change configuration, or modify data on the owner's remote/local databases yourself.
+- Isolated disposable synthetic local databases may be used for tests. State what they do and do not prove.
+- Archive obsolete unused references under `archive/legacy-reference/`. It is not an active specification or code dependency. Check imports, scripts and runtime links before removing a file.
+- Update `WORK_PROGRESS.md` after each increment, closing only work supported by actual evidence. Separate code completion, owner migration application, and phone QA.
+- The owner tests on phones. Supply early usable increments and a short concrete phone checklist. Do not wait for theoretical perfection.
 
-Focus only on:
+## Technology and layout
 
-1. Project foundation
-2. Brand identity
-3. Visual design system
-4. Splash screen
-5. Login UI
-6. Sign-up UI
-7. Basic navigation between authentication screens
+- React Native, installed Expo SDK 57, TypeScript, Expo Router. Check `package.json` and matching official Expo/React Native documentation before using APIs.
+- Routes belong in `src/app/`; reusable code belongs outside it, e.g. `src/components`, `src/hooks`, `src/lib`, `src/constants`.
+- Use existing package manager (currently npm). Install Expo-compatible packages with `npx expo install`; justify additional dependencies.
+- Configure native behavior through Expo config/plugins. Do not manually create or edit generated `ios/` or `android/` projects without a specific need.
+- Arabic-first mobile UI: correct RTL, logical spacing, safe areas, keyboard handling, accessible contrast, readable typography, large touch targets and responsive sizes.
+- Preserve the local Tasawuq identity. Keep region settings centralized where practical. No unnecessary gradients, animations or duplicated UI.
 
-Do not implement yet:
+## Correctness and financial boundaries
 
-- Products
-- Stores marketplace
-- Cart
-- Orders
-- Multi-store orders
-- Delivery
-- Drivers
-- Payments
-- Financial ledger
-- Merchant subscriptions
-- Customer delivery subscriptions
-- Promotions
-- Reviews
-- Notifications
-- Search
-- AI recommendations
-- Supabase business logic
+- Use focused typed components/services, no `any`, unexplained error suppression, debug residue or fake success.
+- Every trackable record has a stable server-issued readable reference. Different records (order, task, invoice) have distinct references; references never grant access by themselves.
+- Money must remain exact; writes are atomic and retry-safe. Preserve ownership checks, result recovery and auditability without reintroducing the previous financial architecture.
+- Drivers hand over the full collected cash; wages are paid separately. Cash in the platform treasury is different from receivables and payables.
 
-These are future phases.
+## Verification
 
-Technology
+Run `npx expo lint`, `npx tsc --noEmit`, and tests appropriate to the changed behavior. Use `npx expo-doctor` for dependency/configuration issues and the appropriate build when relevant. Fix introduced failures; report existing limitations accurately. Do not repeat successful checks without a new change or unresolved concern.
 
-- React Native
-- Expo SDK 57
-- TypeScript
-- Expo Router
-- Mobile-first architecture
+Never mark a migration as applied, an endpoint as live-verified, or a feature as phone-tested unless that actually happened or the owner explicitly reported it. Keep completion reports concise and actionable.
 
-Use the existing Expo project structure.
+## Mandatory mobile UI skill and page-by-page review
 
-Routes belong in:
+For every UI/UX, theme, layout, form, navigation, loading, notification presentation or financial presentation task, read and apply [react-native-ui](.agents/skills/react-native-ui/SKILL.md), as well as PROJECT_RULES.md and WORK_PROGRESS.md. Identify the current approved RUI page before editing. Use [the design reference](docs/design-system.ar.md), [actual page inventory](docs/screen-inventory.ar.md), [component inventory](docs/component-inventory.ar.md), [page roadmap](docs/role-page-roadmap.ar.md) and existing TXT glossary. Inspect source consumers; static inventory reachability is not runtime or permission verification.
 
-"src/app/"
+Work on **one physical main page or one subpage per request**, then stop for the owner's phone test and acceptance before starting another. Reuse, assess, then improve existing components before creating alternatives. A shared-component repair necessary for the current page may affect other consumers: document and test that impact without expanding into their redesign. Record a newly needed subpage separately before implementation.
 
-Reusable UI and application code belong outside the route directory, for example:
-
-- "src/components/"
-- "src/hooks/"
-- "src/constants/"
-- "src/utils/"
-
-Do not put reusable non-route code inside "src/app/".
-
-Expo Documentation Rule
-
-Expo changes between SDK releases.
-
-Never rely on remembered Expo or React Native APIs.
-
-Before writing code that uses an Expo, EAS, or React Native API:
-
-1. Read the installed Expo version from "package.json".
-2. Use the matching Expo documentation.
-3. For Expo documentation, prefer:
-   - "https://docs.expo.dev/versions/v57.0.0/"
-   - "https://docs.expo.dev/llms.txt"
-4. Follow the relevant documentation links before implementing unfamiliar APIs.
-
-Do not assume that an API from an older Expo SDK is still valid.
-
-Package Management
-
-If the project uses Bun ("bun.lock" exists), use Bun.
-
-Otherwise use npm.
-
-For Expo-compatible packages, always use:
-
-"npx expo install <package>"
-
-Do not use "npm install" to select versions of Expo-compatible packages.
-
-Before adding a dependency:
-
-1. Check whether Expo already provides an official solution.
-2. Check the project's available skills/instructions.
-3. Confirm that the dependency supports Expo SDK 57.
-4. Avoid adding dependencies unless they provide clear value.
-
-Navigation
-
-Use Expo Router for navigation.
-
-Routes live in:
-
-"src/app/"
-
-Use:
-
-- "Link"
-- "router"
-- "useLocalSearchParams"
-
-from "expo-router".
-
-Do not introduce another navigation library.
-
-Mobile-First Design
-
-Design for phones first.
-
-Priorities:
-
-1. Touch-friendly controls
-2. Responsive layouts
-3. Safe areas
-4. Keyboard handling
-5. Different screen sizes
-6. Android and iOS compatibility
-7. RTL support
-
-Avoid fixed dimensions when responsive sizing is more appropriate.
-
-Do not assume a specific phone resolution.
-
-Arabic and RTL
-
-Tasawuq is an Arabic-first application.
-
-The UI must support Arabic and RTL correctly.
-
-Do not hard-code left/right behavior when logical RTL-aware alternatives are appropriate.
-
-Prefer:
-
-- "start" / "end"
-- RTL-compatible layouts
-- logical spacing
-- platform-safe typography
-
-Arabic text should remain readable and visually balanced.
-
-English support may be added later, so avoid designs that make localization unnecessarily difficult.
-
-Brand Direction
-
-The visual identity should represent the local identity of Al-Karak Al-Sharqi.
-
-The current logo concept combines:
-
-- old fortified walls / historical settlement
-- wheat
-- shopping basket
-
-The brand should feel:
-
-- local
-- trustworthy
-- modern
-- simple
-- recognizable
-- suitable for expansion beyond the initial region
-
-Avoid generic delivery-app branding as the primary visual identity.
-
-The application brand is:
-
-تسوق
-
-The regional identity is:
-
-الكرك الشرقي
-
-Do not hard-code the regional name throughout the application where a future region-specific configuration would be more appropriate.
-
-UI Principles
-
-Prefer:
-
-- simple layouts
-- clear hierarchy
-- large touch targets
-- consistent spacing
-- reusable components
-- accessible contrast
-- readable Arabic typography
-- subtle animations only where useful
-
-Avoid:
-
-- unnecessary gradients
-- excessive animation
-- cluttered screens
-- deeply nested components
-- duplicated styling
-- premature design-system complexity
-
-Code Quality
-
-Write small, focused components.
-
-Prefer composition over large monolithic components.
-
-Keep business logic out of presentation components when practical.
-
-Use TypeScript types rather than "any".
-
-Do not suppress TypeScript errors without understanding the cause.
-
-Do not leave debugging code, console spam, or temporary hacks in completed work.
-
-File Changes
-
-Before creating a new file, check whether an existing component or utility can be reused.
-
-Do not create duplicate components with slightly different names.
-
-Keep route files focused on screens and navigation.
-
-Native Projects
-
-If "ios/" and "android/" do not exist, do not create them manually.
-
-Expo Continuous Native Generation is used.
-
-Configure native behavior through:
-
-- "app.json"
-- Expo config plugins
-- supported Expo configuration
-
-Do not manually edit generated native projects unless explicitly required.
-
-Current Architecture
-
-The project will eventually grow into a marketplace platform containing customers, merchants, stores, products, orders, drivers, delivery, payments, and financial settlement.
-
-However, those systems are not part of the current milestone.
-
-Do not prematurely create:
-
-- database schemas
-- API layers
-- payment abstractions
-- delivery algorithms
-- financial ledger code
-- merchant management
-- driver management
-
-unless the task explicitly requires them.
-
-AI Development Rules
-
-AI-generated code must be treated as proposed code, not automatically trusted code.
-
-For every significant task:
-
-1. Understand the requirement.
-2. Inspect the existing project.
-3. Check relevant Expo documentation.
-4. Make the smallest reasonable change.
-5. Run validation.
-6. Review the resulting code.
-
-Do not rewrite unrelated files.
-
-Do not introduce architecture that is not required by the current task.
-
-Do not build multiple future features "while you're here".
-
-Validation
-
-Before declaring a task complete, run:
-
-"npx expo lint"
-
-and:
-
-"npx tsc --noEmit"
-
-If either fails, investigate and fix the issue before considering the task complete.
-
-For dependency or configuration problems, use:
-
-"npx expo-doctor"
-
-When appropriate, use:
-
-"npx expo install --fix"
-
-Definition of Done
-
-A task is complete only when:
-
-- The requested behavior is implemented.
-- The code follows the project structure.
-- Expo SDK 57 compatibility has been considered.
-- RTL/mobile behavior has been considered where relevant.
-- No unrelated features were added.
-- Lint passes.
-- TypeScript passes.
-- The project remains runnable with Expo.
-
-Important
-
-When requirements are unclear, do not invent large features.
-
-Prefer the smallest implementation that satisfies the explicit requirement and preserves room for future expansion.
+The owner-requested RUI delivery order is merchant, driver, administration, customer, then shared/auth/legal pages as detailed in the roadmap. This narrows the delivery unit of the earlier UI plan; it does not erase accepted UI-01/TXT-02/FIX-DRV-01, close pending UX-03/04/05/UI-02/UX-FOUNDATION-01, or bypass UI-03's phone-acceptance prerequisite. Preserve the accepted finance core. No application UI/theme changes are authorized by the RUI foundation documentation task itself.

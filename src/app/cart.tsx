@@ -8,7 +8,7 @@ import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { AppModal } from "@/components/ui/AppModal";
 import { CustomerCatalogStatus } from "@/components/marketplace/CustomerCatalogStatus";
-import type { Product } from "@/constants/catalog";
+import type { Product } from "@/types/catalog";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { type CartItem, useCart } from "@/context/CartContext";
 import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
@@ -995,7 +995,7 @@ function OfferCartCard({ offer, onRemove }: OfferCartCardProps) {
           <Text style={{ color: colors.text, fontFamily: Fonts.bold, fontSize: FontSizes.md, textAlign: "right" }}>
             {offer.title}
           </Text>
-          <Text style={{ color: colors.accent, fontFamily: Fonts.medium, fontSize: FontSizes.sm, textAlign: "right" }}>
+          <Text style={{ color: colors.warningForeground, fontFamily: Fonts.medium, fontSize: FontSizes.sm, textAlign: "right" }}>
             {describeCustomerOffer(offer)}
           </Text>
         </View>

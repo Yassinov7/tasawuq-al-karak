@@ -1,9 +1,10 @@
-import { useState, type Ref } from "react";
+import { useRef, useState, type Ref } from "react";
 import { Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from "react-native";
 
 import { AppIcon } from "@/components/ui/AppIcon";
 import { Fonts, FontSizes, Radius, Spacing, Typography, LayoutSpacing, ControlSizes } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
+import { useFormFocus } from "@/components/ui/KeyboardAwareScrollView";
 
 type AppTextFieldProps = Omit<TextInputProps, "style"> & {
   design?: "legacy" | "refined";
@@ -17,7 +18,7 @@ type AppTextFieldProps = Omit<TextInputProps, "style"> & {
 };
 
 export function AppTextField({
-  design = "legacy",
+  design = "refined",
   disabled = false,
   label,
   error,
@@ -29,6 +30,8 @@ export function AppTextField({
   ...inputProps
 }: AppTextFieldProps) {
   const { colors } = useTheme();
+  const formFocus = useFormFocus();
+  const fieldRef = useRef<View>(null);
   const [focused, setFocused] = useState(false);
   const refined = design === "refined";
   const readOnly = inputProps.readOnly;
@@ -36,15 +39,15 @@ export function AppTextField({
   const isPassword = Boolean(secureTextEntry);
 
   return (
-    <View style={[styles.field, refined && { marginTop: 0, gap: LayoutSpacing.fieldInnerGap }]}>
+    <View ref={fieldRef} collapsable={false} style={[styles.field, refined && { marginTop: 0, gap: LayoutSpacing.fieldInnerGap }]}>
       <Text style={[styles.label, refined && Typography.bodyStrong, { color: colors.text }]}>{label}</Text>
       <View style={[styles.inputShell, { borderColor: error ? colors.error : colors.border, backgroundColor: colors.surface }, multiline && styles.multiline, refined && { minHeight: multiline ? 104 : ControlSizes.input, borderWidth: 2, borderColor: error ? colors.errorBorder : disabled ? colors.disabledBorder : focused && !readOnly ? colors.focusRing : colors.borderStrong, backgroundColor: disabled ? colors.disabledSurface : readOnly ? colors.mutedSurface : colors.surface }]}>
         <TextInput
           {...inputProps}
           ref={inputRef}
           editable={disabled ? false : inputProps.editable}
-          onFocus={(event) => { setFocused(true); inputProps.onFocus?.(event); }}
-          onBlur={(event) => { setFocused(false); inputProps.onBlur?.(event); }}
+          onFocus={(event) => { setFocused(true); if (fieldRef.current) formFocus?.focus(fieldRef.current); inputProps.onFocus?.(event); }}
+          onBlur={(event) => { setFocused(false); if (fieldRef.current) formFocus?.blur(fieldRef.current); inputProps.onBlur?.(event); }}
           multiline={multiline}
           secureTextEntry={isPassword && !passwordVisible}
           placeholderTextColor={refined ? colors.textSecondary : colors.textMuted}

@@ -1,9 +1,11 @@
+import { useOrderRealtime } from "@/hooks/useOrderRealtime";
 import { MerchantProductForm, productEditorStyles as styles } from "@/components/merchant/MerchantProductForm";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFocusEffect, useNavigation, useRouter } from "expo-router";
 import { usePreventRemove } from "expo-router/react-navigation";
 import * as ImagePicker from "expo-image-picker";
-import { ActivityIndicator, BackHandler, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, BackHandler, type ScrollView, Text, TextInput, View } from "react-native";
+import { KeyboardAwareScrollView } from "@/components/ui/KeyboardAwareScrollView";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppModal } from "@/components/ui/AppModal";
 import { useTheme } from "@/context/ThemeContext";
@@ -16,7 +18,7 @@ import { abandonProductAttempt, clearProductAttempt, createProductCreationSessio
 
 export function MerchantAddProduct({ ownerId }: { ownerId: string }) {
   const { colors } = useTheme();
-  const { headerHeight, setNotice } = useMerchantWorkspace();
+  const { setNotice } = useMerchantWorkspace();
   const { refreshProductAvailability } = useCustomerCatalog();
   const router = useRouter(), navigation = useNavigation();
   const [form,setForm] = useState<ProductForm>({...emptyProductForm});
@@ -36,6 +38,7 @@ export function MerchantAddProduct({ ownerId }: { ownerId: string }) {
   const pendingExit = useRef<(() => void)|null>(null);
   const refs = useRef<Partial<Record<keyof ProductForm,TextInput|null>>>({});
   const scroll = useRef<ScrollView>(null), categoryY = useRef(0), firstSectionY = useRef(0);
+  const pricingY = useRef(0), unitY = useRef(0);
   const session = useMemo(() => createProductCreationSession(),[]);
   const saver = session.saver;
   const dirty = JSON.stringify(form) !== JSON.stringify(emptyProductForm) || media.length > 0 || Boolean(attempt);
@@ -55,14 +58,19 @@ export function MerchantAddProduct({ ownerId }: { ownerId: string }) {
     const handler = BackHandler.addEventListener("hardwareBackPress",() => { requestExit(leave); return true; });
     return () => { focused.current = false;session.deactivate();handler.remove(); };
   },[leave,requestExit,session]));
-  const load = useCallback(async () => {
+  const load = useCallback(async (quiet = false) => {
     const request = ++sequence.current;
     referenceRequest.current?.abort();
     referenceRequest.current = new AbortController();
     const signal = referenceRequest.current.signal;
     const current = () => alive.current && !signal.aborted && request === sequence.current;
-    setLoading(true);setError("");
+    if (!quiet) { setLoading(true);setError(""); }
     try {
+      if (quiet) {
+        const options = await readProductCategories(signal);
+        if (current()) setCategories(options);
+        return;
+      }
       const [identity,options] = await Promise.all([readProductIdentity(ownerId,signal),readProductCategories(signal)]);
       if (!current()) return;
       if (restoredStore.current && restoredStore.current !== identity.id) throw new Error("Scope changed");
@@ -73,7 +81,7 @@ export function MerchantAddProduct({ ownerId }: { ownerId: string }) {
         restoredStore.current = identity.id;
       }
       setStore(identity);setCategories(options);setReady(true);
-    } catch { if (current()) { setReady(false);setError("تعذر تحميل المتجر أو التصنيفات أو التحقق من محاولة سابقة. أعد المحاولة؛ لن نبدأ إنشاءً جديدًا قبل التحقق."); } }
+    } catch { if (current()) { if (!quiet) setReady(false);setError("تعذر تحميل المتجر أو التصنيفات أو التحقق من محاولة سابقة. أعد المحاولة؛ لن نبدأ إنشاءً جديدًا قبل التحقق."); } }
     finally { if (current()) setLoading(false); }
   },[ownerId]);
   useEffect(() => {
@@ -81,6 +89,10 @@ export function MerchantAddProduct({ ownerId }: { ownerId: string }) {
     const timer = setTimeout(()=>{void load();},0);
     return () => { clearTimeout(timer);alive.current = false;referenceRequest.current?.abort(); };
   },[load]);
+  useOrderRealtime({ channelName: `product-editor-categories:${ownerId}`, enabled: ready,
+    subscriptions: [{ table: "catalog_category_revision" }], onChange: () => {
+      if (!busyRef.current && !pickingRef.current) return load(true);
+    } });
   const change = <K extends keyof ProductForm>(field: K,value: ProductForm[K]) => {
     if (busyRef.current || pickingRef.current || attempt) return;
     setForm(previous=>({...previous,[field]:value}));setErrors(previous=>({...previous,[field]:undefined}));
@@ -121,7 +133,11 @@ export function MerchantAddProduct({ ownerId }: { ownerId: string }) {
     if (!attempt) {
       const validation = validateProduct(form,categories);setErrors(validation.errors);
       const field = Object.keys(validation.errors)[0] as keyof ProductForm|undefined;
-      if (field) { if(refs.current[field])refs.current[field]?.focus();else scroll.current?.scrollTo({y:firstSectionY.current + categoryY.current,animated:true});return; }
+      if (field) {
+        if (refs.current[field]) refs.current[field]?.focus();
+        else scroll.current?.scrollTo({ y: field === 'unit' ? pricingY.current + unitY.current : firstSectionY.current + categoryY.current, animated: true });
+        return;
+      }
     }
     busyRef.current=true;setBusy(true);setError("");
     let confirmed = false;
@@ -159,19 +175,20 @@ export function MerchantAddProduct({ ownerId }: { ownerId: string }) {
       if(alive.current){setBusy(false);setProgress("");}
     }
   };
-  return <KeyboardAvoidingView style={[styles.screen,{backgroundColor:colors.background}]} behavior={Platform.OS==='ios'?'padding':'height'} keyboardVerticalOffset={headerHeight}>
-    <ScrollView ref={scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+  return <View style={[styles.screen,{backgroundColor:colors.background}]}>
+    <KeyboardAwareScrollView ref={scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       {loading ? <View style={styles.status}><ActivityIndicator color={colors.primary}/><Text style={[styles.body,{color:colors.textSecondary}]}>جارٍ التحقق من المتجر والتصنيفات…</Text></View> : null}
-      {error ? <View style={[styles.message,{backgroundColor:colors.errorSurface,borderColor:colors.errorBorder}]}><Text accessibilityLiveRegion="polite" style={[styles.body,{color:colors.errorForeground}]}>{error}</Text>
+      {error && !ready ? <View style={[styles.message,{backgroundColor:colors.errorSurface,borderColor:colors.errorBorder}]}><Text accessibilityLiveRegion="polite" style={[styles.body,{color:colors.errorForeground}]}>{error}</Text>
         {!ready ? <AppButton design="refined" title="إعادة المحاولة" variant="outline" onPress={()=>{void load();}} disabled={loading}/> : null}
       </View> : null}
       {attempt ? <Text style={[styles.message,{color:colors.infoForeground,backgroundColor:colors.infoSurface,borderColor:colors.infoBorder}]}>هذه محاولة محفوظة للتحقق والاستكمال. ثُبتت الحقول والوسائط لتجنب تكرار المنتج. عند المغادرة قد يبقى منتج غير متاح؛ راجعه من الكتالوج.</Text> : null}
       <MerchantProductForm form={form} media={media} categories={categories} errors={errors} locked={locked} ready={ready} loading={loading} picking={picking} busy={busy} progress={progress}
         change={change} onFieldRef={(key,input)=>{refs.current[key]=input;}} onFirstSectionLayoutY={value=>{firstSectionY.current=value;}} onCategoryLayoutY={value=>{categoryY.current=value;}}
+        onPricingLayoutY={value=>{pricingY.current=value;}} onUnitLayoutY={value=>{unitY.current=value;}}
         pick={type=>{void pick(type);}} onRemoveMedia={key=>{if(!busyRef.current&&!pickingRef.current&&!attempt)setMedia(previous=>previous.filter(item=>item.key!==key));}}
-        onSave={()=>{void save();}} onCancel={()=>requestExit(leave)} saveLabel={attempt?'التحقق والاستكمال':'إضافة المنتج'} saveDisabled={!ready || loading || picking || !categories.length}/>
-    </ScrollView>
+        onSave={()=>{void save();}} onCancel={()=>requestExit(leave)} saveLabel={attempt?'التحقق والاستكمال':'إضافة المنتج'} saveError={ready ? error : undefined} saveDisabled={!ready || loading || picking || !categories.length}/>
+    </KeyboardAwareScrollView>
     <AppModal design="refined" visible={exitOpen} title="مغادرة إضافة المنتج؟" message={attempt?"لن نحذف المنتج أو الملفات. إذا تأكدنا من وجود المنتج سننهي متابعة المحاولة محليًا، ويمكنك إكماله من الكتالوج. إذا تعذر التأكد سنحتفظ بالمحاولة للتحقق عند العودة.":"ستفقد المدخلات غير المحفوظة."} confirmText="تجاهل التغييرات والمغادرة" cancelText="البقاء" destructive busy={busy} onCancel={()=>{pendingExit.current=null;setExitOpen(false);}} onConfirm={()=>{void discardAndLeave();}}/>
     <AppModal design="refined" visible={busyExit} title="العملية قيد التنفيذ" message="انتظر اكتمال التحقق أو الرفع قبل مغادرة الصفحة. لا تغلق التطبيق أثناء الحفظ." onCancel={()=>setBusyExit(false)}/>
-  </KeyboardAvoidingView>;
+  </View>;
 }

@@ -6,6 +6,7 @@ if(process.argv[2]==='--zone'){
  const zone=process.argv[3],expected={'UTC':'2030-07-10T14:20:00.000Z','Asia/Damascus':'2030-07-10T11:20:00.000Z','America/New_York':'2030-07-10T18:20:00.000Z','America/Los_Angeles':'2030-07-10T21:20:00.000Z','Pacific/Kiritimati':'2030-07-10T00:20:00.000Z','Australia/Lord_Howe':'2030-07-10T03:50:00.000Z'};
  assert.equal(e.localOfferEndInstant('2030-07-10','14:20'),expected[zone],zone);
  const roundtrip=e.localOfferFields(expected[zone]);assert.equal(roundtrip.date,'2030-07-10');assert.equal(roundtrip.time,'14:20');
+ assert.equal(e.formatCompactOfferDate(expected[zone].replace(':00.000Z',':45.000Z')),'10/07/2030 · 14:20');
  if(zone==='Pacific/Kiritimati'){const iso=e.localOfferEndInstant('2030-01-02','00:15');assert.equal(iso,'2030-01-01T10:15:00.000Z');assert.equal(e.localOfferFields(iso).date,'2030-01-02');}
  if(zone==='America/Los_Angeles'){const iso=e.localOfferEndInstant('2030-01-01','23:45');assert.equal(iso,'2030-01-02T07:45:00.000Z');assert.equal(e.localOfferFields(iso).date,'2030-01-01');}
  if(zone==='America/New_York'){

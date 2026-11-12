@@ -5,7 +5,8 @@ const vm = require('node:vm');
 const ts = require('typescript');
 const { load } = require('./syp-test-loader.cjs');
 const calls = [];
-const queryClient = { from(table) {
+const rpcCalls=[];let lookupId='12345678-1234-1234-1234-123456789012',lookupError=null;
+const queryClient = { rpc(name,args){rpcCalls.push({name,args});return {abortSignal:async signal=>({data:lookupId,error:lookupError})};}, from(table) {
   const call = {table, filters:[], order:[]}; calls.push(call);
   const q = {
     select(columns,options) {call.columns=columns;call.options=options;return q;},
@@ -132,6 +133,46 @@ async function test(name,run) {await run();passed++;console.log('PASS '+name);}
   const groups=load('src/lib/order-item-groups.ts');
   const item=(id,q,gift)=>({id,product_title_snapshot:gift?'هدية':'منتج',selling_unit_snapshot:'قطعة',quantity:q,unit_price_snapshot:gift?0:100,currency:'SYP',line_total:gift?0:200,offer_snapshot:{offer_id:'offer',title:'عرض مع هدية',offer_type:'buy_x_get_y',currency:'SYP',original_line_total:gift?0:300,final_line_total:gift?0:200}});
   const result=groups.groupOrderItems([item('p',2,false),item('g',1,true)]);assert.equal(result.length,1);assert.equal(result[0].items.length,2);assert.equal(result[0].items[0].quantity,2);assert.equal(result[0].items[1].quantity,1);assert.equal(result[0].finalTotal,200);assert.equal(result[0].originalTotal,300);
+ });
+ await test('exact readable search is normalized and always re-scoped to the store',async()=>{
+  calls.length=0;rpcCalls.length=0;
+  await m.merchantOrdersApi.page('store-a','preparing',null,new AbortController().signal,undefined,'sor-٠٠٠٠٠٠١');
+  assert.equal(rpcCalls[0].name,'find_merchant_store_order');assert.equal(rpcCalls[0].args.search_value,'SOR-0000001');assert.equal(rpcCalls[0].args.target_store,'store-a');
+  assert(calls[0].filters.some(([key,value])=>key==='store_id'&&value==='store-a'));
+  assert(calls[0].filters.some(([key,value])=>key==='id'&&value===lookupId));
+  assert(calls[0].filters.some(([key,value])=>key==='status'&&value==='preparing'));
+  calls.length=0;lookupId=null;assert.equal((await m.merchantOrdersApi.page('store-a','all',null,new AbortController().signal,undefined,'ORD-0000001')).length,0);assert.equal(calls.length,0);
+  lookupError={message:'private detail'};await assert.rejects(m.merchantOrdersApi.page('store-a','all',null,new AbortController().signal,undefined,'123'));
+  lookupError=null;lookupId='12345678-1234-1234-1234-123456789012';
+  assert.equal(m.normalizeOrderSearch(' #۱۲۳ '),'123');assert(m.orderSearchError('SOR-1'));assert(m.orderSearchError('x),or(id.eq.anything'));
+ });
+ await test('search and status are independent; global counts are never the match count',async()=>{
+  const h=harness(),queries=[];h.api.page=async(_s,f,_c,_signal,_target,search)=>{queries.push({f,search});return [row(search||'all',f==='preparing'?'preparing':'awaiting_review')];};
+  await h.controller.search('sor-٠٠٠٠٠٠١');assert.equal(h.state.search,'SOR-0000001');assert.equal(h.state.hasMore,false);assert.equal(h.state.counts.all,45);
+  await h.controller.select('preparing');assert.equal(queries.at(-1).search,'SOR-0000001');assert.equal(queries.at(-1).f,'preparing');
+  await h.controller.search('');assert.equal(h.state.search,'');
+ });
+ await test('late search cannot replace a newer search and blur cancels it',async()=>{
+  const h=harness(),held=deferred();h.api.page=async(_s,_f,_c,_signal,_target,search)=>search==='1'?held.promise:[row('new')];
+  const old=h.controller.search('1');await new Promise(setImmediate);await h.controller.search('2');held.resolve([row('old')]);await old;
+  assert.equal(h.state.search,'2');assert.equal(h.state.rows[0].id,'new');
+ });
+ await test('refresh revalidates later loaded pages without collapsing the list',async()=>{
+  const h=harness(),rows=Array.from({length:45},(_,i)=>row(String(i)));
+  h.api.page=async(_s,_f,cursor)=>{const start=cursor?Number(cursor.id)+1:0;return rows.slice(start,start+20);};
+  await h.controller.refresh();await h.controller.more();assert.equal(h.state.rows.length,40);
+  await h.controller.refresh();assert.equal(h.state.rows.length,40);await h.controller.more();assert.equal(h.state.rows.length,45);
+ });
+ await test('background cancels even direct search/pagination reads and resume recovers',async()=>{
+  const h=harness(),held=deferred();let signal;h.api.page=async(_s,_f,_c,s)=>{signal=s;return held.promise;};
+  const old=h.controller.search('1');await new Promise(setImmediate);h.controller.suspend();assert.equal(signal.aborted,true);
+  held.resolve([row('old')]);await old;assert.equal(h.state.rows.length,0);
+  h.controller.resume();h.api.page=async()=>[row('fresh')];await h.controller.refresh();assert.equal(h.state.rows[0].id,'fresh');assert.equal(h.state.search,'1');
+ });
+ await test('migration search contract is read-only and checks role plus store ownership',()=>{
+  const sql=fs.readFileSync('supabase/migrations/20261120000100_merchant_order_reference_search.sql','utf8');
+  assert(sql.includes("p.role='merchant'"));assert(sql.includes('m.owner_user_id=auth.uid()'));assert(sql.includes('so.store_id=target_store'));
+  assert(sql.includes("set search_path=''"));assert(sql.includes('from public,anon'));assert(!/^\s*(insert|update|delete|drop|alter)\b/im.test(sql));
  });
  console.log(`${passed} merchant orders tests passed`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

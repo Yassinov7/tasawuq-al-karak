@@ -4,7 +4,7 @@ import{AppButton}from'@/components/ui/AppButton';
 import{AppModal}from'@/components/ui/AppModal';
 import{useTheme}from'@/context/ThemeContext';
 import{Radius,Spacing,Typography}from'@/constants/theme';
-import{formatLocalOfferEnd,keepsSavedOfferEnd,localOfferEndInstant,localOfferFields,moveOfferMonth,offerCalendarCells,parseOfferDay,validateLocalOfferEnd}from'@/lib/offer-expiration';
+import{formatCompactOfferDate,keepsSavedOfferEnd,localOfferEndInstant,localOfferFields,moveOfferMonth,offerCalendarCells,parseOfferDay,validateLocalOfferEnd}from'@/lib/offer-expiration';
 type Selection={mode:'keep'|'none'}|{mode:'new';date:string;time:string;instant:string};
 type Props={mode:'keep'|'none'|'new';original:string|null;date:string;time:string;selectedInstant?:string;now:number;startsAt?:string;disabled:boolean;error?:string;onSelect:(value:Selection)=>void};
 type Draft={date:string;hour:number|null;minute:number|null;year:number;month:number;yearPage:number;panel:'calendar'|'months'|'years'|'hours'|'minutes'};
@@ -28,15 +28,14 @@ export function OfferExpirationPicker(props:Props){
  else if(props.mode==='new'){try{displayed=props.selectedInstant??localOfferEndInstant(props.date,props.time);}catch{/* Validation is shown alongside the field. */}}
  return<View style={styles.stack}>
   <Text style={[styles.strong,{color:colors.text}]}>موعد انتهاء العرض</Text>
-  <Text style={[styles.body,{color:colors.text}]}>{props.mode==='none'?'بدون تاريخ انتهاء':displayed?formatLocalOfferEnd(displayed):'لم يُحدَّد موعد كامل بعد'}</Text>
+  <Text style={[styles.body,displayed&&styles.date,{color:colors.text}]}>{props.mode==='none'?'بدون تاريخ انتهاء':displayed?formatCompactOfferDate(displayed):'لم يُحدَّد موعد كامل بعد'}</Text>
   {props.original&&Date.parse(props.original)<=props.now?<Text style={[styles.body,{color:colors.warningForeground}]}>الموعد المحفوظ منتهٍ. اختر موعدًا مستقبليًا جديدًا أو «بدون تاريخ انتهاء» صراحةً.</Text>:null}
-  {props.mode==='new'&&props.original?<Text style={[styles.body,{color:colors.textSecondary}]}>المحفوظ سابقًا: {formatLocalOfferEnd(props.original)}</Text>:null}
-  <AppButton design="refined" title={displayed?'اختيار أو تعديل التاريخ والوقت':'اختيار تاريخ ووقت الانتهاء'} variant="outline" disabled={props.disabled} onPress={()=>setOpen(true)}/>
+  {props.mode==='new'&&props.original?<Text style={[styles.body,{color:colors.textSecondary}]}>المحفوظ سابقًا: {formatCompactOfferDate(props.original)}</Text>:null}
+  <AppButton design="refined" title={displayed?'تعديل الموعد':'اختيار موعد الانتهاء'} variant="outline" disabled={props.disabled} onPress={()=>setOpen(true)}/>
   <View style={styles.row}>
    <Choice label="بدون تاريخ انتهاء" selected={props.mode==='none'} disabled={props.disabled} onPress={()=>props.onSelect({mode:'none'})}/>
    {props.original?<Choice label="إبقاء الموعد المحفوظ" selected={props.mode==='keep'} disabled={props.disabled} onPress={()=>props.onSelect({mode:'keep'})}/>:null}
   </View>
-  <Text style={[styles.body,{color:colors.textSecondary}]}>الاختيار والعرض حسب توقيت جهازك. اختر الساعة والدقيقة؛ لا نفترض نهاية اليوم.</Text>
   {props.error?<Text accessibilityLiveRegion="polite" style={[styles.body,{color:colors.errorForeground}]}>{props.error}</Text>:null}
   {open?<ExpirationDialog {...props} close={()=>setOpen(false)} commit={value=>{if(!props.disabled){props.onSelect(value);setOpen(false);}}}/>:null}
  </View>;
@@ -97,4 +96,4 @@ function ExpirationDialog(props:Props&{close:()=>void;commit:(value:Selection)=>
 function Choice({label,onPress,selected=false,disabled=false}:{label:string;onPress:()=>void;selected?:boolean;disabled?:boolean}){
  const{colors}=useTheme();return<Pressable accessibilityRole="button" accessibilityState={{selected,disabled}} disabled={disabled} onPress={onPress} style={[styles.choice,{borderColor:selected?colors.primary:colors.borderStrong,backgroundColor:selected?colors.surfaceSelected:colors.surface}]}><Text style={[styles.strong,{color:disabled?colors.disabledForeground:selected?colors.primary:colors.text,textAlign:'center'}]}>{label}</Text></Pressable>;
 }
-const styles=StyleSheet.create({stack:{gap:Spacing.two},row:{flexDirection:'row-reverse',flexWrap:'wrap',gap:Spacing.two},body:{...Typography.body,textAlign:'right'},strong:{...Typography.bodyStrong,textAlign:'right'},choice:{minWidth:44,minHeight:48,flexGrow:1,padding:Spacing.two,borderWidth:1,borderRadius:Radius.md,justifyContent:'center'},calendar:{flexDirection:'row-reverse',flexWrap:'wrap'},dayCell:{width:'14.285714%',minHeight:44,justifyContent:'center'},day:{borderWidth:1,borderRadius:Radius.sm,paddingVertical:Spacing.two}});
+const styles=StyleSheet.create({date:{writingDirection:"ltr",fontVariant:["tabular-nums"]},stack:{gap:Spacing.two},row:{flexDirection:'row-reverse',flexWrap:'wrap',gap:Spacing.two},body:{...Typography.body,textAlign:'right'},strong:{...Typography.bodyStrong,textAlign:'right'},choice:{minWidth:44,minHeight:48,flexGrow:1,padding:Spacing.two,borderWidth:1,borderRadius:Radius.md,justifyContent:'center'},calendar:{flexDirection:'row-reverse',flexWrap:'wrap'},dayCell:{width:'14.285714%',minHeight:44,justifyContent:'center'},day:{borderWidth:1,borderRadius:Radius.sm,paddingVertical:Spacing.two}});

@@ -5,10 +5,11 @@ import { useTheme } from "@/context/ThemeContext";
 import type { DriverAssignedTask } from "@/lib/driver-deliveries";
 import type { PickupWorkflow } from "@/lib/store-pickups";
 
-export function StorePickupPanel({ stores, workflow, busy, disabled, onConfirm }: {
+export function StorePickupPanel({ stores, workflow, busy, disabled, onConfirm, compact = false }: {
   stores: DriverAssignedTask["customer_orders"]["store_orders"];
   workflow: Extract<PickupWorkflow, { state: "c4" }>;
   busy?: string | null; disabled: boolean; onConfirm?: (id: string) => void;
+  compact?: boolean;
 }) {
   const { colors } = useTheme();
   const required = stores.filter(store => !["rejected", "cancelled"].includes(store.status));
@@ -21,7 +22,7 @@ export function StorePickupPanel({ stores, workflow, busy, disabled, onConfirm }
         <Text style={{ ...Typography.body, textAlign: "right", color: colors.text }}>{store.stores?.name ?? "متجر"}</Text>
         {store.stores?.address ? <Text style={{ ...Typography.body, textAlign: "right", color: colors.textSecondary }}>{store.stores.address}</Text> : null}
         {confirmed ? <Text style={{ ...Typography.body, textAlign: "right", color: colors.successForeground }}>تم تأكيد الاستلام</Text>
-          : <AppButton design="refined" title="تأكيد الاستلام" disabled={disabled || !workflow.canConfirmPickup || !onConfirm || Boolean(busy)}
+          : <AppButton design="refined" compact={compact} fullWidth={!compact} title="تأكيد الاستلام" disabled={disabled || !workflow.canConfirmPickup || !onConfirm || Boolean(busy)}
             loading={busy === store.id} onPress={() => onConfirm?.(store.id)} />}
       </View>;
     })}

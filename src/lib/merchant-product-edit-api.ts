@@ -1,3 +1,4 @@
+import { isSelectableCategory } from "@/lib/catalog-categories";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
 import { getMerchantStore, getStoreMediaUrl } from "@/lib/merchant-store";
@@ -47,7 +48,7 @@ export function createProductEditApi(isCurrent:()=>boolean):ProductEditApi{
    current();const session=await supabase.auth.getSession();if(session.error||session.data.session?.user.id!==attempt.ownerId)throw new Error("Account changed");
    const store=await getMerchantStore(attempt.ownerId);current();if(store?.id!==attempt.storeId)throw new Error("Store changed");
   },
-  async category(id){current();const result=await supabase.from("product_categories").select("id").eq("id",id).eq("is_active",true).maybeSingle();if(result.error)throw result.error;return Boolean(result.data);},
+  async category(id){current();return isSelectableCategory("product", id);},
   async product(attempt){
    current();const result=await supabase.from("products").select("id,store_id,title,description,category_id,price,selling_unit,minimum_quantity,quantity_step,is_available,updated_at").eq("id",attempt.productId).eq("store_id",attempt.storeId).maybeSingle();
    if(result.error)throw result.error;return result.data;

@@ -1,2 +1,2 @@
-import {FinanceTransitionReview} from '@/components/admin/FinanceTransitionReview';
-export default function FinanceTransitionRoute(){return <FinanceTransitionReview/>;}
+import { Redirect } from "expo-router";
+export default function PreviousFinanceRoute(){return <Redirect href="/admin/finance"/>;}

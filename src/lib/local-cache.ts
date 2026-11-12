@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { assertSypDocuments } from "@/lib/money";
 
-const CACHE_PREFIX = "@tasawuq/cache/";
+const CACHE_PREFIX = "@tasawuq/invoice-finance-v1/";
 const memoryCache = new Map<string, unknown>();
 const monetaryKey = (key: string) => /^(public-catalog|merchant-home|merchant-products|merchant-offers):/.test(key) || key.endsWith(":review");
 const storageKey = (key: string) => `${CACHE_PREFIX}${monetaryKey(key) ? "syp-v2/" : ""}${key}`;

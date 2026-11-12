@@ -9,15 +9,16 @@ type AccountSectionProps = {
   title: string;
   subtitle?: string;
   icon?: ComponentProps<typeof AppIcon>["name"];
+  compact?: boolean;
   children: ReactNode;
 };
 
 /** Shared titled container for a role's account actions. */
-export function AccountSection({ title, subtitle, icon, children }: AccountSectionProps) {
+export function AccountSection({ title, subtitle, icon, compact = false, children }: AccountSectionProps) {
   const { colors } = useTheme();
 
   return (
-    <View style={styles.section}>
+    <View style={[styles.section, compact && styles.compactSection]}>
       {icon || subtitle ? (
         <View style={[styles.headerWithDetails, { borderBottomColor: colors.border }]}>
           {icon ? (
@@ -31,15 +32,18 @@ export function AccountSection({ title, subtitle, icon, children }: AccountSecti
           </View>
         </View>
       ) : (
-        <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+        <Text accessibilityRole={compact ? "header" : undefined} style={[compact ? styles.compactTitle : styles.title, { color: compact ? colors.textSecondary : colors.text }]}>{title}</Text>
       )}
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>{children}</View>
+      <View style={[styles.card, compact && styles.compactCard, { backgroundColor: colors.surface, borderColor: compact ? colors.borderSubtle : colors.border }]}>{children}</View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   section: { gap: Spacing.two, marginTop: Spacing.four },
+  compactSection: { gap: Spacing.one, marginTop: 0 },
+  compactTitle: { fontFamily: Fonts.semiBold, fontSize: FontSizes.sm, textAlign: "right", paddingHorizontal: Spacing.one },
+  compactCard: { borderRadius: Radius.md, borderWidth: StyleSheet.hairlineWidth },
   headerWithDetails: { alignItems: "center", borderBottomWidth: 1, flexDirection: "row-reverse", gap: Spacing.two, paddingBottom: Spacing.two },
   headerIcon: { alignItems: "center", borderRadius: Radius.md, height: 36, justifyContent: "center", width: 36 },
   headerText: { alignItems: "flex-end", flex: 1 },

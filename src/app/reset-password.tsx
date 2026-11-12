@@ -1,7 +1,10 @@
+import { logoutPersonalAccount } from "@/lib/personal-account";
 import * as Linking from "expo-linking";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, BackHandler, ScrollView, Text } from "react-native";
+import { ActivityIndicator, BackHandler, Keyboard, Text } from "react-native";
+import { KeyboardAwareScrollView } from "@/components/ui/KeyboardAwareScrollView";
+import { useAppDialog } from "@/context/AppDialogContext";
 import { OnboardingFrame } from "@/components/auth/OnboardingFrame";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppTextField } from "@/components/ui/AppTextField";
@@ -12,6 +15,7 @@ import { supabase } from "@/lib/supabase";
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
+  const { confirm } = useAppDialog();
   const url = Linking.useURL();
   const { colors } = useTheme();
   const [checking, setChecking] = useState(true);
@@ -50,7 +54,9 @@ export default function ResetPasswordScreen() {
     const finish = async () => {
       setBusy(true);
       try {
-        if (saved || authorizedUser) {
+        if (authorizedUser) {
+          if(!await logoutPersonalAccount(authorizedUser))throw Error("تغيرت جلسة الدخول.");
+        } else if (saved) {
           const result = await supabase.auth.signOut({ scope: "local" });
           if (result.error) throw result.error;
         }
@@ -58,12 +64,12 @@ export default function ResetPasswordScreen() {
       } catch { setError("تعذر إنهاء الجلسة والعودة للدخول. حاول مرة أخرى."); }
       finally { lock.current = false; setBusy(false); }
     };
-    if (!saved && (password || confirmation)) Alert.alert("مغادرة النموذج؟", "ستُهمل كلمة المرور المدخلة دون حفظها.", [
-      { text: "متابعة التعديل", style: "cancel", onPress: () => { lock.current = false; } },
-      { text: "إلغاء والعودة", style: "destructive", onPress: () => { void finish(); } },
-    ], { cancelable: false });
+    if (!saved && (password || confirmation)) {
+      Keyboard.dismiss();
+      void confirm({ title: "العودة دون حفظ؟", message: "ستُهمل كلمة المرور المدخلة دون حفظها.", confirmText: "تجاهل والعودة", cancelText: "متابعة التعديل", destructive: true }).then(accepted => { if (accepted) void finish(); else lock.current = false; });
+    }
     else void finish();
-  }, [authorizedUser, busy, checking, confirmation, password, router, saved]);
+  }, [authorizedUser, busy, checking, confirmation, password, router, saved, confirm]);
   useFocusEffect(useCallback(() => {
     const listener = BackHandler.addEventListener("hardwareBackPress", () => { leave(); return true; });
     return () => listener.remove();
@@ -83,7 +89,7 @@ export default function ResetPasswordScreen() {
     finally { lock.current = false; setBusy(false); }
   };
   return <OnboardingFrame title="كلمة مرور جديدة">
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 12 }}>
+    <KeyboardAwareScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
       {checking ? <ActivityIndicator color={colors.primary} /> : null}
       {error ? <Text accessibilityRole="alert" style={[Typography.body, { color: colors.errorForeground, textAlign: "right" }]}>{error}</Text> : null}
       {saved ? <Text accessibilityRole="alert" style={[Typography.bodyStrong, { color: colors.successForeground, textAlign: "right" }]}>تم تغيير كلمة المرور بنجاح. سجّل الدخول بكلمة المرور الجديدة.</Text> : authorizedUser ? <>
@@ -92,6 +98,6 @@ export default function ResetPasswordScreen() {
         <AppButton design="refined" title="حفظ كلمة المرور" loading={busy} onPress={() => void submit()} />
       </> : null}
       <AppButton design="refined" title="العودة لتسجيل الدخول" variant="outline" disabled={busy || checking} onPress={leave} />
-    </ScrollView>
+    </KeyboardAwareScrollView>
   </OnboardingFrame>;
 }

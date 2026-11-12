@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { AppIcon } from "@/components/ui/AppIcon";
 import { RatingSummary } from "@/components/marketplace/RatingStars";
-import type { IconName, Store } from "@/constants/catalog";
+import type { IconName, Store } from "@/types/catalog";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 import { useCustomerCatalog } from "@/context/CustomerCatalogContext";

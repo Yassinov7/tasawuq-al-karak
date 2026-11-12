@@ -1,3 +1,5 @@
+import { useAuth } from "@/context/AuthContext";
+import { useOrderRealtime } from "@/hooks/useOrderRealtime";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type Href, useLocalSearchParams, useRouter } from "expo-router";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -7,17 +9,24 @@ import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 import { getAdminStoreDetails } from "@/lib/admin-stores";
 
-const date = (value: string) => new Date(value).toLocaleDateString("ar-SY");
+const date = (value: string | null) => value ? new Date(value).toLocaleDateString("ar-SY") : "لم تبدأ الفترة — بانتظار سداد الاشتراك";
 
 export default function AdminStoreDetailsScreen() {
+  const { user } = useAuth();
+  const { storeId } = useLocalSearchParams<{ storeId?: string }>();
+  return user ? <OwnedStoreDetails key={`${user.id}:${storeId}`} /> : null;
+}
+function OwnedStoreDetails() {
   const { storeId } = useLocalSearchParams<{ storeId?: string }>(); const router = useRouter(); const { colors } = useTheme();
   const [data, setData] = useState<Awaited<ReturnType<typeof getAdminStoreDetails>> | null>(null); const [loading, setLoading] = useState(true); const [refreshing, setRefreshing] = useState(false); const [error, setError] = useState(""); const hasLoaded = useRef(false);
   const refresh = useCallback(async (manual = false) => { if (!storeId) { setError("معرّف المتجر غير صالح."); setLoading(false); return; } if (hasLoaded.current || manual) setRefreshing(true); else setLoading(true); setError(""); try { setData(await getAdminStoreDetails(storeId)); hasLoaded.current = true; } catch { setError("تعذر تحميل تفاصيل المتجر."); } finally { setLoading(false); setRefreshing(false); } }, [storeId]);
   useEffect(() => { const timer = setTimeout(() => void refresh(), 0); return () => clearTimeout(timer); }, [refresh]);
+  useOrderRealtime({ channelName: `admin-store-categories:${storeId}`, enabled: Boolean(storeId),
+    subscriptions: [{ table: "catalog_category_revision" }], onChange: () => refresh() });
   if (loading && !data) return <View style={[styles.center, { backgroundColor: colors.background }]}><ActivityIndicator color={colors.primary} /></View>;
   return <View style={[styles.screen, { backgroundColor: colors.background }]}><ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh(true)} tintColor={colors.primary} colors={[colors.primary]} />}>
     {error ? <View style={[styles.error, { backgroundColor: colors.surfaceSecondary }]}><Text style={[styles.meta, { color: colors.error }]}>{error}</Text><AppButton title="إعادة المحاولة" variant="outline" onPress={() => void refresh(true)} /></View> : null}
-    {data ? <><Card title="هوية المتجر"><Text style={[styles.name, { color: colors.text }]}>{data.store.name}</Text><Line label="الحالة التشغيلية" value={data.store.status === "accepted" ? "معتمد" : data.store.status} /><Line label="رقم الهاتف" value={data.store.phone || "غير متاح"} /><Line label="العنوان" value={data.store.address || "غير متاح"} />{data.store.description ? <Text style={[styles.meta, { color: colors.textSecondary }]}>{data.store.description}</Text> : null}</Card>
+    {data ? <><Card title="هوية المتجر"><Text style={[styles.name, { color: colors.text }]}>{data.store.name}</Text><Line label="الحالة التشغيلية" value={data.store.status === "accepted" ? "معتمد" : data.store.status} /><Line label="التصنيف" value={data.category ? data.category.name + (data.category.is_active ? "" : " · غير متاح للاختيار") : "غير متاح"} /><Line label="رقم الهاتف" value={data.store.phone || "غير متاح"} /><Line label="العنوان" value={data.store.address || "غير متاح"} />{data.store.description ? <Text style={[styles.meta, { color: colors.textSecondary }]}>{data.store.description}</Text> : null}</Card>
       <Card title="صاحب المتجر"><Line label="الاسم" value={data.owner?.full_name || "غير متاح"} /><Line label="البريد" value={data.owner?.email || "غير متاح"} /><Line label="هاتف النشاط" value={data.merchant?.contact_phone || "غير متاح"} /></Card>
       <Card title="الاشتراك"><Line label="الخطة" value={data.subscription?.plan_name_snapshot || "لا توجد فترة اشتراك"} />{data.subscription ? <><Line label="البداية" value={date(data.subscription.starts_at)} /><Line label="الانتهاء" value={date(data.subscription.expires_at)} /><Line label="نسبة العمولة المثبتة" value={data.subscription.commission_rate_snapshot == null ? "غير مسواة" : `${data.subscription.commission_rate_snapshot}%`} /></> : null}</Card>
       <Card title="الكتالوج"><Line label="عدد المنتجات" value={String(data.productCount)} /></Card>

@@ -1,2 +1,1 @@
-import { MerchantStoreInfo } from "@/components/merchant/MerchantAccountScreens";
-export default function MerchantPage() { return <MerchantStoreInfo />; }
+export { MerchantStoreInfo as default } from "@/components/merchant/MerchantStoreInfo";

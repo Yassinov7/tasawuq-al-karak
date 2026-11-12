@@ -258,5 +258,6 @@
     "runtimeDeviceQA": {
       "status": "NOT RUN"
     }
-  }
+  },
+  "historical_note": "Historical pre-cutover audit. Preserve original results; not proof for the current invoice-finance implementation. Current delivery/test status is recorded in WORK_PROGRESS.md."
 }

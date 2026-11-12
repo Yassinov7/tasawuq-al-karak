@@ -1,3 +1,4 @@
+import { readSelectableCategories, type SelectableCategory } from "@/lib/catalog-categories";
 import type { Tables } from "@/types/database";
 
 import {
@@ -9,7 +10,6 @@ import {
 import { supabase } from "@/lib/supabase";
 
 export type PublicStore = Tables<"stores">;
-export type ProductCategory = Tables<"product_categories">;
 export type PublicProduct = Tables<"products">;
 export type PublicOffer = Tables<"store_offers">;
 export type PublicOfferItem = Tables<"store_offer_products">;
@@ -17,34 +17,31 @@ export type PublicProductMedia = Tables<"product_media">;
 
 type PublicCatalogCache = {
   stores: PublicStore[];
-  storeCategories: Tables<"store_categories">[];
-  productCategories: ProductCategory[];
+  storeCategories: SelectableCategory[];
+  productCategories: SelectableCategory[];
   products: PublicProduct[];
   offers: PublicOffer[];
   offerItems: PublicOfferItem[];
   productMedia: PublicProductMedia[];
 };
 
-const PUBLIC_CATALOG_CACHE_KEY = "public-catalog:syp-v1";
+const cacheKey = (owner: string | null) => `public-catalog:central-v2:${owner ?? "guest"}`;
+let lastCacheKey: string | null = null;
 
 let catalogVersion = 0;
-export const invalidatePublicCatalog = () => {
+export const invalidatePublicCatalog = (owner?: string | null) => {
   catalogVersion += 1;
-  return invalidateLocalCache(PUBLIC_CATALOG_CACHE_KEY);
+  const key = owner === undefined ? lastCacheKey : cacheKey(owner);
+  return key ? invalidateLocalCache(key) : Promise.resolve();
 };
 
 export type PublicCatalog = PublicCatalogCache;
 
-async function fetchStoreCategories(): Promise<Tables<"store_categories">[]> {
-  const { data, error } = await supabase
-    .from("store_categories")
-    .select("*")
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true });
-
-  if (error) throw error;
-
-  return data ?? [];
+export async function readCatalogCategoryChoices() {
+  const [storeCategories, productCategories] = await Promise.all([
+    readSelectableCategories("store"), readSelectableCategories("product"),
+  ]);
+  return { storeCategories, productCategories };
 }
 
 async function fetchAcceptedStores(): Promise<PublicStore[]> {
@@ -53,18 +50,6 @@ async function fetchAcceptedStores(): Promise<PublicStore[]> {
     .select("*")
     .eq("status", "accepted")
     .order("created_at", { ascending: false });
-
-  if (error) throw error;
-
-  return data ?? [];
-}
-
-async function fetchProductCategories(): Promise<ProductCategory[]> {
-  const { data, error } = await supabase
-    .from("product_categories")
-    .select("*")
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true });
 
   if (error) throw error;
 
@@ -123,65 +108,151 @@ async function fetchOfferItems(offers: PublicOffer[]): Promise<PublicOfferItem[]
   return data ?? [];
 }
 
-async function fetchProductMedia(products: PublicProduct[]): Promise<PublicProductMedia[]> {
+async function fetchProductMedia(products: PublicProduct[], signal?: AbortSignal): Promise<PublicProductMedia[]> {
   if (products.length === 0) return [];
 
-  const { data, error } = await supabase
+  const query = supabase
     .from("product_media")
     .select("*")
     .in("product_id", products.map((product) => product.id))
     .order("display_order", { ascending: true });
+  const { data, error } = await (signal ? query.abortSignal(signal) : query);
 
   if (error) throw error;
 
   return data ?? [];
 }
 
-export async function getPublicCatalog(): Promise<PublicCatalog> {
-  const version = ++catalogVersion;
-  const stores = await fetchAcceptedStores();
-  const acceptedStoreIds = stores.map((store) => store.id);
+export async function assertCatalogOwner(owner: string | null) {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+  if ((data.session?.user.id ?? null) !== owner) throw new Error("تغير الحساب أثناء تحديث السوق.");
+}
 
-  const [storeCategories, productCategories, products, offers] = await Promise.all([
-    fetchStoreCategories(),
-    fetchProductCategories(),
-    fetchAvailableProducts(acceptedStoreIds),
-    fetchActiveOffers(acceptedStoreIds),
+export type DiscoveryShelf = "stores" | "products";
+
+export async function readHomeDiscovery(
+  owner: string | null, seed: string, signal: AbortSignal,
+  onShelf?: (shelf: DiscoveryShelf, catalog: PublicCatalog | null, mediaPending?: boolean) => void,
+): Promise<PublicCatalog> {
+  await assertCatalogOwner(owner);
+  const result = await supabase.rpc("read_customer_home_discovery", { seed_value: seed }).abortSignal(signal);
+  if (result.error) throw result.error;
+  const payload = result.data;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw Error("Invalid discovery response");
+  const ids = (value: unknown) => {
+    if (!Array.isArray(value) || !value.every(id => typeof id === "string")) throw Error("Invalid discovery identifiers");
+    return [...new Set<string>(value)];
+  };
+  const storeIds = ids(payload.store_ids);
+  const productIds = ids(payload.product_ids);
+  const order = <T extends { id: string }>(keys: string[], rows: T[]) => {
+    const byId = new Map(rows.map(row => [row.id, row]));
+    return keys.flatMap(id => byId.get(id) ?? []);
+  };
+  const empty: PublicCatalog = { stores: [], products: [], productMedia: [],
+    storeCategories: [], productCategories: [], offers: [], offerItems: [] };
+
+  async function publish(shelf: DiscoveryShelf, read: () => Promise<Partial<PublicCatalog>>) {
+    try {
+      const catalog = { ...empty, ...await read() };
+      await assertCatalogOwner(owner);
+      if (signal.aborted) throw Error("Discovery cancelled");
+      onShelf?.(shelf, catalog);
+      return catalog;
+    } catch (cause) {
+      if (!signal.aborted) onShelf?.(shelf, null);
+      throw cause;
+    }
+  }
+
+  const [stores, products] = await Promise.allSettled([
+    publish("stores", async () => {
+      if (!storeIds.length) return {};
+      const result = await supabase.from("stores").select("*").eq("status", "accepted")
+        .in("id", storeIds).abortSignal(signal);
+      if (result.error) throw result.error;
+      return { stores: order(storeIds, result.data ?? []) };
+    }),
+    publish("products", async () => {
+      if (!productIds.length) return {};
+      const result = await supabase.from("products").select("*").eq("is_available", true)
+        .in("id", productIds).abortSignal(signal);
+      if (result.error) throw result.error;
+      const products = order(productIds, result.data ?? []);
+      await assertCatalogOwner(owner);
+      if (signal.aborted) throw Error("Discovery cancelled");
+      onShelf?.("products", { ...empty, products }, true);
+      const productMedia = await fetchProductMedia(products, signal);
+      return { products, productMedia };
+    }),
   ]);
-  const [offerItems, productMedia] = await Promise.all([
-    fetchOfferItems(offers),
-    fetchProductMedia(products),
+  if (stores.status === "rejected" && !onShelf) throw stores.reason;
+  if (products.status === "rejected" && !onShelf) throw products.reason;
+  return { ...empty, stores: stores.status === "fulfilled" ? stores.value.stores : [],
+    products: products.status === "fulfilled" ? products.value.products : [],
+    productMedia: products.status === "fulfilled" ? products.value.productMedia : [] };
+}
+
+type CatalogCallbacks = {
+  categories?: (choices: Awaited<ReturnType<typeof readCatalogCategoryChoices>> | null) => void;
+  offers?: (market: PublicCatalog | null) => void;
+};
+
+export async function getPublicCatalog(owner: string | null, callbacks: CatalogCallbacks = {}): Promise<PublicCatalog> {
+  await assertCatalogOwner(owner);
+  const version = ++catalogVersion;
+  const categoriesTask = readCatalogCategoryChoices();
+  const storesTask = fetchAcceptedStores();
+  const productsTask = storesTask.then(stores => fetchAvailableProducts(stores.map(store => store.id)));
+  const offersTask = storesTask.then(stores => fetchActiveOffers(stores.map(store => store.id)));
+  const itemsTask = offersTask.then(fetchOfferItems);
+  const mediaTask = productsTask.then(products => fetchProductMedia(products));
+
+  async function report<T>(task: Promise<T>, callback?: (result: T | null) => void) {
+    if (!callback) return;
+    try {
+      const result = await task;
+      await assertCatalogOwner(owner);
+      callback(result);
+    } catch {
+      callback(null);
+    }
+  }
+
+  const offerRows = Promise.all([storesTask, productsTask, offersTask, itemsTask])
+    .then(([stores, products, offers, offerItems]): PublicCatalog => ({
+      stores, products, offers, offerItems, productMedia: [], storeCategories: [], productCategories: [],
+    }));
+  const [categories, market, productMedia] = await Promise.allSettled([
+    categoriesTask, offerRows, mediaTask,
+    report(categoriesTask, callbacks.categories), report(offerRows, callbacks.offers),
   ]);
+  if (categories.status === "rejected") throw categories.reason;
+  if (market.status === "rejected") throw market.reason;
+  if (productMedia.status === "rejected") throw productMedia.reason;
 
   const catalog: PublicCatalog = {
-    stores,
-    storeCategories,
-    productCategories,
-    products,
-    offerItems,
-    productMedia,
-    offers,
+    ...market.value,
+    ...categories.value,
+    productMedia: productMedia.value,
   };
 
-  if (version === catalogVersion) await writeLocalCache(PUBLIC_CATALOG_CACHE_KEY, {
-    stores,
-    storeCategories,
-    productCategories,
-    products,
-    offerItems,
-    productMedia,
-    offers,
-  } satisfies PublicCatalogCache);
+  await assertCatalogOwner(owner);
+  if (version === catalogVersion) {
+    lastCacheKey = cacheKey(owner);
+    await writeLocalCache(lastCacheKey, catalog);
+  }
 
   return catalog;
 }
 
-export async function getCachedPublicCatalog(): Promise<
+export async function getCachedPublicCatalog(owner: string | null): Promise<
   PublicCatalogCache | undefined
 > {
   const cached =
-    peekLocalCache<PublicCatalogCache>(PUBLIC_CATALOG_CACHE_KEY) ??
-    (await readLocalCache<PublicCatalogCache>(PUBLIC_CATALOG_CACHE_KEY));
+    peekLocalCache<PublicCatalogCache>(cacheKey(owner)) ??
+    (await readLocalCache<PublicCatalogCache>(cacheKey(owner)));
 
   return cached;
 }

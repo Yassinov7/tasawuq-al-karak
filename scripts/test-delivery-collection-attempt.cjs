@@ -18,7 +18,7 @@ function setup(options={}){
   writeLocalCache:async(k,v)=>{if(options.writeFailure)throw Error('disk full');disk.set(k,v);},
   invalidateLocalCache:async k=>{if(options.removeFailure)throw Error('disk remove');disk.delete(k);}};
  const mocks={'@/lib/supabase':{supabase:api},'@/lib/local-cache':cache,
-  '@/lib/driver-cash':{newIdempotencyKey:()=>`key-${++key}`},
+  '@/lib/request-key':{newIdempotencyKey:()=>`key-${++key}`},
   '@/lib/store-pickups':{getPickupWorkflows:async()=>({task:{state:'c4',canCompleteDelivery:!options.disabled,pricingVersion:7}})}};
  const client=()=>load('src/lib/delivery-collection-attempt.ts',mocks);
  return{client:client(),restart:client,writes:()=>writes,calls,disk,hold:()=>held=true,release:()=>{held=false;release();}};

@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 
-import type { Product } from "@/constants/catalog";
+import type { Product } from "@/types/catalog";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import {

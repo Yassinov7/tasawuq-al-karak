@@ -1,6 +1,5 @@
-import { MerchantCatalogPanel } from "@/components/merchant/MerchantCatalogPanel";
-export function MerchantProductsPanel({ embedded = false }: { embedded?: boolean }) {
-  void embedded;
-  return <MerchantCatalogPanel kind="products" />;
+import { Redirect } from "expo-router";
+
+export default function MerchantProductsScreen() {
+  return <Redirect href={{ pathname: "/merchant/catalog", params: { tab: "products" } }} />;
 }
-export default function MerchantProductsScreen() { return <MerchantProductsPanel />; }

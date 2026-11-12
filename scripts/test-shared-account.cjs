@@ -13,7 +13,7 @@ function harness(role='customer',timers={}){
    async function execute(){if(before){const f=before;before=null;await f();}const id=filters.find(x=>x[0]==='id')?.[1];assert.equal(id,subject,'a fixed token must accompany the fixed owner ID');if(values){writes.push({id,values:plain(values),filters:plain(filters),token});if(fail)return{error:Error('failed'),data:null};if(rows[id].updated_at!==filters.find(x=>x[0]==='updated_at')?.[1])return{error:null,data:null};rows[id]={...rows[id],...values,updated_at:'v2'};if(lost){lost=false;return{error:Error('lost reply'),data:null};}}
     return{data:{...rows[id]},error:null};}return q;}};
  }
- const api=load('src/lib/personal-account.ts',{'@/lib/supabase':{supabase:{auth}},'@supabase/supabase-js':{createClient},'@/lib/local-cache':{invalidateLocalCache:async k=>invalidations.push(k)}},timers);
+ const api=load('src/lib/personal-account.ts',{'@/lib/push-device':{disablePushDevice:async()=>{}},'@/lib/supabase':{supabase:{auth}},'@supabase/supabase-js':{createClient},'@/lib/local-cache':{invalidateLocalCache:async k=>invalidations.push(k)}},timers);
  return{api,auth,rows,writes,events,clients,invalidations,setOwner:v=>owner=v,before:f=>before=f,lost:()=>lost=true,fail:()=>fail=true};
 }
 function hookHarness(){
@@ -23,7 +23,7 @@ function hookHarness(){
  useRef(initial){const i=cursor++;if(!cells[i])cells[i]={current:initial};return cells[i];},useCallback:fn=>fn,useMemo:fn=>fn(),
  useEffect(fn,deps){const i=cursor++,old=cells[i];if(!old||!deps.every((d,j)=>Object.is(d,old.deps[j]))){cells[i]={deps,cleanup:old?.cleanup};pending.push(()=>{cells[i].cleanup?.();cells[i].cleanup=fn();});}}
  };
- return{react,jsx:{jsx:(type,props)=>({type,props}),jsxs:(type,props)=>({type,props})},render:fn=>{cursor=0;return fn();},effects:()=>{const todo=pending;pending=[];todo.forEach(f=>f());}};
+ return{react,jsx:{jsx:(type,props,key)=>({type,props,key}),jsxs:(type,props,key)=>({type,props,key})},render:fn=>{cursor=0;return fn();},effects:()=>{const todo=pending;pending=[];todo.forEach(f=>f());}};
 }
 const tick=()=>new Promise(r=>setTimeout(r,0));
 let count=0;async function test(label,fn){await fn();count++;console.log('PASS',label);}
@@ -70,10 +70,248 @@ async function main(){
   locked=true;guard=fresh.render(()=>busyModule.useAccountDraftGuard(true,false,()=>left++,()=>locked));fresh.effects();guard.back();assert.equal(left,1);assert.equal(dispatched,0);
  });
  await test('uncertain save permits explicit retry only after a verified unchanged base',async()=>{const base={full_name:'Base name',age_range:null,gender:null},draft={...base,full_name:'New name'};assert.equal(model.personalSaveResolution(draft,draft,base),'confirmed');assert.equal(model.personalSaveResolution(base,draft,base),'retry');assert.equal(model.personalSaveResolution({...base,full_name:'External name'},draft,base),'conflict');});
- await test('driver professional component ignores a late revoked result after blur',async()=>{
-  const hooks=hookHarness();let focus,owner='owner';const requests=[],routes=[];
-  const m=load('src/components/account/DriverProfessionalInfo.tsx',{'react':hooks.react,'react/jsx-runtime':hooks.jsx,'expo-router':{useRouter:()=>({replace:r=>routes.push(r)}),useFocusEffect:fn=>focus=fn},'react-native':{Text:'Text',View:'View'},'@/context/AuthContext':{useAuth:()=>({user:{id:owner}})},'@/context/ThemeContext':{useTheme:()=>({colors:{}})},'@/lib/driver-deliveries':{getDriverApplication:id=>new Promise(resolve=>requests.push({id,resolve}))},'@/lib/personal-account':{assertAccount:async()=>{},deadline:async task=>task},'@/components/account/AccountSection':{AccountSection:'Section'},'@/components/account/SharedAccountParts':{AccountLoadState:'Load'},'@/constants/theme':{Typography:{body:{},bodyStrong:{}}}});
-  const render=()=>hooks.render(()=>m.DriverProfessionalInfo());render();const blur=focus();await tick();blur();requests[0].resolve(null);await tick();assert.equal(routes.length,0);owner='other';render();focus();await tick();assert.equal(requests[1].id,'other');requests[1].resolve(null);await tick();assert.deepEqual(routes,['/application-status']);
+ await test('driver credentials retain safe snapshot on failure and ignore a late result after blur',async()=>{
+  const hooks=hookHarness(),requests=[],routes=[];
+  const queueModule=load('src/lib/driver-read-queue.ts');
+  let owner='owner',loadCredentials,live,dimensions={width:390,fontScale:1};
+  const router={replace:path=>routes.push(path)};
+  const queue=queueModule.createDriverReadQueue((...args)=>loadCredentials(...args));
+  const m=load('src/components/account/DriverProfessionalInfo.tsx',{
+   react:hooks.react,'react/jsx-runtime':hooks.jsx,'expo-router':{useRouter:()=>router},
+   'react-native':{ActivityIndicator:'Spinner',Text:'Text',View:'View',StyleSheet:{create:x=>x},useWindowDimensions:()=>dimensions},
+   '@/context/AuthContext':{useAuth:()=>({user:{id:owner}})},'@/context/ThemeContext':{useTheme:()=>({colors:{}})},
+   '@/lib/driver-deliveries':{getDriverApplication:(id,signal)=>new Promise((resolve,reject)=>requests.push({id,signal,resolve,reject}))},
+   '@/lib/personal-account':{assertAccount:async()=>{},deadline:async task=>task},
+   '@/components/account/AccountSection':{AccountSection:'Section'},'@/components/ui/AppButton':{AppButton:'Button'},
+   '@/hooks/useDriverTaskRefresh':{useDriverTaskRefresh:fn=>{loadCredentials=fn;return queue.request;}},
+   '@/hooks/useOrderRealtime':{useOrderRealtime:options=>{live=options;}},
+   '@/constants/theme':{Typography:{},Spacing:{three:12,four:16},MaxContentWidth:600},
+  });
+  const walk=node=>Array.isArray(node)?node.flatMap(walk):node?.props?[node,...walk(node.props.children)]:[];
+  const render=(summary=false)=>walk(hooks.render(()=>m.DriverProfessionalInfo({summary})));
+  assert(render().some(node=>node.type==='Spinner'));
+  queue.open();const first=queue.request('initial');await tick();
+  requests[0].resolve({status:'accepted',full_name:'الاسم المهني',vehicle_type:'',contact_phone:'0990000000',available_hours:{schedule:'صباحًا'}});
+  await first;assert(render().some(node=>node.props.children==='معتمد'));
+  assert(render().some(node=>node.props.children==='غير مسجل'));
+  const vehicle=()=>render().find(node=>node.key==='المركبة');
+  assert.equal(vehicle().props.style[1].flexBasis,'42%');
+  dimensions={width:320,fontScale:1.5};assert.equal(vehicle().props.style[1].flexBasis,'100%');
+  const summary=render(true);
+  assert(summary.some(node=>node.props.children==='سائق معتمد'));
+  assert(!summary.some(node=>['الاسم المهني','دراجة','0990000000','صباحًا'].includes(node.props.children)));
+  const failed=live.onChange();await tick();
+  assert.equal(live.subscriptions[0].filter,'user_id=eq.owner');
+  assert(!render().some(node=>node.type==='Spinner'));
+  requests[1].reject(Error('offline'));await failed;
+  const stale=render();assert(stale.some(node=>node.props.children==='غير مؤكدة'));assert(stale.some(node=>node.props.children==='صباحًا'));
+  const staleSummary=render(true);
+  assert(staleSummary.some(node=>node.props.children==='الاعتماد غير مؤكد'));
+  assert(!staleSummary.some(node=>node.props.children==='سائق معتمد'));
+  const late=queue.request('manual');await tick();queue.close();assert.equal(requests[2].signal.aborted,true);
+  owner='other';assert(!render().some(node=>node.props.children==='الاسم المهني'));
+  requests[2].resolve(null);await late;assert.equal(routes.length,0);
+  queue.open();const revoked=queue.request('initial');await tick();assert.equal(requests[3].id,'other');
+  requests[3].resolve({status:'rejected'});await revoked;assert.deepEqual(routes,['/application-status']);
+  assert(!render().some(node=>node.props.children==='معتمد'));
+  let history=false;
+  const credentials=load('src/app/driver/credentials.tsx',{
+   'react/jsx-runtime':hooks.jsx,'react-native':{StyleSheet:{create:x=>x},View:'View'},
+   'expo-router':{useRouter:()=>({canGoBack:()=>history,replace:path=>routes.push(path),back:()=>routes.push('back')})},
+   '@/components/account/AccountShell':{AccountShell:'Shell'},'@/components/account/DriverProfessionalInfo':{DriverProfessionalInfo:'Professional'},
+   '@/components/navigation/AppHeader':{AppHeader:'Header'},'@/constants/theme':{MaxContentWidth:600},
+   '@/context/AuthContext':{useAuth:()=>({user:{id:owner}})},
+  }).default;
+  const page=credentials();
+  page.props.header.props.onBack();assert.equal(routes.at(-1),'/driver/account');
+  history=true;page.props.header.props.onBack();assert.equal(routes.at(-1),'back');
+  assert.equal(walk(page).find(node=>node.type==='Professional').key,'other');
+ });
+ await test('driver account opens ordered destinations without support and isolates the owner',()=>{
+  const hooks=hookHarness(),routes=[];
+  let owner='driver',profile={role:'driver',full_name:'اسم السائق',email:'driver@example.invalid'},error='',retries=0;
+  const m=load('src/app/driver/account.tsx',{
+   react:hooks.react,'react/jsx-runtime':hooks.jsx,'expo-router':{useRouter:()=>({push:path=>routes.push(path)})},
+   'expo-constants':{__esModule:true,default:{expoConfig:{name:'تسوق',version:'9.8.7'}}},
+   'react-native':{ActivityIndicator:'Spinner',Text:'Text',View:'View',StyleSheet:{create:x=>x,hairlineWidth:1}},
+   '@/components/account/AccountMenuItem':{AccountMenuItem:'Menu'},'@/components/account/AccountProfileHeader':{AccountProfileHeader:'Profile'},
+   '@/components/account/AccountSection':{AccountSection:'Section'},'@/components/account/AccountShell':{AccountShell:'Shell'},
+   '@/components/account/DriverProfessionalInfo':{DriverProfessionalInfo:'Professional'},'@/components/account/SharedAccountParts':{AccountLogout:'Logout'},
+   '@/components/navigation/AppHeader':{AppHeader:'Header'},'@/components/ui/AppButton':{AppButton:'Button'},'@/components/ui/AppModal':{AppModal:'Modal'},
+   '@/constants/theme':{Typography:{},Spacing:{}},'@/context/AuthContext':{useAuth:()=>({user:{id:owner}})},
+   '@/context/ThemeContext':{useTheme:()=>({colors:{}})},'@/hooks/usePersonalAccount':{usePersonalAccount:()=>({data:profile,error,reload:()=>retries++})},
+  });
+  const walk=node=>Array.isArray(node)?node.flatMap(walk):node?.props?[node,...walk(node.props.children)]:[];
+  const initial=m.default(),render=()=>walk(hooks.render(()=>initial.type(initial.props)));
+  const tree=render();assert.equal(tree.find(node=>node.type==='Profile').props.name,'اسم السائق');
+  assert.equal(tree.find(node=>node.type==='Profile').props.accessory.props.summary,true);
+  assert(!tree.some(node=>node.type==='Professional'));
+  assert(tree.some(node=>node.props.children==='9.8.7'));
+  const links=tree.filter(node=>node.type==='Menu');assert(links.every(node=>node.props.compact));
+  links.forEach(node=>node.props.onPress());
+  assert.deepEqual(routes,['/driver/credentials','/driver/cash-account','/personal-info','/notifications','/driver/settings','/security','/privacy','/terms','/about']);
+  assert.deepEqual(links.slice(0,5).map(node=>node.props.title),['بيانات الاعتماد','المالية والفواتير','المعلومات الشخصية','الإشعارات','الإعدادات']);
+  const header=tree.find(node=>node.type==='Shell').props.header.props;
+  assert.equal(header.title,'حسابي');assert.equal(header.showNotifications,false);
+  assert(!tree.some(node=>node.type==='Modal'||node.props.title==='الدعم والمساعدة'));
+  assert(render().some(node=>node.type==='Logout'&&node.props.compact));
+  error='offline';render().find(node=>node.type==='Button').props.onPress();assert.equal(retries,1);
+  profile={role:'merchant',full_name:'اسم حساب آخر',email:'other@example.invalid'};
+  assert.equal(render().find(node=>node.type==='Profile').props.name,'حساب السائق');
+  owner='other';assert.notEqual(m.default().key,initial.key);
+ });
+ await test('merchant account shows the scoped profile, moved links once and the Expo version',()=>{
+  const hooks=hookHarness(),routes=[];let state={data:{role:'merchant',full_name:'اسم التاجر',email:'merchant@example.invalid'},loading:true,error:'',reload:()=>{}};let retries=0;
+  const m=load('src/components/merchant/MerchantAccountScreens.tsx',{
+   'react/jsx-runtime':hooks.jsx,'expo-router':{useRouter:()=>({push:route=>routes.push(plain(route))})},
+   'expo-constants':{__esModule:true,default:{expoConfig:{name:'اسم التطبيق الفعلي',version:'9.8.7'}}},
+   'react-native':{ActivityIndicator:'Spinner',StyleSheet:{create:v=>v,hairlineWidth:1},Text:'Text',View:'View'},
+   '@/components/account/AccountShell':{AccountShell:'Shell'},'@/components/account/SharedAccountParts':{AccountLogout:'Logout'},
+   '@/components/account/PersonalInfoScreen':{PersonalInfoScreen:'PersonalInfo'},'@/components/account/AccountMenuItem':{AccountMenuItem:'MenuItem'},
+   '@/components/ui/AppButton':{AppButton:'Button'},'@/components/ui/AppIcon':{AppIcon:'Icon'},
+   '@/constants/theme':{Typography:{},Spacing:{},Radius:{}},'@/context/MerchantWorkspaceContext':{},
+   '@/context/ThemeContext':{useTheme:()=>({colors:{}})},'@/hooks/usePersonalAccount':{usePersonalAccount:()=>state},
+  });
+  const walk=node=>Array.isArray(node)?node.flatMap(walk):node?.props?[node,...walk(node.props.children)]:[];
+  const nodes=()=>walk(m.MerchantAccountHub());
+  let tree=nodes();assert.ok(tree.some(n=>n.props.children==='اسم التاجر'));assert.ok(!tree.some(n=>n.type==='Spinner'));
+  const items=tree.filter(n=>n.type==='MenuItem');assert.equal(items.length,10);assert.ok(items.every(n=>n.props.compact));
+  assert.ok(tree.some(n=>n.props.children==='اسم التطبيق الفعلي'));assert.ok(tree.some(n=>n.props.children==='9.8.7'));
+  assert.ok(!tree.some(n=>n.props.children==='الكرك الشرقي'));
+  items.forEach(n=>n.props.onPress());
+  assert.deepEqual(routes,['/merchant/store-info','/merchant/finance',{pathname:'/merchant/finance',params:{search:'SUB-'}},'/merchant/personal-info','/notifications','/merchant/settings','/merchant/security','/privacy','/terms','/about']);
+  assert.ok(tree.some(n=>n.type==='Logout'&&n.props.compact));
+  state={...state,loading:false,error:'failed',reload:()=>retries++};tree=nodes();
+  assert.ok(tree.some(n=>n.props.children==='اسم التاجر'));tree.find(n=>n.props.title==='إعادة المحاولة').props.onPress();assert.equal(retries,1);
+  state={...state,error:'',data:{role:'customer',full_name:'اسم حساب آخر',email:'other@example.invalid'}};
+  assert.ok(!nodes().some(n=>['اسم التاجر','اسم حساب آخر','other@example.invalid'].includes(n.props.children)));
+ });
+ await test('merchant and driver settings share the three appearance controls and other roles retain their links',()=>{
+  const hooks=hookHarness(),paths=[],themes=[];let role;
+  const settings=load('src/components/account/SettingsScreen.tsx',{
+   'react/jsx-runtime':hooks.jsx,'expo-router':{useRouter:()=>({push:path=>paths.push(path),canGoBack:()=>false,replace:path=>paths.push(path)})},
+   'react-native':{Pressable:'Pressable',ScrollView:'ScrollView',StyleSheet:{create:v=>v},Text:'Text',View:'View'},
+   '@/hooks/usePersonalAccount':{usePersonalAccount:()=>({data:role?{role}:null})},'@/components/navigation/AppHeader':{AppHeader:'Header'},
+   '@/components/ui/AppIcon':{AppIcon:'Icon'},'@/components/ui/SyriaFlag':{SyriaFlag:'Flag'},
+   '@/constants/theme':{FontSizes:{},Fonts:{},Radius:{},Spacing:{}},'@/context/CartContext':{useCart:()=>({itemCount:0})},
+   '@/context/SettingsContext':{useSettings:()=>({themeMode:'system',settingsReady:true,setThemeMode:mode=>themes.push(mode)})},
+   '@/context/ThemeContext':{useTheme:()=>({colors:{}})},
+  }).default;
+  const walk=node=>Array.isArray(node)?node.flatMap(walk):node?.props?[node,...walk(node.props.children)]:[];
+  const merchant=walk(settings({embedded:true,preferencesOnly:true}));
+  assert.ok(!merchant.some(n=>['الخصوصية والأمان','حول التطبيق','اللغة','الإصدار 1.0.0'].includes(n.props.children)));
+  merchant.filter(n=>n.props.mode).forEach(n=>n.props.onPress());assert.deepEqual(themes,['system','light','dark']);
+  const shared=walk(settings());for(const title of ['تغيير كلمة المرور','الخصوصية','شروط الاستخدام','عن تسوق'])shared.find(n=>n.props.title===title).props.onPress();
+  assert.deepEqual(paths,['/security','/privacy','/terms','/about']);
+  const driverRoute=load('src/app/driver/settings.tsx',{'react/jsx-runtime':hooks.jsx,
+   '@/components/account/SettingsScreen':{__esModule:true,default:settings}}).default();
+  assert.equal(driverRoute.type,settings);
+  const driver=walk(settings(driverRoute.props));
+  assert.deepEqual(plain(driver.find(n=>n.type==='ScrollView')),plain(merchant.find(n=>n.type==='ScrollView')));
+  driver.find(n=>n.type==='Header').props.onBack();assert.equal(paths.at(-1),'/driver/account');
+  role='driver';assert(!walk(settings()).some(n=>n.props.title==='الخصوصية'||n.props.title==='عن تسوق'));
+ });
+ await test('moved account links keep their original back behavior',()=>{
+  const hooks=hookHarness(),history=[];
+  const walk=node=>Array.isArray(node)?node.flatMap(walk):node?.props?[node,...walk(node.props.children)]:[];
+  const mocks={
+   'react/jsx-runtime':hooks.jsx,'expo-router':{Link:'Link',useRouter:()=>({back:()=>history.pop()})},
+   'react-native':{Pressable:'Pressable',ScrollView:'ScrollView',StyleSheet:{create:v=>v,hairlineWidth:1},Text:'Text',View:'View'},
+   'react-native-safe-area-context':{SafeAreaProvider:'Safe',SafeAreaView:'SafeView'},
+   '@/components/ui/AppIcon':{AppIcon:'Icon'},'@/constants/theme':{Fonts:{},FontSizes:{},Spacing:{},Radius:{}},
+   '@/context/ThemeContext':{useTheme:()=>({colors:{}})},'@/components/legal/LegalRelatedDocument':{},'@/components/legal/LegalSection':{},
+   '@/components/about/AboutContent':{},'@/components/about/AboutHeader':{},
+  };
+  const legal=load('src/components/legal/LegalPageLayout.tsx',mocks).LegalPageLayout;
+  const about=load('src/app/about.tsx',mocks).default;
+  for(const parent of ['/merchant/account','/driver/account']) for(const route of ['/privacy','/terms','/about']){
+   history.length=0;history.push(parent);
+   history.push(route);
+   const screen=route==='/about'?about():legal({intro:{},sections:[],relatedDocument:{}});
+   walk(screen).find(node=>node.props.accessibilityLabel==='رجوع').props.onPress();
+   assert.deepEqual(history,[parent]);
+  }
+  const navigation=load('src/lib/merchant-navigation.ts').merchantNavigation;
+  assert.equal(navigation('/merchant/security').parent,'/merchant/account');
+  assert.equal(navigation('/merchant/settings').parent,'/merchant/account');
+ });
+ await test('shared logout cancels, locks duplicate confirms, reports failure and routes success for all roles',async()=>{
+  const consumers={merchant:'src/components/merchant/MerchantAccountScreens.tsx',customer:'src/app/home/account.tsx',driver:'src/app/driver/account.tsx',admin:'src/app/admin/more.tsx'};
+  for(const [role,file] of Object.entries(consumers)){
+   assert.match(fs.readFileSync(file,'utf8'),/<AccountLogout\b/);
+   const hooks=hookHarness(),paths=[];let calls=0,finish;
+   const shared=load('src/components/account/SharedAccountParts.tsx',{
+    react:hooks.react,'react/jsx-runtime':hooks.jsx,'expo-router':{useRouter:()=>({replace:path=>paths.push(path)})},
+    'react-native':{ActivityIndicator:'Spinner',Text:'Text',View:'View',StyleSheet:{create:v=>v}},
+    '@/components/account/AccountProfileHeader':{},'@/components/account/AccountSection':{},'@/components/account/AccountMenuItem':{},
+    '@/components/ui/AppButton':{AppButton:'Button'},'@/components/ui/AppModal':{AppModal:'Modal'},
+    '@/context/ThemeContext':{useTheme:()=>({colors:{}})},'@/context/AuthContext':{useAuth:()=>({user:{id:role}})},
+    '@/hooks/usePersonalAccount':{},'@/lib/personal-account':{logoutPersonalAccount:id=>{assert.equal(id,role);calls++;return new Promise(resolve=>{finish=resolve;});}},
+    '@/constants/theme':{Spacing:{},Typography:{}},
+   });
+   const wrapper=shared.AccountLogout({compact:role==='merchant'});
+   const render=()=>hooks.render(()=>wrapper.type(wrapper.props)).props.children;
+   let [trigger,modal]=render();hooks.effects();trigger.props.onPress();[,modal]=render();assert.equal(modal.props.visible,true);
+   assert.equal(modal.props.icon,'log-out-outline');modal.props.onCancel();[,modal]=render();assert.equal(modal.props.visible,false);assert.equal(calls,0);
+   trigger.props.onPress();[,modal]=render();const confirm=()=>modal.props.actions.props.children[1].props.children.props.onPress();
+   confirm();confirm();assert.equal(calls,1);modal.props.onCancel();[,modal]=render();assert.equal(modal.props.visible,true);assert.equal(modal.props.busy,true);
+   finish(false);await tick();[,modal]=render();assert.equal(modal.props.children.props.accessibilityRole,'alert');assert.deepEqual(paths,[]);
+   confirm();finish(true);await tick();assert.equal(calls,2);assert.deepEqual(paths,['/login']);
+  }
+ });
+ await test('merchant personal form edits only the name and guards navigation to the account',async()=>{
+  const hooks=hookHarness(),routes=[];let saved;
+  const profile={id:'merchant',role:'merchant',full_name:'الاسم السابق',email:'merchant@example.invalid',loginPhone:'123',personalPhone:'456',birth_date:'1990-01-01',age_range:null,gender:null,updated_at:'v1'};
+  const page=load('src/components/account/PersonalInfoScreen.tsx',{
+   react:hooks.react,'react/jsx-runtime':hooks.jsx,'expo-router':{useRouter:()=>({canGoBack:()=>false,replace:path=>routes.push(path)})},
+   'react-native':{Text:'Text',View:'View',StyleSheet:{create:v=>v,hairlineWidth:1}},
+   '@/context/AuthContext':{useAuth:()=>({user:{id:profile.id}})},'@/context/ThemeContext':{useTheme:()=>({colors:{}})},
+   '@/hooks/usePersonalAccount':{usePersonalAccount:()=>({data:profile,error:''})},
+   '@/hooks/useAccountDraftGuard':{useAccountDraftGuard:(dirty,_busy,back)=>({back:()=>{if(!dirty)back();},modal:null})},
+   '@/components/account/AccountShell':{},'@/components/account/AccountSection':{},'@/components/account/SharedAccountParts':{},
+   '@/components/navigation/AppHeader':{},'@/components/ui/AppTextField':{AppTextField:'Field'},'@/components/ui/AppButton':{AppButton:'Button'},
+   '@/components/ui/KeyboardAwareScrollView':{KeyboardAwareScrollView:'KeyboardScroll'},
+   '@/lib/personal-account':{savePersonalAccount:async(owner,base,draft)=>{assert.equal(owner,profile.id);assert.equal(base,profile);saved=plain(draft);return {...profile,...draft};}},
+   '@/constants/theme':{Typography:{},Spacing:{},Radius:{}},
+  });
+  const wrapper=page.PersonalInfoScreen({embedded:true}),form=wrapper.type(wrapper.props);
+  const walk=node=>Array.isArray(node)?node.flatMap(walk):node?.props?[node,...walk(node.props.children)]:[];
+  const render=()=>walk(hooks.render(()=>form.type(form.props)));
+  let tree=render();hooks.effects();
+  assert.equal(tree.filter(n=>n.type==='Field').length,1);assert.ok(tree.some(n=>n.type==='KeyboardScroll'));
+  assert.equal(tree.find(n=>n.props.title==='حفظ الاسم').props.disabled,true);
+  tree.find(n=>n.type==='Field').props.onChangeText('الاسم الجديد');tree=render();
+  tree.find(n=>n.props.title==='العودة').props.onPress();assert.deepEqual(routes,[]);
+  tree.find(n=>n.props.title==='حفظ الاسم').props.onPress();await tick();assert.equal(saved.full_name,'الاسم الجديد');assert.equal(saved.email,undefined);
+  render().find(n=>n.props.title==='العودة').props.onPress();assert.deepEqual(routes,['/merchant/account']);
+ });
+ await test('merchant security validates locally, locks writes and hides another account',async()=>{
+  const hooks=hookHarness(),routes=[],writes=[];let finish;
+  const user={id:'merchant'};
+  const state={data:{id:'merchant',role:'merchant',email:'merchant@example.invalid'},loading:false,error:''};
+  const screen=load('src/components/account/SecurityScreen.tsx',{
+   react:hooks.react,'react/jsx-runtime':hooks.jsx,'expo-router':{useRouter:()=>({canGoBack:()=>false,replace:path=>routes.push(path)})},
+   'react-native':{Text:'Text',View:'View',StyleSheet:{create:v=>v,hairlineWidth:1}},
+   '@/context/AuthContext':{useAuth:()=>({user})},'@/context/ThemeContext':{useTheme:()=>({colors:{}})},
+   '@/hooks/usePersonalAccount':{usePersonalAccount:()=>state},'@/hooks/useAccountDraftGuard':{useAccountDraftGuard:(_dirty,_busy,back)=>({back,modal:null})},
+   '@/components/account/AccountShell':{},'@/components/account/AccountSection':{},'@/components/account/SharedAccountParts':{},
+   '@/components/navigation/AppHeader':{},'@/components/ui/AppTextField':{AppTextField:'Field'},'@/components/ui/AppButton':{AppButton:'Button'},
+   '@/components/ui/AppIcon':{AppIcon:'Icon'},'@/components/ui/KeyboardAwareScrollView':{KeyboardAwareScrollView:'KeyboardScroll'},
+   '@/lib/personal-account':{changePersonalPassword:(...args)=>{writes.push(args);return new Promise(resolve=>{finish=resolve;});}},
+   '@/constants/theme':{Typography:{},Spacing:{},Radius:{}},
+  }).default;
+  const wrapper=screen({embedded:true});
+  const walk=node=>Array.isArray(node)?node.flatMap(walk):node?.props?[node,...walk(node.props.children)]:[];
+  const render=()=>walk(hooks.render(()=>wrapper.type(wrapper.props)));
+  let tree=render();hooks.effects();
+  const submit=()=>tree.find(n=>n.props.title==='تغيير كلمة المرور').props.onPress();
+  submit();tree=render();assert.equal(writes.length,0);assert.equal(tree.filter(n=>n.type==='Field'&&n.props.error).length,3);
+  tree.filter(n=>n.type==='Field').forEach((field,index)=>field.props.onChangeText(['old-password','new-password','new-password'][index]));
+  tree=render();submit();submit();assert.equal(writes.length,1);assert.deepEqual(writes[0],['merchant','merchant@example.invalid','old-password','new-password']);
+  finish();await tick();tree=render();assert.ok(tree.filter(n=>n.type==='Field').every(n=>n.props.value===''));
+  tree.find(n=>n.props.title==='العودة').props.onPress();assert.deepEqual(routes,['/merchant/account']);
+  state.data={id:'another-owner',role:'merchant',email:'another@example.invalid'};
+  tree=render();assert.ok(!tree.some(n=>n.type==='Field'||n.props.children==='another@example.invalid'));
  });
  await test('UI contracts: one editor, draft guards, safe navigation and no phone writes',async()=>{
   const src=p=>fs.readFileSync(p,'utf8');assert.match(src('src/hooks/useAccountDraftGuard.tsx'),/usePreventRemove/);assert.match(src('src/hooks/useAccountDraftGuard.tsx'),/hardwareBackPress/);assert.match(src('src/components/account/PersonalInfoScreen.tsx'),/key=\{user\?\.id/);assert.match(src('src/components/merchant/MerchantAccountScreens.tsx'),/PersonalInfoScreen embedded/);assert.match(src('src/app/admin/more.tsx'),/SharedAccountMenu role="admin"/);assert.doesNotMatch(src('src/components/account/SettingsScreen.tsx'),/accountRole|notificationsEnabled|Switch/);assert.match(src('src/context/SettingsContext.tsx'),/THEME_MODE_STORAGE_KEY/);assert.match(src('src/context/SettingsContext.tsx'),/setTheme\(mode\)/);assert.doesNotMatch(src('src/lib/personal-account.ts'),/updateUser\(\{\s*(data|email|phone)/);

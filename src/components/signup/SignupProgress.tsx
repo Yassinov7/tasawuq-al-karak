@@ -5,15 +5,16 @@ import { Fonts, FontSizes, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 
 type SignupProgressProps = {
-  step: 1 | 2 | 3;
+  step: number;
+  labels?: readonly string[];
   onBack?: () => void;
   onCancel: () => void;
   busy?: boolean;
 };
 
-const labels = ["الترحيب", "معلومات الحساب", "نوع الحساب"];
+const defaultLabels = ["نوع الحساب", "بيانات الحساب", "المراجعة"];
 
-export function SignupProgress({ step, onBack, onCancel, busy }: SignupProgressProps) {
+export function SignupProgress({ step, labels = defaultLabels, onBack, onCancel, busy }: SignupProgressProps) {
   const { colors } = useTheme();
 
   return (
@@ -40,14 +41,14 @@ export function SignupProgress({ step, onBack, onCancel, busy }: SignupProgressP
         )}
         <Pressable disabled={busy} onPress={onCancel} accessibilityRole="button" style={{ minHeight: 44, justifyContent: "center" }}><Text style={{ color: colors.primary, fontFamily: Fonts.medium }}>إلغاء والعودة</Text></Pressable>
         <Text style={[styles.stepLabel, { color: colors.textSecondary }]}>
-          {`الخطوة ${["١", "٢", "٣"][step - 1]} من ٣`}
+          {`الخطوة ${step} من ${labels.length}`}
         </Text>
       </View>
 
       <View
         accessibilityRole="progressbar"
         accessibilityLabel={`التقدم في التسجيل: ${labels[step - 1]}`}
-        accessibilityValue={{ min: 1, max: 3, now: step, text: labels[step - 1] }}
+        accessibilityValue={{ min: 1, max: labels.length, now: step, text: labels[step - 1] }}
         style={styles.stages}
       >
         {labels.map((label, index) => {
@@ -78,7 +79,7 @@ export function SignupProgress({ step, onBack, onCancel, busy }: SignupProgressP
                       { color: current ? colors.onPrimary : colors.textSecondary },
                     ]}
                   >
-                    {["١", "٢", "٣"][index]}
+                    {stage}
                   </Text>
                 )}
               </View>
@@ -101,7 +102,7 @@ export function SignupProgress({ step, onBack, onCancel, busy }: SignupProgressP
             styles.fill,
             {
               backgroundColor: colors.primary,
-              width: `${(step / 3) * 100}%`,
+              width: `${(step / labels.length) * 100}%`,
             },
           ]}
         />

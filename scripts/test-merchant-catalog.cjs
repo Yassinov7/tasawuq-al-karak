@@ -1,6 +1,8 @@
 // Offline tests exercise the production controller and query adapter; no Supabase connection.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const vm = require('node:vm');
+const ts = require('typescript');
 const { load } = require('./syp-test-loader.cjs');
 let revision = 0, passed = 0;
 const m = load('src/lib/merchant-catalog.ts', {
@@ -27,14 +29,134 @@ function harness(kind = 'products') {
 }
 async function test(name, fn){await fn();passed++;console.log('PASS '+name);}
 async function run(){
+ await test('catalog icon names exist in the bundled Ionicons map and the root preloads its font',()=>{
+  const glyphs=JSON.parse(fs.readFileSync('node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/glyphmaps/Ionicons.json','utf8'));
+  const catalogSources=['src/app/merchant/catalog.tsx','src/components/merchant/MerchantCatalogPanel.tsx','src/components/ui/AppButton.tsx'];
+  const icons=catalogSources.flatMap(file=>[...fs.readFileSync(file,'utf8').matchAll(/['"]([a-z-]+-outline)['"]/g)].map(match=>match[1]));
+  for(const icon of icons)assert(Number.isInteger(glyphs[icon]),icon);
+  assert(fs.readFileSync('src/app/_layout.tsx','utf8').includes('...Ionicons.font'));
+  assert(fs.existsSync('node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf'));
+ });
+ await test('numbered pages read ten rows, probe for the boundary, preserve cursors and reset on scope change',async()=>{
+  const reads=[];
+  let state;
+  let rows=Array.from({length:21},(_,i)=>product(String(99-i)));
+  const api={
+   store:async()=>({id:'store-a',approved:true}),
+   page:async(_kind,_store,scope,anchor,_at,limit)=>{
+    reads.push({anchor:anchor?.id,limit});
+    return rows.filter(row=>(!anchor||row.id<anchor.id)&&row.title.includes(scope.query)).slice(0,limit);
+   },
+  };
+  const controller=m.createCatalogController('owner-a','products',{query:'',filter:'all'},
+   next=>{state=next;},async()=>{},api,()=>1000,true);
+  controller.activate();await controller.focus();
+  assert.equal(state.page,0);assert.equal(state.rows.length,10);assert(state.hasMore);
+  assert.deepEqual(reads.slice(0,2),[{anchor:undefined,limit:10},{anchor:'90',limit:1}]);
+  const first=state.rows.map(row=>row.id);
+  rows=[product('a0'),...rows];
+  await controller.movePage(1);
+  assert.equal(state.page,1);assert.equal(state.rows.length,10);
+  assert.equal(state.rows.some(row=>first.includes(row.id)),false);
+  const second=state.rows.map(row=>row.id);
+  controller.deactivate();controller.activate();await controller.focus();
+  assert.deepEqual(state.rows.map(row=>row.id),second);
+  await controller.movePage(1);assert.equal(state.page,2);assert.equal(state.rows.length,1);assert(!state.hasMore);
+  await controller.movePage(1);assert.equal(state.page,2);
+  await controller.movePage(-1);assert.deepEqual(state.rows.map(row=>row.id),second);
+  await controller.select({query:'98',filter:'all'});
+  assert.equal(state.page,0);assert.equal(state.rows.length,1);assert(!state.hasMore);
+ });
+ await test('catalog tabs render the compact panel and keep URL selection in both palettes',()=>{
+  const exports={};
+  const theme=load('src/constants/theme.ts',{'react-native':{Platform:{select:values=>values.default??values.ios}},'./fonts':{FontFamily:{}}});
+  const jsx=(type,props)=>({type,props});
+  let query,colors;
+  const navigation=[];
+  const imports={
+   'react/jsx-runtime':{jsx,jsxs:jsx},
+   'expo-router':{useLocalSearchParams:()=>({tab:query}),useRouter:()=>({setParams:value=>navigation.push(value)})},
+   'react-native':{Keyboard:{dismiss(){}},Pressable:'Pressable',Text:'Text',View:'View',StyleSheet:{create:styles=>styles,hairlineWidth:1}},
+   '@/components/merchant/MerchantCatalogPanel':{MerchantCatalogPanel:'CatalogPanel'},
+   '@/components/ui/AppIcon':{AppIcon:'Icon'},
+   '@/constants/theme':theme,
+   '@/context/ThemeContext':{useTheme:()=>({colors})},
+   '@/lib/merchant-catalog':m,
+  };
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/app/merchant/catalog.tsx','utf8'),{
+   compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX},
+  }).outputText,{exports,require:name=>imports[name]});
+  const nodes=value=>Array.isArray(value)?value.flatMap(nodes):value?.props?[value,...nodes(value.props.children)]:[];
+  for(colors of [theme.LightColors,theme.DarkColors]){
+   query='offers';
+   const tree=nodes(exports.default());
+   const panels=tree.filter(node=>node.type==='CatalogPanel');
+   assert.equal(panels.length,2);
+   const panel=panels.find(node=>node.props.visible);
+   assert.equal(panel.props.kind,'offers');
+   assert.equal(panel.props.compact,true);
+   const tabs=tree.filter(node=>node.props.accessibilityRole==='tab');
+   assert.equal(tabs.length,2);
+   assert.equal(tabs[1].props.accessibilityState.selected,true);
+   assert(tabs[0].props.style({pressed:false})[0].minHeight>=44);
+   tabs[1].props.onPress();
+   assert.equal(navigation.length,0);
+   tabs[0].props.onPress();
+   assert.equal(navigation.pop().tab,'products');
+   query='unknown';
+   assert.equal(nodes(exports.default()).find(node=>node.type==='CatalogPanel'&&node.props.visible).props.kind,'products');
+  }
+ });
  await test('catalog tab defaults and compatibility routes preserve both panel entry points',()=>{
   assert.equal(m.catalogTab('offers'),'offers');for(const value of [undefined,'products','wrong',[]])assert.equal(m.catalogTab(value),'products');
   const catalog=fs.readFileSync('src/app/merchant/catalog.tsx','utf8');assert(catalog.includes('router.setParams'));assert(catalog.includes('catalogTab(params.tab)'));
-  for(const kind of ['products','offers'])assert(fs.readFileSync(`src/app/merchant/${kind}.tsx`,'utf8').includes(`kind="${kind}"`));
+  assert(fs.readFileSync('src/app/merchant/offers.tsx','utf8').includes('params: { tab: "offers" }'));
+ });
+ await test('direct merchant products route replaces itself with the catalog products tab',()=>{
+  const exports={};
+  const imports={
+   'react/jsx-runtime':{jsx:(type,props)=>({type,props})},
+   'expo-router':{Redirect:'Redirect'},
+  };
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/app/merchant/products.tsx','utf8'),{
+   compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX},
+  }).outputText,{exports,require:name=>{assert(Object.hasOwn(imports,name),name);return imports[name];}});
+  assert.deepEqual(plain(exports.default()),{type:'Redirect',props:{href:{pathname:'/merchant/catalog',params:{tab:'products'}}}});
+ });
+ await test('catalog sync keeps rows and coalesces a change during an in-flight read',async()=>{
+  const h=harness();
+  await h.c.focus();
+  const existing=h.state.rows.map(row=>row.id);
+  const pending=deferred();
+  let reads=0;
+  h.api.page=async()=>{reads++;return reads===1?pending.promise:[product('updated')];};
+  const first=h.c.sync();
+  await Promise.resolve();
+  assert.deepEqual(h.state.rows.map(row=>row.id),existing);
+  await h.c.sync();await h.c.sync();
+  assert.equal(reads,1);
+  pending.resolve([product('first-reply')]);await first;
+  for(let i=0;i<8;i++)await Promise.resolve();
+  assert.equal(reads,2);
+  assert.equal(h.state.rows[0].id,'updated');
+  h.c.deactivate();await h.c.sync();
+  assert.equal(reads,2);
+ });
+ await test('idle catalog has no timer and an unseen offer schedules its actual boundary',()=>{
+  const now=Date.parse('2030-02-01T00:00:00Z');
+  assert.equal(m.catalogOfferBoundaryDelay([product('p'),offer()],null,now),null);
+  const scheduled={...offer(),starts_at:'2030-02-01T00:02:00Z'};
+  assert.equal(m.catalogOfferBoundaryDelay([scheduled],null,now),120050);
+  assert.equal(m.catalogOfferBoundaryDelay([],now+1000,now),1050);
+  assert.equal(m.catalogOfferBoundaryDelay([{...scheduled,is_active:false}],null,now),null);
  });
  await test('existing add/edit success and cancel routes remain intact',()=>{
   for(const mode of ['Add','Edit']){const code=fs.readFileSync(`src/components/merchant/Merchant${mode}Product.tsx`,'utf8');assert(code.includes('router.back()'));assert(code.includes("tab:'products'")||code.includes('tab:"products"'));assert(code.includes('invalidateMerchantHome'));}
-  const code=fs.readFileSync('src/components/merchant/MerchantOfferEditor.tsx','utf8');assert(code.includes("tab:'offers'"));assert(code.includes('allowExit.current=true;catalog()'));assert(code.includes('router.back()'));
+  const code=fs.readFileSync('src/components/merchant/MerchantOfferEditor.tsx','utf8');
+  const route=fs.readFileSync('src/app/merchant/offer-editor.tsx','utf8');
+  const panel=fs.readFileSync('src/components/merchant/MerchantCatalogPanel.tsx','utf8');
+  assert(code.includes("tab:'offers'"));assert(code.includes('allowExit.current=true;if(fromCatalog)leave();else catalog()'));assert(code.includes('router.back()'));
+  assert(route.includes("fromCatalog={from==='catalog'}"));assert(panel.includes("from: 'catalog'"));
  });
  await test('keyset pages deduplicate, include final short capped page, and finish only on empty read',async()=>{
   const h=harness();await h.c.focus();assert.equal(h.state.rows.length,2);assert(h.state.hasMore);await h.c.more();assert.equal(h.state.rows.length,3);assert(h.state.hasMore);await h.c.more();assert(!h.state.hasMore);
@@ -127,8 +249,8 @@ async function run(){
  });
  await test('product adapter keeps actual readable inactive category and first ordered image without loading video rows',async()=>{
   const q={};for(const name of ['select','eq','ilike','or','order','limit'])q[name]=()=>q;
-  q.then=resolve=>Promise.resolve(resolve({data:[{...product('p'),product_categories:{name:'Historical category',is_active:false},product_media:[{storage_path:'store-a/primary',display_order:0,id:'image'}]}],error:null}));
-  const api=load('src/lib/merchant-catalog-api.ts',{'@/lib/supabase':{supabase:{from:()=>q}},'@/lib/merchant-store':{setMerchantProductAvailability:async()=>{}}}).catalogApi;
+  q.then=resolve=>Promise.resolve(resolve({data:[{...product('p'),category_id:'historical',product_media:[{storage_path:'store-a/primary',display_order:0,id:'image'}]}],error:null}));
+  const api=load('src/lib/merchant-catalog-api.ts',{'@/lib/supabase':{supabase:{from:()=>q}},'@/lib/merchant-store':{setMerchantProductAvailability:async()=>{}},'@/lib/catalog-categories':{readCategoryLabels:async(scope,ids)=>{assert.equal(scope,'product');assert.equal(ids.join(),'historical');return new Map([['historical',{name:'Historical category',is_active:false}]]);}}}).catalogApi;
   const [row]=await api.page('products','store-a',{query:'',filter:'all'},null,'2030-01-01');assert.equal(row.category.name,'Historical category');assert.equal(row.category.is_active,false);assert.equal(row.image,'store-a/primary');
  });
  await test('historical order snapshots are never rewritten by catalog operations',()=>{

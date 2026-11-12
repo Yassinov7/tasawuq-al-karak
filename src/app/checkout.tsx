@@ -1,3 +1,4 @@
+import { KeyboardAwareScrollView } from "@/components/ui/KeyboardAwareScrollView";
 import { quoteC3Cart, recoverC3Checkout, retryC3Checkout, type C3CheckoutResult } from "@/lib/c3-orders";
 import type { C3Quote } from "@/lib/c3-order-contract";
 import { formatSypNumber } from "@/lib/money";
@@ -6,7 +7,6 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -358,7 +358,7 @@ function CheckoutContent() {
         mode="customer"
       />
 
-      <ScrollView
+      <KeyboardAwareScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
@@ -712,7 +712,7 @@ function CheckoutContent() {
             <AppButton title="إعادة تحميل السلة" variant="outline" onPress={() => void retrySync()} />
           </View>
         ) : null}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <View style={[styles.checkoutBar, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: Math.max(Spacing.three, insets.bottom) }]}>
         <View style={styles.checkoutBarTotal}>

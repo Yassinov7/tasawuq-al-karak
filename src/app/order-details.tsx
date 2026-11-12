@@ -1,6 +1,10 @@
+import { userErrorMessage } from "@/lib/user-error-message";
+import { LoadingSkeleton } from "@/components/ui/LoadingState";
+import { useReadScope } from "@/hooks/useReadScope";
+import { LiveStatus } from "@/components/ui/LiveStatus";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppButton } from "@/components/ui/AppButton";
@@ -61,6 +65,11 @@ const customerStatusIcons: Record<CustomerOrderView["status"], React.ComponentPr
 };
 
 export default function OrderDetailsScreen() {
+  const {user}=useAuth();
+  const {id}=useLocalSearchParams<{id?:string}>();
+  return <OrderDetailsContent key={`${user?.id ?? "guest"}:${id}`}/>;
+}
+function OrderDetailsContent() {
   const router = useRouter();
   const params = useLocalSearchParams<{
     id?: string;
@@ -78,26 +87,27 @@ export default function OrderDetailsScreen() {
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const refresh = useCallback(async (background = false) => {
+  const reads=useReadScope(`${user?.id}:${orderId}`);
+  const refresh = useCallback(async () => {
     if (!orderId) {
       setError("معرّف الطلب غير صالح.");
       setLoading(false);
       return;
     }
-    if (!background) setLoading(true);
-    setError(null);
+    const epoch=reads.begin();
     try {
-      setOrder(await getCustomerOrder(orderId));
+      const next=await getCustomerOrder(orderId);if(reads.current(epoch)){setOrder(next);setError(null);}
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "تعذر تحميل تفاصيل الطلب.");
+      if(!reads.current(epoch))return;
+      setError(userErrorMessage(cause, "تعذر تحميل تفاصيل الطلب."));
     } finally {
-      if (!background) setLoading(false);
+      if (reads.current(epoch)) { setLoading(false); setRefreshing(false); }
     }
-  }, [orderId]);
+  }, [orderId,reads]);
 
   const handlePullRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refresh(true);
+    await refresh();
     setRefreshing(false);
   }, [refresh]);
 
@@ -115,16 +125,16 @@ export default function OrderDetailsScreen() {
     [orderId],
   );
   const refreshFromRealtime = useCallback(() => {
-    void refresh(true);
+    return refresh();
   }, [refresh]);
-  useOrderRealtime({
+  const live = useOrderRealtime({
     channelName: `customer-order:${orderId}`,
     enabled: Boolean(user && orderId),
     subscriptions: realtimeSubscriptions,
     onChange: refreshFromRealtime,
   });
 
-  const displayOrderId = order ? (order.c3?.references[`ORD:${order.id}`] ?? `TW-${order.order_number}`) : "";
+  const displayOrderId = order ? (order.c3?.references[`ORD:${order.id}`] ?? "مرجع الطلب غير متاح") : "";
   const canCancel = Boolean(
     order &&
     order.stores.length > 0 &&
@@ -146,7 +156,7 @@ export default function OrderDetailsScreen() {
       setCancelModalVisible(false);
       await refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "تعذر إلغاء الطلب.");
+      setError(userErrorMessage(cause, "تعذر إلغاء الطلب."));
     } finally {
       setCancelling(false);
     }
@@ -177,11 +187,12 @@ export default function OrderDetailsScreen() {
     }
   };
 
-  if (loading && !order) {
+  if ((loading || refreshing) && !order) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <AppHeader title="تفاصيل الطلب" showBack cartCount={itemCount} mode="customer" />
-        <ActivityIndicator color={colors.primary} style={{ marginTop: Spacing.six }} />
+        <LiveStatus state={live}/>
+        <LoadingSkeleton label="جارٍ تحميل تفاصيل الطلب"/>
       </View>
     );
   }
@@ -194,7 +205,7 @@ export default function OrderDetailsScreen() {
           <Text style={{ color: colors.error, fontFamily: Fonts.regular, fontSize: FontSizes.sm, textAlign: "center" }}>
             {error ?? "لم يتم العثور على الطلب أو لا تملك صلاحية عرضه."}
           </Text>
-          {error ? <AppButton title="إعادة المحاولة" variant="outline" onPress={() => void refresh()} /> : null}
+          {error ? <AppButton title="إعادة المحاولة" variant="outline" onPress={() => {setRefreshing(true);void refresh();}} /> : null}
         </View>
       </View>
     );
@@ -211,6 +222,7 @@ export default function OrderDetailsScreen() {
     >
       <AppHeader title="تفاصيل الطلب" showBack cartCount={itemCount} mode="customer" />
 
+      <LiveStatus state={live}/>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
@@ -272,7 +284,7 @@ export default function OrderDetailsScreen() {
           <Text style={[styles.orderHeroStatusText, { color: colors.primary }]}>{customerStatusLabels[order.status]}</Text>
         </View>
         <View style={styles.heroActions}>
-          <Pressable disabled={loading} onPress={() => void refresh()} style={({ pressed }) => [styles.iconAction, { backgroundColor: colors.surfaceSecondary }, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel="تحديث حالة الطلب">
+          <Pressable disabled={loading} onPress={() => {setRefreshing(true);void refresh();}} style={({ pressed }) => [styles.iconAction, { backgroundColor: colors.surfaceSecondary }, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel="تحديث حالة الطلب">
             <AppIcon name="refresh-outline" size={18} color={colors.textSecondary} />
           </Pressable>
           <Pressable onPress={() => router.push({ pathname: "/invoice", params: { id: order.id } })} style={({ pressed }) => [styles.iconAction, { backgroundColor: colors.surfaceSecondary }, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel="عرض فاتورة الطلب">

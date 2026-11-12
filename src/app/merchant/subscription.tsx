@@ -1,4 +1,2 @@
-import {MerchantSubscriptionScreen} from '@/components/merchant/MerchantAccountScreens';
-import {SubscriptionAccountPanel} from '@/components/merchant/SubscriptionAccountPanel';
-import {AccountShell} from '@/components/account/AccountShell';
-export default function MerchantPage(){return <AccountShell header={null}><SubscriptionAccountPanel legacyContent={<MerchantSubscriptionScreen embedded/>}/></AccountShell>;}
+import { Redirect } from "expo-router";
+export default function PreviousFinanceRoute(){return <Redirect href={{pathname:"/merchant/finance",params:{search:"SUB-"}}}/>;}

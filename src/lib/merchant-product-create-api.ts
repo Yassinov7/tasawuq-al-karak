@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { File } from "expo-file-system";
+import { readSelectableCategories, isSelectableCategory } from "@/lib/catalog-categories";
 import { supabase } from "@/lib/supabase";
 import { appendProductMedia, createProductSaver, inspectProductMedia, maxMediaBytes, validateProduct, type ProductAttempt, type ProductCreateApi, type ProductMediaDraft } from "@/lib/merchant-product-create";
 
@@ -18,11 +19,7 @@ export async function readProductIdentity(ownerId: string, signal?: AbortSignal)
   return store.data;
 }
 export async function readProductCategories(signal?: AbortSignal) {
-  let query = supabase.from("product_categories").select("id,name").eq("is_active",true).order("sort_order").order("id");
-  if (signal) query = query.abortSignal(signal);
-  const result = await query;
-  if (result.error) throw result.error;
-  return result.data ?? [];
+  return readSelectableCategories("product", signal);
 }
 export async function readProductAttempt(ownerId: string, storeId: string): Promise<ProductAttempt | null> {
   // Unlike a disposable catalogue cache, read failure must NOT mean no pending write.
@@ -75,9 +72,7 @@ export function createProductApi(isCurrent: () => boolean): ProductCreateApi {
     },
     async category(id) {
       current();
-      const result = await supabase.from("product_categories").select("id").eq("id",id).eq("is_active",true).maybeSingle();
-      if (result.error) throw result.error;
-      return Boolean(result.data);
+      return isSelectableCategory("product", id);
     },
     async product(attempt) {
       current();

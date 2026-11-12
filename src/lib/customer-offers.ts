@@ -1,4 +1,4 @@
-import type { Product } from "@/constants/catalog";
+import type { Product } from "@/types/catalog";
 import { assertSypDocuments, formatSypNumber } from "@/lib/money";
 import type { PublicOffer } from "@/lib/public-catalog";
 

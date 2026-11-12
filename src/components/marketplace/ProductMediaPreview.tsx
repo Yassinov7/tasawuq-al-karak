@@ -11,7 +11,7 @@ import {
 } from "react-native";
 
 import { AppIcon } from "@/components/ui/AppIcon";
-import type { IconName, ProductMedia } from "@/constants/catalog";
+import type { IconName, ProductMedia } from "@/types/catalog";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 

@@ -1,0 +1,30 @@
+const assert = require('node:assert/strict');
+const { load } = require('./syp-test-loader.cjs');
+const { categoryFilterIds, categoryPath } = load('src/lib/category-tree.ts');
+const { getCustomerSearchResults, getVisibleCustomerSearchResults } = load('src/lib/customer-search.ts');
+
+const root = { id: 'root', name: 'مخبوزات' };
+const child = { id: 'child', parentId: root.id, name: 'خبز' };
+const peer = { id: 'peer', name: 'مشروبات' };
+const categories = [root, child, peer];
+assert.deepEqual([...categoryFilterIds(categories, root.id)], ['root', 'child']);
+assert.deepEqual([...categoryFilterIds(categories, child.id)], ['child']);
+assert.deepEqual([...categoryFilterIds([root, peer], root.id)], ['root']);
+assert.deepEqual([...categoryFilterIds([root, peer], child.id)], []);
+assert.equal(categoryPath(child, new Map(categories.map(node => [node.id, node]))), 'مخبوزات / خبز');
+
+const products = categories.map(node => ({ id: node.id, categoryId: node.id, name: 'منتج', description: '', unit: 'قطعة', available: true }));
+const stores = [{ id: 'store', name: 'متجر', categoryIds: ['child'], description: '' }];
+const input = { categories, products, stores, storeCategories: categories };
+const ids = rows => Array.from(rows, row => row.id);
+const search = getCustomerSearchResults(input, 'مخبوزات');
+assert.deepEqual(ids(search.products), ['root', 'child']);
+assert.deepEqual(ids(search.stores), ['store']);
+assert.deepEqual(ids(getVisibleCustomerSearchResults(search, 'products', 'child', 'relevance', categories).products), ['child']);
+const disabled = { ...input, categories: [root, peer] };
+assert.deepEqual(ids(getCustomerSearchResults(disabled, 'مخبوزات').products), ['root']);
+assert.deepEqual(ids(getCustomerSearchResults(disabled, '').products), ['root', 'child', 'peer']);
+const renamed = [root, { ...child, name: 'معجنات', parentId: peer.id }, peer];
+assert.deepEqual(ids(getCustomerSearchResults({ ...input, categories: renamed }, 'معجنات').products), ['child']);
+assert.deepEqual([...categoryFilterIds(renamed, root.id)], ['root']);
+console.log('PASS category tree: exact child, inclusive root, search paths, reparenting, and historical availability');

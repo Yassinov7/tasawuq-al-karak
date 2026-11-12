@@ -31,10 +31,11 @@ type AppModalProps = {
   onCancel: () => void;
   children?: ReactNode;
   actions?: ReactNode;
+  compact?: boolean;
 };
 
 export function AppModal({
-  design = "legacy",
+  design = "refined",
   visible,
   title,
   message,
@@ -48,6 +49,7 @@ export function AppModal({
   onCancel,
   children,
   actions,
+  compact = false,
 }: AppModalProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -78,7 +80,7 @@ export function AppModal({
           style={[styles.keyboardContainer, refined && { maxHeight: "100%", flexShrink: 1 }]}
         >
           <Content
-            {...(refined ? { keyboardShouldPersistTaps: "handled" as const, contentContainerStyle: { padding: 20 }, style: { maxHeight: "100%" as const, flexGrow: 0, borderRadius: 24, backgroundColor: colors.surface } } : {})}
+            {...(refined ? { keyboardShouldPersistTaps: "handled" as const, contentContainerStyle: { padding: compact ? Spacing.four : 20 } } : {})}
             style={[
               styles.card,
               refined && { padding: 0, maxHeight: "100%", flexGrow: 0 },
@@ -113,18 +115,20 @@ export function AppModal({
           <View
             style={[
               styles.iconContainer,
+              compact && styles.compactIcon,
               {
                 backgroundColor: colors.primaryLight,
               },
             ]}
           >
-            <AppIcon name={icon} size={24} color={colors.primary} />
+            <AppIcon name={icon} size={compact ? 20 : 24} color={colors.primary} />
           </View>
 
           <Text
             style={[
               styles.title,
               refined && Typography.sectionTitle,
+              compact && styles.compactTitle,
               {
                 color: colors.text,
               },
@@ -207,8 +211,8 @@ export function AppModal({
   );
 }
 
-export function AppConfirmModal(props: Omit<AppModalProps, "icon">) {
-  return <AppModal icon="help-circle-outline" {...props} />;
+export function AppConfirmModal({ icon = "help-circle-outline", ...props }: AppModalProps) {
+  return <AppModal icon={icon} {...props} />;
 }
 
 export function AppAlertModal(props: Omit<AppModalProps, "cancelText" | "onConfirm">) {
@@ -255,6 +259,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: Radius.full,
   },
+
+  compactIcon: { width: 40, height: 40 },
+  compactTitle: { marginTop: Spacing.two },
 
   title: {
     marginTop: Spacing.three,

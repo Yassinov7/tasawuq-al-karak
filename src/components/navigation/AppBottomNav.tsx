@@ -85,6 +85,7 @@ const driverNavItems: NavItem[] = [
     activeIcon: "receipt",
     route: "/driver/orders" as Href,
   },
+  { label: "المالية", icon: "wallet-outline", activeIcon: "wallet", route: "/driver/cash-account" },
   {
     label: "حسابي",
     icon: "person-outline",
@@ -212,7 +213,9 @@ export function AppBottomNav() {
               key={item.label}
               onPress={() => {
                 if (!active || (mode === "merchant" && pathname !== item.route)) {
-                  router.replace(item.route);
+                  if (pathname === "/home/search" && item.route === "/home") router.dismissTo("/home");
+                  else if (pathname === "/home" && item.route === "/home/search") router.push(item.route);
+                  else router.replace(item.route);
                 }
               }}
               accessibilityRole="tab"

@@ -42,22 +42,18 @@ assert.equal(filterMerchantProducts(products, ' حليب ', 'available').length,
 assert.equal(filterMerchantProducts(products, '', 'paused')[0].is_available, false);
 assert.equal(products.length, 2);
 
-// Inspect the actual useCallback dependency list, not a second application model.
+// The route delegates to the shared complete application screen.
 const app = read('src/app/merchant-application.tsx');
-const tree = ts.createSourceFile('application.tsx', app, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-let dependencies;
-function visit(node) {
-  if (ts.isVariableDeclaration(node) && node.name.getText(tree) === 'loadData') {
-    dependencies = node.initializer.arguments[1].elements.map((item) => item.getText(tree));
-  }
-  ts.forEachChild(node, visit);
-}
+assert(app.includes('ProfessionalApplicationScreen') && app.includes('role="merchant"'));
+const form = read('src/components/signup/ProfessionalApplicationScreen.tsx');
+assert(form.includes('submit_professional_onboarding'));
+assert(form.includes('lock.current') && form.includes('normalizeBirthDate'));
+const tree = ts.createSourceFile('ProfessionalApplicationScreen.tsx', form, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+const effectDependencies=[];
+function visit(node){if(ts.isCallExpression(node)&&node.expression.getText(tree)==='useEffect'&&node.arguments[1]&&ts.isArrayLiteralExpression(node.arguments[1]))effectDependencies.push(node.arguments[1].elements.map(x=>x.getText(tree)));ts.forEachChild(node,visit);}
 visit(tree);
-assert(dependencies.includes('router') && dependencies.includes('userId'));
-assert(!dependencies.some((value) => ['planId', 'categoryId', 'phone', 'store'].includes(value)), 'Typing or selecting must not reload the form');
-assert(app.includes('useOnboardingDraft') && app.includes('draftReady'));
-assert(read('src/lib/merchant-application-draft.ts').includes('merchant-application-draft:${userId}') && app.includes('submitLock.current'));
-assert(!app.includes('supabase.rpc('), 'Opening the review must not submit an application');
+assert(effectDependencies.some(deps=>deps.includes('role')&&deps.includes('user')&&deps.includes('retry')));
+assert(effectDependencies.every(deps=>!deps.includes('value')&&!deps.includes('birthDate')),'Typing must not reset/refetch the application');
 const editor = read('src/app/merchant/product-editor.tsx');
 assert(!editor.includes('__DEV__') && !editor.includes('setAlert') && !editor.includes('projectRef'));
 assert(editor.includes('MerchantAddProduct') && editor.includes('MerchantEditProduct'));
@@ -100,9 +96,14 @@ const client = { from(table) {
   };
   return query;
 } };
-const store = { id: 'store', merchant_id: 'merchant' };
+const store = { id: 'store', merchant_id: 'merchant', category_id: 'historical' };
 const accountModel=load('src/lib/personal-account-model.ts',{'@/types/profile-demographics':load('src/types/profile-demographics.ts')});
 const account = load('src/lib/merchant-account.ts', {
+  '@/lib/catalog-categories': { readCategoryLabels: async (scope, ids) => {
+    assert.equal(scope, 'store');
+    assert.equal(ids.join(), 'historical');
+    return new Map([['historical', { name: 'تصنيف سابق', is_active: false }]]);
+  } },
   '@/lib/personal-account': {readPersonalAccount:async()=>({id:'owner',full_name:'Saved name',age_range:null,gender:null}),assertAccount:async id=>assert.equal(id,'owner'),savePersonalAccount:async(id,base,draft)=>{assert.equal(id,base.id);return client.from('profiles').update(accountModel.personalValues(draft)).eq('id',id).select().single();}},
   '@/lib/supabase': { supabase: client },
   '@/lib/merchant-store': { getMerchantStore: async () => store },
@@ -113,12 +114,7 @@ const account = load('src/lib/merchant-account.ts', {
   '@/types/profile-demographics': load('src/types/profile-demographics.ts'),
 });
 async function run() {
-  const subscription = await account.loadMerchantSubscription('owner');
-  assert.equal(subscription.current.id, 'current');
-  assert.equal(subscription.next.id, 'future1');
-  assert.equal(subscription.status, 'expired');
-  assert.equal(subscription.commissionRate, 3);
-  assert.equal(subscription.autoRenew, true);
+  assert.equal((await account.loadMerchantIdentity('owner')).categoryName, 'تصنيف سابق · غير متاح للاختيار');
   await assert.rejects(account.saveMerchantProfile('owner', 'x', null), /اسم/);
   await assert.rejects(account.saveMerchantProfile('owner', 'اسم صحيح', null, 'invalid'), /قيمة/);
   assert.equal(calls.length, 0);
@@ -132,6 +128,6 @@ async function run() {
   assert.deepEqual(plain(calls[1].filters), [['id', 'store'], ['merchant_id', 'merchant']]);
   const source = read('src/lib/merchant-account.ts');
   assert(!source.includes('.rpc('), 'No new merchant financial mutation RPC may be invented');
-  console.log('PASS: merchant route sections/chrome, legacy units, availability filters, application dependencies, save feedback, server subscription selection and owned account writes. No network calls.');
+  console.log('PASS: merchant route sections/chrome, legacy units, availability filters, application dependencies, save feedback, owned account writes. No network calls.');
 }
 run().catch((error) => { console.error(error); process.exitCode = 1; });

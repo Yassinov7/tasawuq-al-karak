@@ -1,3 +1,5 @@
+import { readReviewOrderIds } from "@/lib/operational-home";
+import { latinDigits } from "@/lib/signup-data";
 import { getC3Contexts } from "@/lib/c3-orders";
 import type { C3Context } from "@/lib/c3-order-contract";
 import { supabase } from "@/lib/supabase";
@@ -25,6 +27,7 @@ export type AdminOrderDetail = {
 type CachedOrder = { data: AdminOrderDetail | null; updatedAt: number };
 
 export type AdminOrderListFilter =
+  | "pricing_review"
   | "all"
   | "new"
   | "in_progress"
@@ -99,7 +102,7 @@ export async function getAdminOrderPage({
   force?: boolean;
   search?: string;
 }): Promise<AdminOrderPage> {
-  const normalizedSearch = search.trim();
+  const normalizedSearch = latinDigits(search.trim());
   const cached = getCachedAdminOrderPage(filter, page, pageSize, normalizedSearch);
   if (!force && cached && Date.now() - cached.updatedAt < cacheTtlMs) {
     return cached.data;
@@ -110,6 +113,11 @@ export async function getAdminOrderPage({
     .select("id,order_number,status,created_at,customer_id,recipient_name")
     .order("created_at", { ascending: false });
 
+  const reviewIds = filter === "pricing_review" ? await readReviewOrderIds(page,pageSize,normalizedSearch) : null;
+  if(reviewIds){
+    if(!reviewIds.length)return {orders:[],hasMore:false};
+    query=query.in("id",reviewIds.slice(0,pageSize)).order("id",{ascending:false});
+  }
   if (filter === "new") query = query.eq("status", "submitted");
   if (filter === "in_progress") query = query.eq("status", "in_progress");
   if (filter === "awaiting_delivery") {
@@ -118,7 +126,7 @@ export async function getAdminOrderPage({
   if (filter === "completed") query = query.eq("status", "delivered");
   if (filter === "cancelled") query = query.eq("status", "cancelled");
 
-  if (normalizedSearch) {
+  if (normalizedSearch && filter !== "pricing_review") {
     const numberQuery = normalizedSearch.replace(/^#/, "");
     const isOrderNumber = /^\d+$/.test(numberQuery);
     const isOrderId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalizedSearch);
@@ -128,7 +136,10 @@ export async function getAdminOrderPage({
       .ilike("full_name", `%${normalizedSearch}%`)
       .limit(100);
     if (profilesError) throw profilesError;
+    const referenceResult = /^(?:(?:ORD|SOR|TSK)-)?[0-9]+$/i.test(numberQuery) ? await (supabase as unknown as {rpc(name:"find_order_reference",args:{reference_value:string}):PromiseLike<{data:string|null;error:{message:string}|null}>}).rpc("find_order_reference",{reference_value:numberQuery}) : {data:null,error:null};
+    if(referenceResult.error) throw Error("تعذر البحث بمرجع الطلب.");
     const clauses = [
+      referenceResult.data ? `id.eq.${referenceResult.data}` : "",
       isOrderNumber ? `order_number.eq.${numberQuery}` : "",
       isOrderId ? `id.eq.${normalizedSearch}` : "",
       ...(matchingProfiles ?? []).map((profile) => `customer_id.eq.${profile.id}`),
@@ -142,8 +153,8 @@ export async function getAdminOrderPage({
   }
 
   const { data: orderRows, error: orderError } = await query.range(
-    page * pageSize,
-    (page + 1) * pageSize - 1,
+    reviewIds ? 0 : page * pageSize,
+    reviewIds ? pageSize - 1 : (page + 1) * pageSize - 1,
   );
   if (orderError) throw orderError;
 
@@ -190,7 +201,7 @@ export async function getAdminOrderPage({
       storeCount: storeCounts.get(order.id) ?? 0,
       totals: (totalsByOrder.get(order.id) ?? []).map(total => contexts[order.id]?.pricing ? { ...total, total: contexts[order.id].pricing!.current.total } : total),
     })),
-    hasMore: orders.length === pageSize,
+    hasMore: reviewIds ? reviewIds.length>pageSize : orders.length === pageSize,
   };
   assertSypDocuments(result);
   orderPageCache.set(orderPageKey(filter, page, pageSize, normalizedSearch), { data: result, updatedAt: Date.now() });

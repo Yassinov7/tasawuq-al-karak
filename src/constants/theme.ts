@@ -3,6 +3,9 @@ import { Platform } from "react-native";
 import { FontFamily } from "./fonts";
 
 export const LightColors = {
+  pendingSurface: "#F8F0DC",
+  pendingForeground: "#72530E",
+  pendingBorder: "#7D877B",
   onPrimary: "#FFFFFF",
   onAccent: "#20251F",
   onError: "#FFFFFF",
@@ -43,7 +46,7 @@ export const LightColors = {
   surfaceSecondary: "#F3F1EA",
   text: "#20251F",
   textSecondary: "#687066",
-  textMuted: "#92998F",
+  textMuted: "#687066",
   border: "#E2E4DE",
   success: "#3E7D4B",
   successText: "#FFFFFF",
@@ -51,6 +54,9 @@ export const LightColors = {
 } as const;
 
 export const DarkColors = {
+  pendingSurface: "#303326",
+  pendingForeground: "#E7C874",
+  pendingBorder: "#757A58",
   onPrimary: "#20251F",
   onAccent: "#20251F",
   onError: "#181D19",

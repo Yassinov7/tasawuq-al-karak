@@ -8,14 +8,11 @@ import {
   View,
 } from "react-native";
 
-import { CategoryChip } from "@/components/marketplace/CategoryChip";
-import { ProductCard } from "@/components/marketplace/ProductCard";
 import { SearchControls } from "@/components/search/SearchControls";
 import { ProductRefinements } from "@/components/search/ProductRefinements";
 import { SearchResults } from "@/components/search/SearchResults";
 import { SearchEmptyState } from "@/components/search/SearchEmptyState";
 import { AppHeader } from "@/components/navigation/AppHeader";
-import { AppEmptyState } from "@/components/ui/AppEmptyState";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { CustomerCatalogStatus } from "@/components/marketplace/CustomerCatalogStatus";
 import { styles } from "@/components/search/searchStyles";
@@ -35,6 +32,7 @@ export default function SearchTab() {
   const params = useLocalSearchParams<{
     q?: string;
     category?: string;
+    categoryId?: string;
   }>();
 
   const initialText =
@@ -45,15 +43,15 @@ export default function SearchTab() {
         : "";
 
   const [searchText, setSearchText] = useState(initialText);
-  const [filter, setFilter] = useState<SearchFilter>("all");
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<SearchFilter>(params.categoryId ? "products" : "all");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(params.categoryId ?? null);
   const [productSort, setProductSort] = useState<ProductSort>("relevance");
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [refinementsExpanded, setRefinementsExpanded] = useState(false);
 
   const query = normalizeCustomerSearchText(searchText);
   const results = useMemo(() => getCustomerSearchResults({ categories, products, stores, storeCategories }, searchText), [categories, products, searchText, storeCategories, stores]);
-  const visibleResults = useMemo(() => getVisibleCustomerSearchResults(results, filter, selectedCategoryId, productSort), [filter, productSort, results, selectedCategoryId]);
+  const visibleResults = useMemo(() => getVisibleCustomerSearchResults(results, filter, selectedCategoryId, productSort, categories), [categories, filter, productSort, results, selectedCategoryId]);
 
   const filterCounts: Record<SearchFilter, number> = query
     ? {
@@ -68,11 +66,11 @@ export default function SearchTab() {
         stores: stores.length,
         categories: categories.length,
       };
-  const productCategories = query
-    ? categories.filter((category) =>
-        results.products.some((product) => product.categoryId === category.id))
-    : categories.filter((category) =>
-        products.some((product) => product.available && product.categoryId === category.id));
+  const productCategories = useMemo(() => {
+    const used = new Set(results.products.map(product => product.categoryId));
+    const parents = new Set(categories.filter(category => used.has(category.id)).map(category => category.parentId));
+    return categories.filter(category => used.has(category.id) || parents.has(category.id));
+  }, [categories, results.products]);
   const productResultsForRefinement = query
     ? results.products.length > 0
     : products.some((product) => product.available);
@@ -121,10 +119,10 @@ export default function SearchTab() {
     } as Href);
   };
 
-  const handleCategoryPress = (categoryName: string) => {
-    setSearchText(categoryName);
+  const handleCategoryPress = (categoryId: string) => {
+    setSearchText("");
     setFilter("products");
-    setSelectedCategoryId(null);
+    setSelectedCategoryId(categoryId);
     setProductSort("relevance");
     Keyboard.dismiss();
   };
@@ -187,45 +185,10 @@ export default function SearchTab() {
             filter={filter} selectedCategoryId={selectedCategoryId} onQuickSearch={handleQuickSearch} onResetFilters={() => { setFilter("all"); setSelectedCategoryId(null); setProductSort("relevance"); }} />
         ) : (
           <SearchResults colors={colors} query={query} searchText={searchText} totalResults={totalResults}
-            visibleResults={visibleResults} storeCategories={storeCategories}
+            visibleResults={visibleResults}
             onCategoryPress={handleCategoryPress} onStorePress={handleStorePress} onProductPress={handleProductPress} />
         )}
       </ScrollView>
-    </View>
-  );
-}
-type ThemeColors = ReturnType<typeof useTheme>["colors"];
-
-type SectionHeaderProps = {
-  title: string;
-  icon: React.ComponentProps<typeof AppIcon>["name"];
-  colors: ThemeColors;
-};
-
-function SectionHeader({ title, icon, colors }: SectionHeaderProps) {
-  return (
-    <View style={styles.sectionHeader}>
-      <View
-        style={[
-          styles.sectionIcon,
-          {
-            backgroundColor: colors.primaryLight,
-          },
-        ]}
-      >
-        <AppIcon name={icon} size={18} color={colors.primary} />
-      </View>
-
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: colors.text,
-          },
-        ]}
-      >
-        {title}
-      </Text>
     </View>
   );
 }

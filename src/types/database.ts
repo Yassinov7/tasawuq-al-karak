@@ -1,7 +1,6 @@
-// Remote schema verified: dfpaeiffqkmedftjiqbm, 2026-10-29; Supabase CLI 2.122.0.
-// Table relationships, all Views and available-task results use remote generation.
-// Preserve CHECK-based profile refinements and SQL-nullable RPC arguments: CLI
-// output cannot express those contracts. SYP literals equal currency_code = SYP.
+// Local migration contract after invoice-finance cutover. Based on the preserved
+// historical types plus an isolated PostgreSQL catalog; NOT hosted schema generation.
+// Regenerate against the owner database after applying the migration.
 import type {
   ProfileAgeRange,
   ProfileGender,
@@ -23,1248 +22,11 @@ export type Database = {
   }
   public: {
     Tables: {
-      merchant_billing_settings: {
-        Row: {
-          merchant_id: string
-          auto_renew: boolean
-          updated_at: string
-        }
-        Insert: {
-          merchant_id: string
-          auto_renew?: boolean
-          updated_at?: string
-        }
-        Update: {
-          merchant_id?: string
-          auto_renew?: boolean
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "merchant_billing_settings_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: true
-            referencedRelation: "merchants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      merchant_credit_limits: {
-        Row: {
-          merchant_id: string
-          credit_enabled: boolean
-          credit_limit: number
-          updated_by: string | null
-          updated_at: string
-        }
-        Insert: {
-          merchant_id: string
-          credit_enabled?: boolean
-          credit_limit?: number
-          updated_by?: string | null
-          updated_at?: string
-        }
-        Update: {
-          merchant_id?: string
-          credit_enabled?: boolean
-          credit_limit?: number
-          updated_by?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "merchant_credit_limits_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: true
-            referencedRelation: "merchants"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_credit_limits_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      subscription_invoices: {
-        Row: {
-          id: string
-          invoice_number: string
-          merchant_id: string
-          subscription_id: string
-          kind: string
-          currency: "SYP"
-          total_amount: number
-          due_at: string | null
-          status: string
-          idempotency_key: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          invoice_number: string
-          merchant_id: string
-          subscription_id: string
-          kind: string
-          currency?: "SYP"
-          total_amount: number
-          due_at?: string | null
-          status: string
-          idempotency_key: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          invoice_number?: string
-          merchant_id?: string
-          subscription_id?: string
-          kind?: string
-          currency?: "SYP"
-          total_amount?: number
-          due_at?: string | null
-          status?: string
-          idempotency_key?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "subscription_invoices_subscription_id_merchant_id_fkey"
-            columns: ["subscription_id", "merchant_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_subscriptions"
-            referencedColumns: ["id", "merchant_id"]
-          },
-        ]
-      }
-      subscription_payments: {
-        Row: {
-          id: string
-          merchant_id: string
-          currency: "SYP"
-          amount: number
-          method: string
-          external_reference: string | null
-          idempotency_key: string
-          received_at: string
-          recorded_by: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          merchant_id: string
-          currency?: "SYP"
-          amount: number
-          method: string
-          external_reference?: string | null
-          idempotency_key: string
-          received_at: string
-          recorded_by: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          merchant_id?: string
-          currency?: "SYP"
-          amount?: number
-          method?: string
-          external_reference?: string | null
-          idempotency_key?: string
-          received_at?: string
-          recorded_by?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "subscription_payments_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "subscription_payments_recorded_by_fkey"
-            columns: ["recorded_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      invoice_payment_allocations: {
-        Row: {
-          id: string
-          invoice_id: string
-          payment_id: string
-          amount: number
-          created_at: string
-          allocation_batch_id: string | null
-        }
-        Insert: {
-          id?: string
-          invoice_id: string
-          payment_id: string
-          amount: number
-          created_at?: string
-          allocation_batch_id?: string | null
-        }
-        Update: {
-          id?: string
-          invoice_id?: string
-          payment_id?: string
-          amount?: number
-          created_at?: string
-          allocation_batch_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "invoice_payment_allocations_allocation_batch_id_fkey"
-            columns: ["allocation_batch_id"]
-            isOneToOne: false
-            referencedRelation: "subscription_payment_allocation_batches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoice_payment_allocations_invoice_id_fkey"
-            columns: ["invoice_id"]
-            isOneToOne: false
-            referencedRelation: "subscription_invoices"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoice_payment_allocations_payment_id_fkey"
-            columns: ["payment_id"]
-            isOneToOne: false
-            referencedRelation: "subscription_payments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      merchant_ledger_entries: {
-        Row: {
-          id: string
-          merchant_id: string
-          currency: "SYP"
-          effect: string
-          source_type: string
-          source_id: string
-          amount: number
-          reversal_of: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          merchant_id: string
-          currency?: "SYP"
-          effect: string
-          source_type: string
-          source_id: string
-          amount: number
-          reversal_of?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          merchant_id?: string
-          currency?: "SYP"
-          effect?: string
-          source_type?: string
-          source_id?: string
-          amount?: number
-          reversal_of?: string | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "merchant_ledger_entries_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_ledger_entries_reversal_of_fkey"
-            columns: ["reversal_of"]
-            isOneToOne: true
-            referencedRelation: "merchant_ledger_entries"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      store_order_commissions: {
-        Row: {
-          id: string
-          store_order_id: string
-          merchant_id: string
-          currency: "SYP"
-          commission_rate: number
-          base_amount: number
-          commission_amount: number
-          status: string
-          created_at: string
-          due_at: string | null
-          subscription_id: string | null
-          plan_id: string | null
-          plan_name_snapshot: string | null
-        }
-        Insert: {
-          id?: string
-          store_order_id: string
-          merchant_id: string
-          currency?: "SYP"
-          commission_rate: number
-          base_amount: number
-          commission_amount: number
-          status: string
-          created_at?: string
-          due_at?: string | null
-          subscription_id?: string | null
-          plan_id?: string | null
-          plan_name_snapshot?: string | null
-        }
-        Update: {
-          id?: string
-          store_order_id?: string
-          merchant_id?: string
-          currency?: "SYP"
-          commission_rate?: number
-          base_amount?: number
-          commission_amount?: number
-          status?: string
-          created_at?: string
-          due_at?: string | null
-          subscription_id?: string | null
-          plan_id?: string | null
-          plan_name_snapshot?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "store_order_commissions_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "store_order_commissions_plan_id_fkey"
-            columns: ["plan_id"]
-            isOneToOne: false
-            referencedRelation: "subscription_plans"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "store_order_commissions_store_order_id_fkey"
-            columns: ["store_order_id"]
-            isOneToOne: true
-            referencedRelation: "store_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "store_order_commissions_subscription_id_fkey"
-            columns: ["subscription_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_subscriptions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      merchant_financial_audit_events: {
-        Row: {
-          id: string
-          merchant_id: string
-          actor_id: string | null
-          event_type: string
-          reason: string | null
-          before_data: Json | null
-          after_data: Json | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          merchant_id: string
-          actor_id?: string | null
-          event_type: string
-          reason?: string | null
-          before_data?: Json | null
-          after_data?: Json | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          merchant_id?: string
-          actor_id?: string | null
-          event_type?: string
-          reason?: string | null
-          before_data?: Json | null
-          after_data?: Json | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "merchant_financial_audit_events_actor_id_fkey"
-            columns: ["actor_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_financial_audit_events_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      subscription_payment_allocation_batches: {
-        Row: {
-          id: string
-          payment_id: string
-          idempotency_key: string
-          recorded_by: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          payment_id: string
-          idempotency_key: string
-          recorded_by: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          payment_id?: string
-          idempotency_key?: string
-          recorded_by?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "subscription_payment_allocation_batches_payment_id_fkey"
-            columns: ["payment_id"]
-            isOneToOne: false
-            referencedRelation: "subscription_payments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "subscription_payment_allocation_batches_recorded_by_fkey"
-            columns: ["recorded_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      merchant_subscription_plan_changes: {
-        Row: {
-          id: string
-          merchant_id: string
-          plan_id: string
-          plan_name_snapshot: string
-          duration_months: number
-          price_snapshot: number
-          currency_snapshot: "SYP"
-          idempotency_key: string
-          selected_by: string
-          selected_at: string
-          superseded_at: string | null
-          consumed_by_subscription: string | null
-          commission_rate_snapshot: number | null
-        }
-        Insert: {
-          id?: string
-          merchant_id: string
-          plan_id: string
-          plan_name_snapshot: string
-          duration_months: number
-          price_snapshot: number
-          currency_snapshot?: "SYP"
-          idempotency_key: string
-          selected_by: string
-          selected_at?: string
-          superseded_at?: string | null
-          consumed_by_subscription?: string | null
-          commission_rate_snapshot?: number | null
-        }
-        Update: {
-          id?: string
-          merchant_id?: string
-          plan_id?: string
-          plan_name_snapshot?: string
-          duration_months?: number
-          price_snapshot?: number
-          currency_snapshot?: "SYP"
-          idempotency_key?: string
-          selected_by?: string
-          selected_at?: string
-          superseded_at?: string | null
-          consumed_by_subscription?: string | null
-          commission_rate_snapshot?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "merchant_subscription_plan_change_consumed_by_subscription_fkey"
-            columns: ["consumed_by_subscription"]
-            isOneToOne: false
-            referencedRelation: "merchant_subscriptions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_subscription_plan_changes_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_subscription_plan_changes_plan_id_fkey"
-            columns: ["plan_id"]
-            isOneToOne: false
-            referencedRelation: "subscription_plans"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_subscription_plan_changes_selected_by_fkey"
-            columns: ["selected_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      store_order_commission_reversals: {
-        Row: {
-          id: string
-          commission_id: string
-          merchant_id: string
-          currency: "SYP"
-          amount: number
-          idempotency_key: string
-          reason: string
-          reversed_by: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          commission_id: string
-          merchant_id: string
-          currency?: "SYP"
-          amount: number
-          idempotency_key: string
-          reason: string
-          reversed_by: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          commission_id?: string
-          merchant_id?: string
-          currency?: "SYP"
-          amount?: number
-          idempotency_key?: string
-          reason?: string
-          reversed_by?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "store_order_commission_reversals_commission_id_fkey"
-            columns: ["commission_id"]
-            isOneToOne: false
-            referencedRelation: "store_order_commissions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "store_order_commission_reversals_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "store_order_commission_reversals_reversed_by_fkey"
-            columns: ["reversed_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      customer_order_cash_obligations: {
-        Row: {
-          id: string
-          customer_order_id: string
-          delivery_task_id: string
-          driver_id: string
-          currency: "SYP"
-          delivered_store_items_amount: number
-          delivery_fee_amount: number
-          collectible_amount: number
-          delivery_zone_id: string | null
-          delivery_zone_name_snapshot: string
-          delivered_at: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          customer_order_id: string
-          delivery_task_id: string
-          driver_id: string
-          currency?: "SYP"
-          delivered_store_items_amount: number
-          delivery_fee_amount: number
-          collectible_amount: number
-          delivery_zone_id?: string | null
-          delivery_zone_name_snapshot: string
-          delivered_at: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          customer_order_id?: string
-          delivery_task_id?: string
-          driver_id?: string
-          currency?: "SYP"
-          delivered_store_items_amount?: number
-          delivery_fee_amount?: number
-          collectible_amount?: number
-          delivery_zone_id?: string | null
-          delivery_zone_name_snapshot?: string
-          delivered_at?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "customer_order_cash_obligations_customer_order_id_fkey"
-            columns: ["customer_order_id"]
-            isOneToOne: true
-            referencedRelation: "customer_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "customer_order_cash_obligations_delivery_task_id_fkey"
-            columns: ["delivery_task_id"]
-            isOneToOne: false
-            referencedRelation: "delivery_tasks"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "customer_order_cash_obligations_delivery_zone_id_fkey"
-            columns: ["delivery_zone_id"]
-            isOneToOne: false
-            referencedRelation: "delivery_zones"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "customer_order_cash_obligations_driver_id_fkey"
-            columns: ["driver_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      driver_delivery_fee_entitlements: {
-        Row: {
-          id: string
-          customer_order_id: string
-          delivery_task_id: string
-          driver_id: string
-          currency: "SYP"
-          delivery_fee_amount: number
-          delivery_zone_id: string | null
-          delivery_zone_name_snapshot: string
-          status: string
-          delivered_at: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          customer_order_id: string
-          delivery_task_id: string
-          driver_id: string
-          currency?: "SYP"
-          delivery_fee_amount: number
-          delivery_zone_id?: string | null
-          delivery_zone_name_snapshot: string
-          status?: string
-          delivered_at: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          customer_order_id?: string
-          delivery_task_id?: string
-          driver_id?: string
-          currency?: "SYP"
-          delivery_fee_amount?: number
-          delivery_zone_id?: string | null
-          delivery_zone_name_snapshot?: string
-          status?: string
-          delivered_at?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "driver_delivery_fee_entitlements_customer_order_id_fkey"
-            columns: ["customer_order_id"]
-            isOneToOne: true
-            referencedRelation: "customer_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "driver_delivery_fee_entitlements_delivery_task_id_fkey"
-            columns: ["delivery_task_id"]
-            isOneToOne: true
-            referencedRelation: "delivery_tasks"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "driver_delivery_fee_entitlements_delivery_zone_id_fkey"
-            columns: ["delivery_zone_id"]
-            isOneToOne: false
-            referencedRelation: "delivery_zones"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "driver_delivery_fee_entitlements_driver_id_fkey"
-            columns: ["driver_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      merchant_order_entitlements: {
-        Row: {
-          id: string
-          store_order_id: string
-          merchant_id: string
-          commission_id: string
-          currency: "SYP"
-          gross_items_amount: number
-          commission_amount_at_delivery: number
-          initial_net_entitlement_amount: number
-          status: string
-          delivered_at: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          store_order_id: string
-          merchant_id: string
-          commission_id: string
-          currency?: "SYP"
-          gross_items_amount: number
-          commission_amount_at_delivery: number
-          initial_net_entitlement_amount: number
-          status?: string
-          delivered_at: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          store_order_id?: string
-          merchant_id?: string
-          commission_id?: string
-          currency?: "SYP"
-          gross_items_amount?: number
-          commission_amount_at_delivery?: number
-          initial_net_entitlement_amount?: number
-          status?: string
-          delivered_at?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "merchant_order_entitlements_commission_id_fkey"
-            columns: ["commission_id"]
-            isOneToOne: true
-            referencedRelation: "store_order_commissions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_order_entitlements_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_order_entitlements_store_order_id_fkey"
-            columns: ["store_order_id"]
-            isOneToOne: true
-            referencedRelation: "store_orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      merchant_order_entitlement_adjustments: {
-        Row: {
-          id: string
-          merchant_order_entitlement_id: string
-          merchant_id: string
-          currency: "SYP"
-          amount: number
-          effect: string
-          source_type: string
-          source_id: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          merchant_order_entitlement_id: string
-          merchant_id: string
-          currency?: "SYP"
-          amount: number
-          effect: string
-          source_type: string
-          source_id: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          merchant_order_entitlement_id?: string
-          merchant_id?: string
-          currency?: "SYP"
-          amount?: number
-          effect?: string
-          source_type?: string
-          source_id?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "merchant_order_entitlement_ad_merchant_order_entitlement_i_fkey"
-            columns: ["merchant_order_entitlement_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_account_sale_rows"
-            referencedColumns: ["merchant_order_entitlement_id"]
-          },
-          {
-            foreignKeyName: "merchant_order_entitlement_ad_merchant_order_entitlement_i_fkey"
-            columns: ["merchant_order_entitlement_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_order_entitlement_positions"
-            referencedColumns: ["merchant_order_entitlement_id"]
-          },
-          {
-            foreignKeyName: "merchant_order_entitlement_ad_merchant_order_entitlement_i_fkey"
-            columns: ["merchant_order_entitlement_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_order_entitlements"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_order_entitlement_adjustments_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      driver_cash_remittances: {
-        Row: {
-          id: string
-          driver_id: string
-          currency: "SYP"
-          amount: number
-          idempotency_key: string
-          external_reference: string | null
-          note: string
-          received_by: string
-          received_at: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          driver_id: string
-          currency?: "SYP"
-          amount: number
-          idempotency_key: string
-          external_reference?: string | null
-          note?: string
-          received_by: string
-          received_at?: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          driver_id?: string
-          currency?: "SYP"
-          amount?: number
-          idempotency_key?: string
-          external_reference?: string | null
-          note?: string
-          received_by?: string
-          received_at?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "driver_cash_remittances_driver_id_fkey"
-            columns: ["driver_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "driver_cash_remittances_received_by_fkey"
-            columns: ["received_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      driver_cash_credit_payouts: {
-        Row: {
-          id: string
-          driver_id: string
-          currency: "SYP"
-          amount: number
-          idempotency_key: string
-          external_reference: string | null
-          note: string
-          paid_by: string
-          paid_at: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          driver_id: string
-          currency?: "SYP"
-          amount: number
-          idempotency_key: string
-          external_reference?: string | null
-          note?: string
-          paid_by: string
-          paid_at?: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          driver_id?: string
-          currency?: "SYP"
-          amount?: number
-          idempotency_key?: string
-          external_reference?: string | null
-          note?: string
-          paid_by?: string
-          paid_at?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "driver_cash_credit_payouts_driver_id_fkey"
-            columns: ["driver_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "driver_cash_credit_payouts_paid_by_fkey"
-            columns: ["paid_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      merchant_settlement_batches: {
-        Row: {
-          id: string
-          merchant_id: string
-          currency: "SYP"
-          status: string
-          period_starts_at: string | null
-          period_ends_at: string | null
-          idempotency_key: string
-          note: string
-          created_by: string
-          created_at: string
-          completed_at: string | null
-          completed_by: string | null
-        }
-        Insert: {
-          id?: string
-          merchant_id: string
-          currency?: "SYP"
-          status?: string
-          period_starts_at?: string | null
-          period_ends_at?: string | null
-          idempotency_key: string
-          note?: string
-          created_by: string
-          created_at?: string
-          completed_at?: string | null
-          completed_by?: string | null
-        }
-        Update: {
-          id?: string
-          merchant_id?: string
-          currency?: "SYP"
-          status?: string
-          period_starts_at?: string | null
-          period_ends_at?: string | null
-          idempotency_key?: string
-          note?: string
-          created_by?: string
-          created_at?: string
-          completed_at?: string | null
-          completed_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "merchant_settlement_batches_completed_by_fkey"
-            columns: ["completed_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_batches_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_batches_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      merchant_settlement_batch_entitlements: {
-        Row: {
-          id: string
-          batch_id: string
-          merchant_order_entitlement_id: string
-          amount_snapshot: number
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          batch_id: string
-          merchant_order_entitlement_id: string
-          amount_snapshot: number
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          batch_id?: string
-          merchant_order_entitlement_id?: string
-          amount_snapshot?: number
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "merchant_settlement_batch_ent_merchant_order_entitlement_i_fkey"
-            columns: ["merchant_order_entitlement_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_account_sale_rows"
-            referencedColumns: ["merchant_order_entitlement_id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_batch_ent_merchant_order_entitlement_i_fkey"
-            columns: ["merchant_order_entitlement_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_order_entitlement_positions"
-            referencedColumns: ["merchant_order_entitlement_id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_batch_ent_merchant_order_entitlement_i_fkey"
-            columns: ["merchant_order_entitlement_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_order_entitlements"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_batch_entitlements_batch_id_fkey"
-            columns: ["batch_id"]
-            isOneToOne: false
-            referencedRelation: "admin_merchant_payout_report_rows"
-            referencedColumns: ["batch_id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_batch_entitlements_batch_id_fkey"
-            columns: ["batch_id"]
-            isOneToOne: false
-            referencedRelation: "admin_merchant_settlement_report_batches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_batch_entitlements_batch_id_fkey"
-            columns: ["batch_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_account_settlement_rows"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_batch_entitlements_batch_id_fkey"
-            columns: ["batch_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_settlement_batch_positions"
-            referencedColumns: ["batch_id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_batch_entitlements_batch_id_fkey"
-            columns: ["batch_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_settlement_batches"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      merchant_settlement_payments: {
-        Row: {
-          id: string
-          batch_id: string
-          merchant_id: string
-          currency: "SYP"
-          amount: number
-          idempotency_key: string
-          external_reference: string | null
-          note: string
-          paid_by: string
-          paid_at: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          batch_id: string
-          merchant_id: string
-          currency?: "SYP"
-          amount: number
-          idempotency_key: string
-          external_reference?: string | null
-          note?: string
-          paid_by: string
-          paid_at?: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          batch_id?: string
-          merchant_id?: string
-          currency?: "SYP"
-          amount?: number
-          idempotency_key?: string
-          external_reference?: string | null
-          note?: string
-          paid_by?: string
-          paid_at?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "merchant_settlement_payments_batch_id_fkey"
-            columns: ["batch_id"]
-            isOneToOne: false
-            referencedRelation: "admin_merchant_payout_report_rows"
-            referencedColumns: ["batch_id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_payments_batch_id_fkey"
-            columns: ["batch_id"]
-            isOneToOne: false
-            referencedRelation: "admin_merchant_settlement_report_batches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_payments_batch_id_fkey"
-            columns: ["batch_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_account_settlement_rows"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_payments_batch_id_fkey"
-            columns: ["batch_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_settlement_batch_positions"
-            referencedColumns: ["batch_id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_payments_batch_id_fkey"
-            columns: ["batch_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_settlement_batches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_payments_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_payments_paid_by_fkey"
-            columns: ["paid_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      merchant_settlement_payment_allocations: {
-        Row: {
-          id: string
-          payment_id: string
-          batch_entitlement_id: string
-          amount: number
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          payment_id: string
-          batch_entitlement_id: string
-          amount: number
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          payment_id?: string
-          batch_entitlement_id?: string
-          amount?: number
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "merchant_settlement_payment_allocatio_batch_entitlement_id_fkey"
-            columns: ["batch_entitlement_id"]
-            isOneToOne: false
-            referencedRelation: "admin_merchant_payout_report_rows"
-            referencedColumns: ["batch_entitlement_id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_payment_allocatio_batch_entitlement_id_fkey"
-            columns: ["batch_entitlement_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_settlement_batch_entitlements"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_payment_allocatio_batch_entitlement_id_fkey"
-            columns: ["batch_entitlement_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_settlement_batch_positions"
-            referencedColumns: ["batch_entitlement_id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_payment_allocations_payment_id_fkey"
-            columns: ["payment_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_settlement_payments"
-            referencedColumns: ["id"]
-          },
-        ]
+      catalog_categories: {
+        Row: { id: string; scope: "store" | "product"; name: string; slug: string; parent_id: string | null; is_active: boolean; sort_order: number; created_at: string; updated_at: string }
+        Insert: { id?: string; scope: "store" | "product"; name: string; slug: string; parent_id?: string | null; is_active?: boolean; sort_order?: number; created_at?: string; updated_at?: string }
+        Update: Partial<Database["public"]["Tables"]["catalog_categories"]["Insert"]>
+        Relationships: []
       }
 
 
@@ -1654,6 +416,8 @@ export type Database = {
           delivered_at: string | null
           created_at: string
           updated_at: string
+
+          wage_policy: Json | null
         }
         Insert: {
           id?: string
@@ -1665,6 +429,8 @@ export type Database = {
           delivered_at?: string | null
           created_at?: string
           updated_at?: string
+
+          wage_policy?: Json | null
         }
         Update: {
           id?: string
@@ -1676,6 +442,8 @@ export type Database = {
           delivered_at?: string | null
           created_at?: string
           updated_at?: string
+
+          wage_policy?: Json | null
         }
         Relationships: [
           {
@@ -1703,6 +471,9 @@ export type Database = {
           sort_order: number
           created_at: string
           updated_at: string
+
+          additional_store_fee: number
+          pricing_version: number
         }
         Insert: {
           id?: string
@@ -1712,6 +483,9 @@ export type Database = {
           sort_order?: number
           created_at?: string
           updated_at?: string
+
+          additional_store_fee?: number
+          pricing_version?: number
         }
         Update: {
           id?: string
@@ -1721,17 +495,21 @@ export type Database = {
           sort_order?: number
           created_at?: string
           updated_at?: string
+
+          additional_store_fee?: number
+          pricing_version?: number
         }
         Relationships: []
       }
       driver_applications: {
         Row: {
           id: string
+          public_reference: string
           user_id: string
           full_name: string
           contact_phone: string
           vehicle_type: string
-          contract_duration_months: number
+          contract_duration_months: number | null
           available_hours: Json
           status: Database["public"]["Enums"]["application_status"]
           review_note: string | null
@@ -1743,12 +521,13 @@ export type Database = {
           is_available: boolean
         }
         Insert: {
+          public_reference?: string
           id?: string
           user_id: string
           full_name: string
           contact_phone: string
           vehicle_type: string
-          contract_duration_months: number
+          contract_duration_months?: number | null
           available_hours: Json
           status?: Database["public"]["Enums"]["application_status"]
           review_note?: string | null
@@ -1761,11 +540,12 @@ export type Database = {
         }
         Update: {
           id?: string
+          public_reference?: string
           user_id?: string
           full_name?: string
           contact_phone?: string
           vehicle_type?: string
-          contract_duration_months?: number
+          contract_duration_months?: number | null
           available_hours?: Json
           status?: Database["public"]["Enums"]["application_status"]
           review_note?: string | null
@@ -1796,12 +576,13 @@ export type Database = {
       merchant_applications: {
         Row: {
           id: string
+          public_reference: string
           user_id: string
-          plan_id: string
-          plan_name_snapshot: string
-          plan_duration_months_snapshot: number
-          plan_price_snapshot: number
-          plan_currency_snapshot: Database["public"]["Enums"]["currency_code"]
+          plan_id: string | null
+          plan_name_snapshot: string | null
+          plan_duration_months_snapshot: number | null
+          plan_price_snapshot: number | null
+          plan_currency_snapshot: Database["public"]["Enums"]["currency_code"] | null
           contact_phone: string
           store_name: string
           store_description: string
@@ -1819,13 +600,14 @@ export type Database = {
           plan_features_snapshot: Json | null
         }
         Insert: {
+          public_reference?: string
           id?: string
           user_id: string
-          plan_id: string
-          plan_name_snapshot: string
-          plan_duration_months_snapshot: number
-          plan_price_snapshot: number
-          plan_currency_snapshot?: Database["public"]["Enums"]["currency_code"]
+          plan_id?: string | null
+          plan_name_snapshot?: string | null
+          plan_duration_months_snapshot?: number | null
+          plan_price_snapshot?: number | null
+          plan_currency_snapshot?: Database["public"]["Enums"]["currency_code"] | null
           contact_phone: string
           store_name: string
           store_description?: string
@@ -1844,12 +626,13 @@ export type Database = {
         }
         Update: {
           id?: string
+          public_reference?: string
           user_id?: string
-          plan_id?: string
-          plan_name_snapshot?: string
-          plan_duration_months_snapshot?: number
-          plan_price_snapshot?: number
-          plan_currency_snapshot?: Database["public"]["Enums"]["currency_code"]
+          plan_id?: string | null
+          plan_name_snapshot?: string | null
+          plan_duration_months_snapshot?: number | null
+          plan_price_snapshot?: number | null
+          plan_currency_snapshot?: Database["public"]["Enums"]["currency_code"] | null
           contact_phone?: string
           store_name?: string
           store_description?: string
@@ -1897,63 +680,6 @@ export type Database = {
           },
         ]
       }
-      merchant_subscriptions: {
-        Row: {
-          id: string
-          merchant_id: string
-          plan_id: string
-          plan_name_snapshot: string
-          duration_months: number
-          price_snapshot: number
-          currency_snapshot: Database["public"]["Enums"]["currency_code"]
-          starts_at: string
-          expires_at: string
-          created_at: string
-          commission_rate_snapshot: number | null
-        }
-        Insert: {
-          id?: string
-          merchant_id: string
-          plan_id: string
-          plan_name_snapshot: string
-          duration_months: number
-          price_snapshot: number
-          currency_snapshot?: Database["public"]["Enums"]["currency_code"]
-          starts_at?: string
-          expires_at: string
-          created_at?: string
-          commission_rate_snapshot?: number | null
-        }
-        Update: {
-          id?: string
-          merchant_id?: string
-          plan_id?: string
-          plan_name_snapshot?: string
-          duration_months?: number
-          price_snapshot?: number
-          currency_snapshot?: Database["public"]["Enums"]["currency_code"]
-          starts_at?: string
-          expires_at?: string
-          created_at?: string
-          commission_rate_snapshot?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "merchant_subscriptions_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_subscriptions_plan_id_fkey"
-            columns: ["plan_id"]
-            isOneToOne: false
-            referencedRelation: "subscription_plans"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       merchants: {
         Row: {
           id: string
@@ -1961,6 +687,8 @@ export type Database = {
           contact_phone: string
           status: Database["public"]["Enums"]["application_status"]
           created_at: string
+
+          public_reference: string
         }
         Insert: {
           id?: string
@@ -1968,6 +696,8 @@ export type Database = {
           contact_phone: string
           status?: Database["public"]["Enums"]["application_status"]
           created_at?: string
+
+          public_reference?: string
         }
         Update: {
           id?: string
@@ -1975,6 +705,8 @@ export type Database = {
           contact_phone?: string
           status?: Database["public"]["Enums"]["application_status"]
           created_at?: string
+
+          public_reference?: string
         }
         Relationships: [
           {
@@ -2109,6 +841,8 @@ export type Database = {
           is_available: boolean
           created_at: string
           updated_at: string
+
+          public_reference: string
         }
         Insert: {
           id?: string
@@ -2123,6 +857,8 @@ export type Database = {
           is_available?: boolean
           created_at?: string
           updated_at?: string
+
+          public_reference?: string
         }
         Update: {
           id?: string
@@ -2137,6 +873,8 @@ export type Database = {
           is_available?: boolean
           created_at?: string
           updated_at?: string
+
+          public_reference?: string
         }
         Relationships: [
           {
@@ -2255,6 +993,7 @@ export type Database = {
           role: Database["public"]["Enums"]["account_role"]
           created_at: string
           updated_at: string
+          birth_date: string | null
           age_range: ProfileAgeRange | null
           gender: ProfileGender | null
         }
@@ -2265,6 +1004,7 @@ export type Database = {
           role?: Database["public"]["Enums"]["account_role"]
           created_at?: string
           updated_at?: string
+          birth_date?: string | null
           age_range?: ProfileAgeRange | null
           gender?: ProfileGender | null
         }
@@ -2275,6 +1015,7 @@ export type Database = {
           role?: Database["public"]["Enums"]["account_role"]
           created_at?: string
           updated_at?: string
+          birth_date?: string | null
           age_range?: ProfileAgeRange | null
           gender?: ProfileGender | null
         }
@@ -2406,6 +1147,8 @@ export type Database = {
           is_active: boolean
           created_at: string
           updated_at: string
+
+          public_reference: string
         }
         Insert: {
           id?: string
@@ -2422,6 +1165,8 @@ export type Database = {
           is_active?: boolean
           created_at?: string
           updated_at?: string
+
+          public_reference?: string
         }
         Update: {
           id?: string
@@ -2438,6 +1183,8 @@ export type Database = {
           is_active?: boolean
           created_at?: string
           updated_at?: string
+
+          public_reference?: string
         }
         Relationships: [
           {
@@ -2666,6 +1413,8 @@ export type Database = {
           status: Database["public"]["Enums"]["application_status"]
           created_at: string
           category_id: string
+
+          public_reference: string
         }
         Insert: {
           id?: string
@@ -2677,6 +1426,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["application_status"]
           created_at?: string
           category_id: string
+
+          public_reference?: string
         }
         Update: {
           id?: string
@@ -2688,6 +1439,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["application_status"]
           created_at?: string
           category_id?: string
+
+          public_reference?: string
         }
         Relationships: [
           {
@@ -2810,509 +1563,530 @@ export type Database = {
         }
         Relationships: []
       }
-      wallet_transactions: {
+
+      // Local cutover migration contract; not generated from a hosted database.
+      commerce_references: {
+        Row: {
+          kind: string
+          record_id: string
+          reference: string
+        }
+        Insert: {
+          kind: string
+          record_id: string
+          reference: string
+        }
+        Update: {
+          kind?: string
+          record_id?: string
+          reference?: string
+        }
+        Relationships: []
+      }
+      customer_order_requests: {
+        Row: {
+          customer_id: string
+          request_key: string
+          canonical_input: Json
+          state: string
+          failure_code: string | null
+          customer_order_id: string | null
+        }
+        Insert: {
+          customer_id: string
+          request_key: string
+          canonical_input: Json
+          state?: string
+          failure_code?: string | null
+          customer_order_id?: string | null
+        }
+        Update: {
+          customer_id?: string
+          request_key?: string
+          canonical_input?: Json
+          state?: string
+          failure_code?: string | null
+          customer_order_id?: string | null
+        }
+        Relationships: []
+      }
+      delivery_store_pickups: {
+        Row: {
+          task_id: string
+          store_order_id: string
+          driver_id: string
+          reference: string
+          picked_up_at: string
+        }
+        Insert: {
+          task_id: string
+          store_order_id: string
+          driver_id: string
+          reference: string
+          picked_up_at?: string
+        }
+        Update: {
+          task_id?: string
+          store_order_id?: string
+          driver_id?: string
+          reference?: string
+          picked_up_at?: string
+        }
+        Relationships: []
+      }
+      merchant_terms: {
         Row: {
           id: string
-          user_id: string
-          currency: Database["public"]["Enums"]["currency_code"]
-          transaction_type: Database["public"]["Enums"]["wallet_transaction_type"]
-          direction: Database["public"]["Enums"]["wallet_direction"]
-          amount: number
-          balance_after: number
-          note: string
-          recorded_by: string
+          merchant_id: string
+          plan_id: string | null
+          plan_name_snapshot: string
+          duration_months: number
+          price_snapshot: number
+          currency_snapshot: string
+          commission_rate_snapshot: number
+          product_limit: number
+          starts_at: string | null
+          expires_at: string | null
           created_at: string
         }
         Insert: {
           id?: string
-          user_id: string
-          currency?: Database["public"]["Enums"]["currency_code"]
-          transaction_type: Database["public"]["Enums"]["wallet_transaction_type"]
-          direction: Database["public"]["Enums"]["wallet_direction"]
-          amount: number
-          balance_after: number
-          note?: string
-          recorded_by: string
+          merchant_id: string
+          plan_id?: string | null
+          plan_name_snapshot: string
+          duration_months: number
+          price_snapshot: number
+          currency_snapshot?: string
+          commission_rate_snapshot: number
+          product_limit: number
+          starts_at?: string | null
+          expires_at?: string | null
           created_at?: string
         }
         Update: {
           id?: string
-          user_id?: string
-          currency?: Database["public"]["Enums"]["currency_code"]
-          transaction_type?: Database["public"]["Enums"]["wallet_transaction_type"]
-          direction?: Database["public"]["Enums"]["wallet_direction"]
-          amount?: number
-          balance_after?: number
-          note?: string
-          recorded_by?: string
+          merchant_id?: string
+          plan_id?: string | null
+          plan_name_snapshot?: string
+          duration_months?: number
+          price_snapshot?: number
+          currency_snapshot?: string
+          commission_rate_snapshot?: number
+          product_limit?: number
+          starts_at?: string | null
+          expires_at?: string | null
           created_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "wallet_transactions_recorded_by_fkey"
-            columns: ["recorded_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wallet_transactions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "wallets"
-            referencedColumns: ["user_id"]
-          },
-        ]
+        Relationships: []
       }
-      wallets: {
+      money_accounts: {
         Row: {
-          user_id: string
-          balance: number
+          owner_id: string
+          reference: string
           created_at: string
+        }
+        Insert: {
+          owner_id: string
+          reference: string
+          created_at?: string
+        }
+        Update: {
+          owner_id?: string
+          reference?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      money_allocations: {
+        Row: {
+          settlement_id: string
+          due_id: string
+          amount: number
+        }
+        Insert: {
+          settlement_id: string
+          due_id: string
+          amount: number
+        }
+        Update: {
+          settlement_id?: string
+          due_id?: string
+          amount?: number
+        }
+        Relationships: []
+      }
+      money_attempts: {
+        Row: {
+          actor: string
+          key: string
+          input: Json
+          result: Json
+        }
+        Insert: {
+          actor: string
+          key: string
+          input: Json
+          result: Json
+        }
+        Update: {
+          actor?: string
+          key?: string
+          input?: Json
+          result?: Json
+        }
+        Relationships: []
+      }
+      money_delivery_attempts: {
+        Row: {
+          actor: string
+          key: string
+          task_id: string
+          version: number
+          result: Json
+        }
+        Insert: {
+          actor: string
+          key: string
+          task_id: string
+          version: number
+          result: Json
+        }
+        Update: {
+          actor?: string
+          key?: string
+          task_id?: string
+          version?: number
+          result?: Json
+        }
+        Relationships: []
+      }
+      money_driver_policies: {
+        Row: {
+          driver_id: string
+          mode: string
+          value: number
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          driver_id: string
+          mode: string
+          value: number
+          updated_at?: string
+          updated_by: string
+        }
+        Update: {
+          driver_id?: string
+          mode?: string
+          value?: number
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: []
+      }
+      money_dues: {
+        Row: {
+          id: string
+          invoice_id: string
+          owner_id: string
+          purpose: string
+          direction: string
+          amount: number
+        }
+        Insert: {
+          id?: string
+          invoice_id: string
+          owner_id: string
+          purpose: string
+          direction: string
+          amount: number
+        }
+        Update: {
+          id?: string
+          invoice_id?: string
+          owner_id?: string
+          purpose?: string
+          direction?: string
+          amount?: number
+        }
+        Relationships: []
+      }
+      money_invoices: {
+        Row: {
+          id: string
+          reference: string
+          kind: string
+          owner_id: string
+          title: string
+          source_key: string
+          customer_order_id: string | null
+          store_order_id: string | null
+          task_id: string | null
+          amount: number
+          details: Json
+          status: string
+          cash_direction: string | null
+          corrects: string | null
+          created_by: string | null
+          created_at: string
+          confirmed_at: string | null
+          voided_by: string | null
+        }
+        Insert: {
+          id?: string
+          reference: string
+          kind: string
+          owner_id: string
+          title: string
+          source_key: string
+          customer_order_id?: string | null
+          store_order_id?: string | null
+          task_id?: string | null
+          amount: number
+          details?: Json
+          status?: string
+          cash_direction?: string | null
+          corrects?: string | null
+          created_by?: string | null
+          created_at?: string
+          confirmed_at?: string | null
+          voided_by?: string | null
+        }
+        Update: {
+          id?: string
+          reference?: string
+          kind?: string
+          owner_id?: string
+          title?: string
+          source_key?: string
+          customer_order_id?: string | null
+          store_order_id?: string | null
+          task_id?: string | null
+          amount?: number
+          details?: Json
+          status?: string
+          cash_direction?: string | null
+          corrects?: string | null
+          created_by?: string | null
+          created_at?: string
+          confirmed_at?: string | null
+          voided_by?: string | null
+        }
+        Relationships: []
+      }
+      money_salary_periods: {
+        Row: {
+          driver_id: string
+          period: string
+          invoice_id: string
+        }
+        Insert: {
+          driver_id: string
+          period: string
+          invoice_id: string
+        }
+        Update: {
+          driver_id?: string
+          period?: string
+          invoice_id?: string
+        }
+        Relationships: []
+      }
+      order_pricing_current: {
+        Row: {
+          customer_order_id: string
+          version: number
+          active_store_count: number
+          items_amount: number
+          delivery_fee: number
+          total: number
+          review_required: boolean
           updated_at: string
         }
         Insert: {
-          user_id: string
-          balance?: number
-          created_at?: string
+          customer_order_id: string
+          version: number
+          active_store_count: number
+          items_amount: number
+          delivery_fee: number
+          total: number
+          review_required?: boolean
           updated_at?: string
         }
         Update: {
-          user_id?: string
-          balance?: number
-          created_at?: string
+          customer_order_id?: string
+          version?: number
+          active_store_count?: number
+          items_amount?: number
+          delivery_fee?: number
+          total?: number
+          review_required?: boolean
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "wallets_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
-    }
+      order_pricing_revisions: {
+        Row: {
+          id: string
+          customer_order_id: string
+          version: number
+          source_store_order_id: string | null
+          before_amounts: Json
+          proposed_amounts: Json
+          applied: boolean
+          reason: string
+          actor_id: string
+          recorded_at: string
+        }
+        Insert: {
+          id?: string
+          customer_order_id: string
+          version: number
+          source_store_order_id?: string | null
+          before_amounts: Json
+          proposed_amounts: Json
+          applied: boolean
+          reason: string
+          actor_id: string
+          recorded_at?: string
+        }
+        Update: {
+          id?: string
+          customer_order_id?: string
+          version?: number
+          source_store_order_id?: string | null
+          before_amounts?: Json
+          proposed_amounts?: Json
+          applied?: boolean
+          reason?: string
+          actor_id?: string
+          recorded_at?: string
+        }
+        Relationships: []
+      }
+      order_pricing_snapshots: {
+        Row: {
+          customer_order_id: string
+          zone_id: string
+          zone_name: string
+          base_fee: number
+          additional_store_fee: number
+          original_store_count: number
+          original_items_amount: number
+          original_delivery_fee: number
+          approved_total: number
+          zone_version: number
+          policy_version: string
+          decided_at: string
+        }
+        Insert: {
+          customer_order_id: string
+          zone_id: string
+          zone_name: string
+          base_fee: number
+          additional_store_fee: number
+          original_store_count: number
+          original_items_amount: number
+          original_delivery_fee: number
+          approved_total: number
+          zone_version: number
+          policy_version?: string
+          decided_at?: string
+        }
+        Update: {
+          customer_order_id?: string
+          zone_id?: string
+          zone_name?: string
+          base_fee?: number
+          additional_store_fee?: number
+          original_store_count?: number
+          original_items_amount?: number
+          original_delivery_fee?: number
+          approved_total?: number
+          zone_version?: number
+          policy_version?: string
+          decided_at?: string
+        }
+        Relationships: []
+      }
+      customer_home_ads: {
+        Row: {
+          id: string
+          title: string
+          body: string
+          advertiser: string
+          admin_note: string
+          target_kind: "store" | "product" | "offer"
+          target_id: string
+          media_kind: "image" | "video"
+          media_path: string
+          thumbnail_path: string | null
+          starts_at: string
+          ends_at: string
+          is_active: boolean
+          priority: number
+          updated_at: string
+        }
+        Insert: Omit<Database["public"]["Tables"]["customer_home_ads"]["Row"], "updated_at" | "thumbnail_path"> & { thumbnail_path?: string | null }
+        Update: Partial<Database["public"]["Tables"]["customer_home_ads"]["Insert"]>
+        Relationships: []
+      }
+      store_branding_assets: {
+        Row: {
+          id: string
+          store_id: string
+          kind: string
+          storage_path: string
+          mime_type: string
+          byte_size: number
+          state: string
+          is_current: boolean
+          storage_object_id: string | null
+          storage_updated_at: string | null
+          created_at: string
+          retired_at: string | null
+        }
+        Insert: {
+          id: string
+          store_id: string
+          kind: string
+          storage_path: string
+          mime_type: string
+          byte_size: number
+          state?: string
+          is_current?: boolean
+          storage_object_id?: string | null
+          storage_updated_at?: string | null
+          created_at?: string
+          retired_at?: string | null
+        }
+        Update: {
+          id?: string
+          store_id?: string
+          kind?: string
+          storage_path?: string
+          mime_type?: string
+          byte_size?: number
+          state?: string
+          is_current?: boolean
+          storage_object_id?: string | null
+          storage_updated_at?: string | null
+          created_at?: string
+          retired_at?: string | null
+        }
+        Relationships: []
+      }
+
+      // Local cutover migration contract; not generated from a hosted database.
+
+      // Local cutover migration contract; not generated from a hosted database.
+}
     Views: {
-      admin_cash_movement_events: {
-        Row: {
-          amount: number | null
-          currency: Database["public"]["Enums"]["currency_code"] | null
-          direction: string | null
-          event_type: string | null
-          id: string | null
-          note: string | null
-          occurred_at: string | null
-          party_id: string | null
-          reference: string | null
-        }
+      selectable_catalog_categories: {
+        Row: Pick<Database["public"]["Tables"]["catalog_categories"]["Row"], "id" | "scope" | "parent_id" | "name" | "slug" | "sort_order">
         Relationships: []
       }
-      admin_delivery_fee_report_rows: {
-        Row: {
-          currency: Database["public"]["Enums"]["currency_code"] | null
-          customer_order_id: string | null
-          delivered_at: string | null
-          delivery_fee_amount: number | null
-          delivery_task_id: string | null
-          delivery_zone_id: string | null
-          delivery_zone_name_snapshot: string | null
-          driver_id: string | null
-        }
-        Insert: {
-          currency?: Database["public"]["Enums"]["currency_code"] | null
-          customer_order_id?: string | null
-          delivered_at?: string | null
-          delivery_fee_amount?: number | null
-          delivery_task_id?: string | null
-          delivery_zone_id?: string | null
-          delivery_zone_name_snapshot?: string | null
-          driver_id?: string | null
-        }
-        Update: {
-          currency?: Database["public"]["Enums"]["currency_code"] | null
-          customer_order_id?: string | null
-          delivered_at?: string | null
-          delivery_fee_amount?: number | null
-          delivery_task_id?: string | null
-          delivery_zone_id?: string | null
-          delivery_zone_name_snapshot?: string | null
-          driver_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "driver_delivery_fee_entitlements_customer_order_id_fkey"
-            columns: ["customer_order_id"]
-            isOneToOne: true
-            referencedRelation: "customer_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "driver_delivery_fee_entitlements_delivery_task_id_fkey"
-            columns: ["delivery_task_id"]
-            isOneToOne: true
-            referencedRelation: "delivery_tasks"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "driver_delivery_fee_entitlements_delivery_zone_id_fkey"
-            columns: ["delivery_zone_id"]
-            isOneToOne: false
-            referencedRelation: "delivery_zones"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "driver_delivery_fee_entitlements_driver_id_fkey"
-            columns: ["driver_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      admin_merchant_financial_report_events: {
-        Row: {
-          amount: number | null
-          batch_id: string | null
-          currency: Database["public"]["Enums"]["currency_code"] | null
-          event_type: string | null
-          id: string | null
-          merchant_id: string | null
-          occurred_at: string | null
-          paid_amount: number | null
-          reference: string | null
-          remaining_amount: number | null
-          status: string | null
-          store_order_id: string | null
-        }
-        Relationships: []
-      }
-      admin_merchant_payout_report_rows: {
-        Row: {
-          batch_entitlement_id: string | null
-          batch_id: string | null
-          created_at: string | null
-          currency: Database["public"]["Enums"]["currency_code"] | null
-          current_entitlement_amount: number | null
-          delivered_at: string | null
-          merchant_id: string | null
-          merchant_order_entitlement_id: string | null
-          paid_amount: number | null
-          remaining_amount: number | null
-          status: string | null
-          store_order_id: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "merchant_order_entitlements_store_order_id_fkey"
-            columns: ["store_order_id"]
-            isOneToOne: true
-            referencedRelation: "store_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_batch_ent_merchant_order_entitlement_i_fkey"
-            columns: ["merchant_order_entitlement_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_account_sale_rows"
-            referencedColumns: ["merchant_order_entitlement_id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_batch_ent_merchant_order_entitlement_i_fkey"
-            columns: ["merchant_order_entitlement_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_order_entitlement_positions"
-            referencedColumns: ["merchant_order_entitlement_id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_batch_ent_merchant_order_entitlement_i_fkey"
-            columns: ["merchant_order_entitlement_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_order_entitlements"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_batches_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      admin_merchant_settlement_report_batches: {
-        Row: {
-          created_at: string | null
-          currency: Database["public"]["Enums"]["currency_code"] | null
-          entitlement_amount: number | null
-          id: string | null
-          merchant_id: string | null
-          paid_amount: number | null
-          status: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          currency?: Database["public"]["Enums"]["currency_code"] | null
-          entitlement_amount?: never
-          id?: string | null
-          merchant_id?: string | null
-          paid_amount?: never
-          status?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          currency?: Database["public"]["Enums"]["currency_code"] | null
-          entitlement_amount?: never
-          id?: string | null
-          merchant_id?: string | null
-          paid_amount?: never
-          status?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "merchant_settlement_batches_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      admin_platform_revenue_report_events: {
-        Row: {
-          amount: number | null
-          commission_id: string | null
-          currency: Database["public"]["Enums"]["currency_code"] | null
-          event_type: string | null
-          id: string | null
-          invoice_id: string | null
-          merchant_id: string | null
-          occurred_at: string | null
-          payment_id: string | null
-          reference: string | null
-          store_order_id: string | null
-        }
-        Relationships: []
-      }
-      driver_cash_custody_positions: {
-        Row: {
-          cash_collected_amount: number | null
-          currency: Database["public"]["Enums"]["currency_code"] | null
-          custody_remaining_amount: number | null
-          delivery_fee_entitled_amount: number | null
-          driver_credit_amount: number | null
-          driver_credit_paid_amount: number | null
-          driver_id: string | null
-          net_custody_due_amount: number | null
-          office_received_amount: number | null
-        }
-        Relationships: []
-      }
-      merchant_account_sale_rows: {
-        Row: {
-          adjustment_amount: number | null
-          base_amount: number | null
-          commission_amount_at_delivery: number | null
-          commission_id: string | null
-          commission_rate: number | null
-          created_at: string | null
-          currency: Database["public"]["Enums"]["currency_code"] | null
-          current_entitlement_amount: number | null
-          delivered_at: string | null
-          gross_items_amount: number | null
-          initial_net_entitlement_amount: number | null
-          merchant_id: string | null
-          merchant_order_entitlement_id: string | null
-          net_commission_amount: number | null
-          order_number: number | null
-          paid_amount: number | null
-          remaining_amount: number | null
-          reserved_amount: number | null
-          settlement_status: string | null
-          status: string | null
-          store_order_id: string | null
-          unbatched_amount: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "merchant_order_entitlements_commission_id_fkey"
-            columns: ["commission_id"]
-            isOneToOne: true
-            referencedRelation: "store_order_commissions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_order_entitlements_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_order_entitlements_store_order_id_fkey"
-            columns: ["store_order_id"]
-            isOneToOne: true
-            referencedRelation: "store_orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      merchant_account_settlement_rows: {
-        Row: {
-          completed_at: string | null
-          completed_by: string | null
-          created_at: string | null
-          created_by: string | null
-          currency: Database["public"]["Enums"]["currency_code"] | null
-          id: string | null
-          idempotency_key: string | null
-          merchant_id: string | null
-          note: string | null
-          paid_amount: number | null
-          period_ends_at: string | null
-          period_starts_at: string | null
-          remaining_amount: number | null
-          settlement_status: string | null
-          status: string | null
-          total_amount: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "merchant_settlement_batches_completed_by_fkey"
-            columns: ["completed_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_batches_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_batches_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      merchant_financial_positions: {
-        Row: {
-          booked_exposure: number | null
-          commissions_due: number | null
-          credit_available: number | null
-          credit_enabled: boolean | null
-          credit_limit: number | null
-          credit_used: number | null
-          currency: Database["public"]["Enums"]["currency_code"] | null
-          effective_exposure: number | null
-          invoice_outstanding: number | null
-          invoices_total: number | null
-          merchant_id: string | null
-          payments_allocated: number | null
-          payments_recorded: number | null
-          unapplied_payment_balance: number | null
-        }
-        Relationships: []
-      }
-      merchant_order_entitlement_positions: {
-        Row: {
-          adjustment_amount: number | null
-          commission_amount_at_delivery: number | null
-          commission_id: string | null
-          created_at: string | null
-          currency: Database["public"]["Enums"]["currency_code"] | null
-          current_entitlement_amount: number | null
-          delivered_at: string | null
-          gross_items_amount: number | null
-          initial_net_entitlement_amount: number | null
-          merchant_id: string | null
-          merchant_order_entitlement_id: string | null
-          status: string | null
-          store_order_id: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "merchant_order_entitlements_commission_id_fkey"
-            columns: ["commission_id"]
-            isOneToOne: true
-            referencedRelation: "store_order_commissions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_order_entitlements_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_order_entitlements_store_order_id_fkey"
-            columns: ["store_order_id"]
-            isOneToOne: true
-            referencedRelation: "store_orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      merchant_settlement_batch_positions: {
-        Row: {
-          batch_entitlement_id: string | null
-          batch_id: string | null
-          created_at: string | null
-          currency: Database["public"]["Enums"]["currency_code"] | null
-          current_entitlement_amount: number | null
-          delivered_at: string | null
-          merchant_id: string | null
-          merchant_order_entitlement_id: string | null
-          paid_amount: number | null
-          remaining_amount: number | null
-          status: string | null
-          store_order_id: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "merchant_order_entitlements_store_order_id_fkey"
-            columns: ["store_order_id"]
-            isOneToOne: true
-            referencedRelation: "store_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_batch_ent_merchant_order_entitlement_i_fkey"
-            columns: ["merchant_order_entitlement_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_account_sale_rows"
-            referencedColumns: ["merchant_order_entitlement_id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_batch_ent_merchant_order_entitlement_i_fkey"
-            columns: ["merchant_order_entitlement_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_order_entitlement_positions"
-            referencedColumns: ["merchant_order_entitlement_id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_batch_ent_merchant_order_entitlement_i_fkey"
-            columns: ["merchant_order_entitlement_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_order_entitlements"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_settlement_batches_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
+
       product_public_reviews: {
         Row: {
           comment: string | null
@@ -3384,16 +2158,16 @@ export type Database = {
       }
     }
     Functions: {
+      read_customer_home_discovery: { Args: { seed_value: string }; Returns: Json };
+      read_customer_home_ads: { Args: Record<never, never>; Returns: {
+        id: string; title: string; body: string; target_kind: "store" | "product" | "offer";
+        target_id: string; media_kind: "image" | "video"; media_path: string; ends_at: string; thumbnail_path: string | null;
+      }[] };
+      // Local onboarding migration contract; regenerate from the deployed schema after application.
+      get_signup_capabilities: { Args: Record<PropertyKey, never>; Returns: number }
+      submit_professional_onboarding: { Args: { input_application: Json; input_birth_date: string }; Returns: string }
       require_review_customer: {
         Args: never
-        Returns: string
-      }
-      allocate_subscription_payment: {
-        Args: {
-          target_payment: string
-          allocation_input: Json
-          allocation_idempotency_key: string
-        }
         Returns: string
       }
       store_accepts_new_orders: {
@@ -3401,182 +2175,6 @@ export type Database = {
           target_store: string
         }
         Returns: boolean
-      }
-      subscription_renewal_internal: {
-        Args: {
-          target_merchant: string
-          renewal_idempotency_key: string
-          require_credit: boolean
-          audit_actor: string
-          audit_event_type: string
-          audit_reason?: string | null
-        }
-        Returns: string
-      }
-      renew_merchant_subscription: {
-        Args: {
-          target_merchant: string
-          renewal_idempotency_key: string
-          renewal_reason?: string | null
-        }
-        Returns: string
-      }
-      schedule_merchant_subscription_plan_change: {
-        Args: {
-          target_merchant: string
-          target_plan: string
-          change_idempotency_key: string
-          change_reason?: string | null
-        }
-        Returns: string
-      }
-      set_merchant_auto_renew: {
-        Args: {
-          target_merchant: string
-          enabled: boolean
-          change_reason?: string | null
-        }
-        Returns: undefined
-      }
-      process_due_merchant_subscription_renewals: {
-        Args: {
-          batch_limit?: number
-        }
-        Returns: { renewed_count: number; skipped_count: number }[]
-      }
-      accrue_store_order_commission: {
-        Args: {
-          target_store_order: string
-          delivered_at_value: string
-        }
-        Returns: undefined
-      }
-      reconcile_subscription_commission_rate: {
-        Args: {
-          target_subscription: string
-          reconciled_commission_rate: number
-          reconciliation_reason: string
-        }
-        Returns: undefined
-      }
-      reverse_store_order_commission: {
-        Args: {
-          target_commission: string
-          reversal_amount: number
-          reversal_idempotency_key: string
-          reversal_reason: string
-        }
-        Returns: string
-      }
-      create_delivered_order_cash_foundations: {
-        Args: {
-          target_customer_order: string
-        }
-        Returns: undefined
-      }
-
-
-
-
-      record_subscription_payment: {
-        Args: {
-          target_merchant: string
-          payment_amount: number
-          payment_method: string
-          payment_idempotency_key: string
-          allocation_input?: Json
-          payment_external_reference?: string | null
-          payment_received_at?: string | null
-        }
-        Returns: string
-      }
-      set_merchant_credit_limit: {
-        Args: {
-          target_merchant: string
-          credit_is_enabled: boolean
-          credit_amount: number
-          change_reason?: string | null
-        }
-        Returns: undefined
-      }
-      record_driver_cash_remittance: {
-        Args: {
-          target_driver: string
-          remittance_amount: number
-          remittance_idempotency_key: string
-          remittance_reference?: string | null
-          remittance_note?: string | null
-        }
-        Returns: string
-      }
-      pay_driver_cash_credit: {
-        Args: {
-          target_driver: string
-          payout_amount: number
-          payout_idempotency_key: string
-          payout_reference?: string | null
-          payout_note?: string | null
-        }
-        Returns: string
-      }
-      create_merchant_settlement_batch: {
-        Args: {
-          target_merchant: string
-          entitlement_ids: string[]
-          batch_idempotency_key: string
-          period_start_value?: string | null
-          period_end_value?: string | null
-          batch_note?: string | null
-        }
-        Returns: string
-      }
-      record_merchant_settlement_payment: {
-        Args: {
-          target_batch: string
-          payment_amount: number
-          payment_allocations: Json
-          payment_idempotency_key: string
-          payment_reference?: string | null
-          payment_note?: string | null
-        }
-        Returns: string
-      }
-      admin_financial_report: {
-        Args: {
-          report_kind: string
-          period_from?: string | null
-          period_until?: string | null
-          movement_type?: string | null
-          target_driver?: string | null
-          zone_snapshot?: string | null
-          page_number?: number
-        }
-        Returns: Json
-      }
-      admin_sales_revenue_report: {
-        Args: {
-          report_kind: string
-          period_from?: string | null
-          period_until?: string | null
-          target_merchant?: string | null
-          detail_type?: string | null
-          settlement_state?: string | null
-          page_number?: number
-        }
-        Returns: Json
-      }
-      merchant_financial_account: {
-        Args: {
-          section_name?: string
-          period_from?: string | null
-          period_until?: string | null
-          selected_status?: string | null
-          order_search?: string | null
-          record_id?: string | null
-          page_number?: number
-          payments_page?: number
-        }
-        Returns: Json
       }
 
       accept_delivery_task: {
@@ -3653,16 +2251,6 @@ export type Database = {
       is_available_driver: { Args: never; Returns: boolean }
       is_approved_driver: { Args: never; Returns: boolean }
       is_store_owner: { Args: { target_store: string }; Returns: boolean }
-      record_wallet_transaction: {
-        Args: {
-          operation: Database["public"]["Enums"]["wallet_transaction_type"]
-          operation_amount: number
-          operation_direction: Database["public"]["Enums"]["wallet_direction"]
-          operation_note?: string
-          target_user: string
-        }
-        Returns: string
-      }
       refresh_customer_order_status: {
         Args: { target_order: string }
         Returns: undefined
@@ -3678,6 +2266,10 @@ export type Database = {
           target_application: string
         }
         Returns: undefined
+      }
+      search_driver_task_references: {
+        Args: { search_value: string; view_value: string; page_offset: number; page_size: number }
+        Returns: { task_id: string; reference: string }[]
       }
       save_customer_address: {
         Args: {
@@ -3755,13 +2347,6 @@ export type Database = {
         }
         Returns: string
       }
-      update_delivery_task_status: {
-        Args: {
-          next_status: Database["public"]["Enums"]["delivery_task_status"]
-          target_customer_order: string
-        }
-        Returns: undefined
-      }
       update_store_order_status: {
         Args: {
           next_status: Database["public"]["Enums"]["store_order_status"]
@@ -3814,12 +2399,6 @@ export type Database = {
         | "delivered"
         | "rejected"
         | "cancelled"
-      wallet_direction: "credit" | "debit"
-      wallet_transaction_type:
-        | "subscription_initialization"
-        | "funding"
-        | "settlement"
-        | "adjustment"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -3984,13 +2563,6 @@ export const Constants = {
         "delivered",
         "rejected",
         "cancelled",
-      ],
-      wallet_direction: ["credit", "debit"],
-      wallet_transaction_type: [
-        "subscription_initialization",
-        "funding",
-        "settlement",
-        "adjustment",
       ],
     },
   },

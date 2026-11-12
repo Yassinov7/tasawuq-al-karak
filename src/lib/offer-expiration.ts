@@ -54,6 +54,12 @@ export function validateLocalOfferEnd(date:string,time:string,now:number,startsA
  return result;
 }
 export function formatLocalOfferEnd(value:string){return new Date(value).toLocaleString('ar-SY',{calendar:'gregory',year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit',timeZoneName:'short'});}
+export function formatCompactOfferDate(value: string) {
+ const date = new Date(value);
+ if (!Number.isFinite(date.getTime())) return null;
+ const { day, month, year, time } = localOfferFields(date);
+ return `${pad(day)}/${pad(month)}/${year} · ${time}`;
+}
 export function keepsSavedOfferEnd(original:string|null,date:string,time:string){
  if(!original)return false;const saved=localOfferFields(original);return saved.date===date&&saved.time===time;
 }

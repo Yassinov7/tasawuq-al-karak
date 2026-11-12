@@ -1,231 +1,58 @@
-import { useRouter, type Href } from "expo-router";
+import { useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
-
-import {
-  getAccountRoute,
-  getAccountRoutingErrorMessage,
-} from "@/lib/account-routing";
+import { getAccountRoute, getAccountRoutingErrorMessage } from "@/lib/account-routing";
 import { supabase } from "@/lib/supabase";
-import type {
-  ProfileAgeRange,
-  ProfileGender,
-} from "@/types/profile-demographics";
-
-export type SignupRole = "customer" | "merchant" | "driver";
-export type SignupField =
-  | "fullName"
-  | "email"
-  | "password"
-  | "passwordConfirmation";
-
-type SignupFieldErrors = Partial<Record<SignupField, string>>;
+import { emptyProfessionalApplication, signupMetadata, validateSignupDetails, validateProfessionalApplication, type SignupRole, type SignupField, type SignupFieldErrors, type SignupDetails, type ProfessionalApplication, type ApplicationFieldErrors } from "@/lib/signup-data";
+export type { SignupRole, SignupField } from "@/lib/signup-data";
 
 export function useSignup() {
   const router = useRouter();
-  const submitLock = useRef(false);
-
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [passwordConfirmation, setPasswordConfirmation] = useState("");
-  const [ageRange, setAgeRange] = useState<ProfileAgeRange | null>(null);
-  const [gender, setGender] = useState<ProfileGender | null>(null);
-  const [role, setRole] = useState<SignupRole | null>(null);
+  const lock = useRef(false);
+  const [details, setDetails] = useState<SignupDetails>({ fullName: "", email: "", password: "", passwordConfirmation: "", birthDate: "" });
+  const [application, setApplication] = useState<ProfessionalApplication>(emptyProfessionalApplication);
+  const [role, updateRole] = useState<SignupRole | null>(null);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<SignupFieldErrors>({});
+  const [applicationErrors, setApplicationErrors] = useState<ApplicationFieldErrors>({});
   const [busy, setBusy] = useState(false);
   const [createdAccountId, setCreatedAccountId] = useState<string | null>(null);
-
-  const clearError = useCallback(() => {
-    setError("");
-    setFieldErrors({});
-  }, []);
-
-  const validateDetails = useCallback(() => {
-    setError("");
-    setFieldErrors({});
-
-    if (fullName.trim().length < 2) {
-      const message = "أدخل اسمك الكامل.";
-      setError(message);
-      setFieldErrors({ fullName: message });
-      return false;
-    }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      const message = "أدخل بريدًا إلكترونيًا صحيحًا.";
-      setError(message);
-      setFieldErrors({ email: message });
-      return false;
-    }
-
-    if (password.length < 8) {
-      const message = "كلمة المرور يجب ألا تقل عن 8 أحرف.";
-      setError(message);
-      setFieldErrors({ password: message });
-      return false;
-    }
-
-    if (password !== passwordConfirmation) {
-      const message = "كلمتا المرور غير متطابقتين.";
-      setError(message);
-      setFieldErrors({ passwordConfirmation: message });
-      return false;
-    }
-
-    return true;
-  }, [email, fullName, password, passwordConfirmation]);
-
-  const createAccount = useCallback(async () => {
-    if (submitLock.current || busy || createdAccountId) return;
-    setError("");
-
-    if (!role) {
-      setError("اختر دورًا واحدًا للمتابعة.");
-      return;
-    }
-
-    if (!acceptedTerms) {
-      setError(
-        "يجب الموافقة على شروط الاستخدام وسياسة الخصوصية قبل إنشاء الحساب.",
-      );
-      return;
-    }
-
-    if (!validateDetails()) return;
-    submitLock.current = true;
-    const cleanEmail = email.trim().toLowerCase();
-    setBusy(true);
-
-    try {
-      const { data, error: signupError } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password,
-        options: {
-          data: {
-            full_name: fullName.trim(),
-            signup_role: role,
-            signup_age_range: ageRange,
-            signup_gender: gender,
-          },
-        },
-      });
-
-      if (signupError) {
-        setError(
-          signupError.message.includes("already registered")
-            ? "تعذر إنشاء الحساب بهذا البريد. إن كان لديك حساب، جرّب تسجيل الدخول أو استعادة كلمة المرور."
-            : "تعذر إنشاء الحساب. تحقق من الاتصال وإعداد البريد ثم أعد المحاولة.",
-        );
-        return;
-      }
-
-      if (!data.session || !data.user) {
-        router.replace({
-          pathname: "/verify-email",
-          params: {
-            email: cleanEmail,
-            role,
-          },
-        } as unknown as Href);
-        return;
-      }
-
-      try {
-        const destination = await getAccountRoute(data.user.id);
-        router.replace(destination as Href);
-      } catch (routingError) {
-        setCreatedAccountId(data.user.id);
-        setError(
-          `تم إنشاء الحساب، لكن تعذر توجيهك الآن. ${getAccountRoutingErrorMessage(routingError)}`,
-        );
-      }
-    } catch {
-      setError("تعذر الاتصال بالخدمة. تحقق من الإنترنت ثم حاول مجددًا.");
-    } finally {
-      submitLock.current = false;
-      setBusy(false);
-    }
-  }, [
-    acceptedTerms,
-    ageRange,
-    busy,
-    createdAccountId,
-    email,
-    fullName,
-    gender,
-    password,
-    role,
-    router,
-    validateDetails,
-  ]);
-
-  const retryAccountRouting = useCallback(async () => {
-    if (!createdAccountId || busy) return;
-    setError("");
-    setBusy(true);
-
-    try {
-      const destination = await getAccountRoute(createdAccountId);
-      router.replace(destination as Href);
-    } catch (routingError) {
-      setError(getAccountRoutingErrorMessage(routingError));
-    } finally {
-      setBusy(false);
-    }
-  }, [busy, createdAccountId, router]);
-
-  const toggleAcceptedTerms = useCallback(() => {
-    setAcceptedTerms((current) => !current);
-    setError("");
-  }, []);
-
-  const updateField = useCallback(
-    (field: SignupField, value: string) => {
-      const setters: Record<SignupField, (next: string) => void> = {
-        fullName: setFullName,
-        email: setEmail,
-        password: setPassword,
-        passwordConfirmation: setPasswordConfirmation,
-      };
-      setters[field](value);
-      setError("");
-      setFieldErrors((current) => {
-        const next = { ...current };
-        delete next[field];
-        if (field === "password") delete next.passwordConfirmation;
-        return next;
-      });
-    },
-    [],
-  );
-
-  return {
-    acceptedTerms,
-    accountCreated: createdAccountId !== null,
-    ageRange,
-    busy,
-    clearError,
-    createAccount,
-    email,
-    error,
-    fieldErrors,
-    fullName,
-    gender,
-    password,
-    passwordConfirmation,
-    role,
-    retryAccountRouting,
-    setEmail,
-    setAgeRange,
-    setFullName,
-    setGender,
-    setPassword,
-    setPasswordConfirmation,
-    setRole,
-    updateField,
-    toggleAcceptedTerms,
-    validateDetails,
+  const clearError = useCallback(() => { setError(""); setFieldErrors({}); setApplicationErrors({}); }, []);
+  const setRole = (next: SignupRole) => { if (createdAccountId || busy || lock.current) return; if (next !== role) { setApplication(emptyProfessionalApplication); setAcceptedTerms(false); } updateRole(next); clearError(); };
+  const updateField = (field: SignupField, value: string) => { setDetails(old => ({ ...old, [field]: value })); clearError(); setAcceptedTerms(false); };
+  const updateApplication = (field: keyof ProfessionalApplication, value: string) => { setApplication(old => ({ ...old, [field]: value })); clearError(); setAcceptedTerms(false); };
+  const validateDetails = () => { const errors = validateSignupDetails(details); setFieldErrors(errors); setError(""); return Object.keys(errors).length === 0; };
+  const validateApplication = () => { if (!role) return false; const errors = validateProfessionalApplication(role, application); setApplicationErrors(errors); return Object.keys(errors).length === 0; };
+  const retryAccountRouting = async () => {
+    if (!createdAccountId || lock.current) return;
+    lock.current = true; setBusy(true); setError("");
+    try { router.replace(await getAccountRoute(createdAccountId)); } catch (cause) { setError(getAccountRoutingErrorMessage(cause)); }
+    finally { lock.current = false; setBusy(false); }
   };
+  const createAccount = async () => {
+    if (lock.current || busy || createdAccountId) return;
+    if (!role) { setError("اختر نوع الحساب أولًا."); return; }
+    if (!validateDetails() || !validateApplication()) { setError("راجع البيانات المطلوبة قبل إنشاء الحساب."); return; }
+    if (!acceptedTerms) { setError("وافق على الشروط وسياسة الخصوصية بعد مراجعة بياناتك."); return; }
+    const selectedRole = role;
+    const email = details.email.trim().toLowerCase();
+    const metadata = signupMetadata(selectedRole, details, application);
+    lock.current = true; setBusy(true); setError("");
+    try {
+      // Do not create a partial professional account against an older server.
+      const capability = await supabase.rpc("get_signup_capabilities");
+      if (capability.error || capability.data !== 3) { setError("التسجيل المحدّث غير جاهز في الخادم بعد. حاول لاحقًا أو تواصل مع الدعم؛ لم نرسل بيانات إنشاء الحساب."); return; }
+      const { data, error: signupError } = await supabase.auth.signUp({ email, password: details.password, options: { data: metadata } });
+      if (signupError) { setError(signupError.message.includes("already registered") ? "تعذر إنشاء الحساب بهذا البريد. جرّب تسجيل الدخول أو استعادة كلمة المرور." : "تعذر تأكيد إنشاء الحساب. تحقق من البريد وحالة الدخول قبل إعادة المحاولة؛ قد تكون بيانات الطلب أو الخدمة غير متاحة."); return; }
+      // Existing-account responses may be obfuscated: only promise verification, not submission success.
+      if (!data.session) { setDetails(old => ({ ...old, password: "", passwordConfirmation: "" })); router.replace({ pathname: "/verify-email", params: { email, role: selectedRole } }); return; }
+      if (!data.user) throw Error("missing-user");
+      setCreatedAccountId(data.user.id);
+      setDetails(old => ({ ...old, password: "", passwordConfirmation: "" }));
+      try { router.replace(await getAccountRoute(data.user.id)); }
+      catch (cause) { setError(`تم إنشاء الحساب وحفظ البيانات، لكن تعذر فتحه الآن. ${getAccountRoutingErrorMessage(cause)}`); }
+    } catch { setError("انقطع الاتصال وتعذر تأكيد النتيجة. تحقق من رسالة البريد وحاول تسجيل الدخول قبل إعادة إنشاء الحساب."); }
+    finally { lock.current = false; setBusy(false); }
+  };
+  return { role, setRole, details, application, updateField, updateApplication, acceptedTerms, toggleAcceptedTerms: () => setAcceptedTerms(old => !old), busy, error, clearError, fieldErrors, applicationErrors, validateDetails, validateApplication, createAccount, retryAccountRouting, accountCreated: createdAccountId !== null };
 }

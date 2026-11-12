@@ -1,10 +1,9 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Keyboard, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { MerchantOffersPanel } from "@/app/merchant/offers";
-import { MerchantProductsPanel } from "@/app/merchant/products";
+import { MerchantCatalogPanel } from "@/components/merchant/MerchantCatalogPanel";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { Typography, Radius, Spacing } from "@/constants/theme";
+import { ControlSizes, MaxContentWidth, Typography, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 import { catalogTab } from "@/lib/merchant-catalog";
 
@@ -13,12 +12,12 @@ type CatalogTab = "products" | "offers";
 const tabs: {
   id: CatalogTab;
   label: string;
-  icon: "pricetag-outline" | "pricetags-outline";
+  icon: "cube-outline" | "pricetags-outline";
 }[] = [
   {
     id: "products",
     label: "المنتجات",
-    icon: "pricetag-outline",
+    icon: "cube-outline",
   },
   {
     id: "offers",
@@ -35,6 +34,7 @@ export default function MerchantCatalogScreen() {
   const activeTab: CatalogTab = catalogTab(params.tab);
 
   const changeTab = (tab: CatalogTab) => {
+    Keyboard.dismiss();
     router.setParams({
       tab,
     });
@@ -55,7 +55,6 @@ export default function MerchantCatalogScreen() {
           style={[
             styles.tabs,
             {
-              backgroundColor: colors.surfaceSecondary,
               borderColor: colors.border,
             },
           ]}
@@ -67,16 +66,16 @@ export default function MerchantCatalogScreen() {
             return (
               <Pressable
                 key={tab.id}
-                onPress={() => changeTab(tab.id)}
+                onPress={() => { if (!selected) changeTab(tab.id); }}
                 accessibilityRole="tab"
                 accessibilityState={{
                   selected,
                 }}
-                style={[
+                style={({ pressed }) => [
                   styles.tab,
                   {
-                    backgroundColor: selected ? colors.surface : "transparent",
-                    borderColor: selected ? colors.border : "transparent",
+                    backgroundColor: pressed ? colors.surfacePressed : selected ? colors.surfaceSelected : colors.background,
+                    borderBottomColor: selected ? colors.primary : colors.border,
                   },
                 ]}
               >
@@ -97,16 +96,6 @@ export default function MerchantCatalogScreen() {
                   {tab.label}
                 </Text>
 
-                {selected ? (
-                  <View
-                    style={[
-                      styles.indicator,
-                      {
-                        backgroundColor: colors.primary,
-                      },
-                    ]}
-                  />
-                ) : null}
               </Pressable>
             );
           })}
@@ -114,17 +103,22 @@ export default function MerchantCatalogScreen() {
       </View>
 
       <View style={styles.panel}>
-        {activeTab === "products" ? (
-          <MerchantProductsPanel embedded />
-        ) : (
-          <MerchantOffersPanel embedded />
-        )}
+        {tabs.map(({ id }) => (
+          <View key={id} style={[styles.tabPanel, activeTab !== id && styles.inactivePanel]}
+            pointerEvents={activeTab === id ? "auto" : "none"}
+            accessibilityElementsHidden={activeTab !== id}
+            importantForAccessibility={activeTab === id ? "auto" : "no-hide-descendants"}>
+            <MerchantCatalogPanel kind={id} visible={activeTab === id} compact />
+          </View>
+        ))}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  tabPanel: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
+  inactivePanel: { opacity: 0 },
   screen: {
     flex: 1,
   },
@@ -132,45 +126,32 @@ const styles = StyleSheet.create({
   tabsWrapper: {
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.two,
-    paddingBottom: Spacing.one,
   },
 
   tabs: {
+    direction: "ltr",
     flexDirection: "row-reverse",
     alignSelf: "center",
     width: "100%",
-    maxWidth: 500,
-    padding: 3,
-    borderWidth: 1,
-    borderRadius: Radius.md,
-    gap: 3,
+    maxWidth: MaxContentWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: Spacing.one,
   },
 
   tab: {
-    position: "relative",
     flex: 1,
-    minHeight: 48,
+    minHeight: ControlSizes.button,
     paddingVertical: Spacing.two,
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "center",
     gap: Spacing.one,
-    borderWidth: 1,
-    borderRadius: Radius.sm,
-    overflow: "hidden",
+    flexWrap: "wrap",
+    borderBottomWidth: 2,
   },
 
   tabLabel: {
     ...Typography.bodyStrong,
-  },
-
-  indicator: {
-    position: "absolute",
-    right: 0,
-    top: 6,
-    bottom: 6,
-    width: 2,
-    borderRadius: Radius.full,
   },
 
   panel: {

@@ -1,3 +1,4 @@
+import { categoryFilterIds, categoryPath } from "@/lib/category-tree";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
@@ -20,23 +21,26 @@ export default function OffersTab() {
   const { categories, offers } = useCustomerCatalog();
 
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const selectedIds = useMemo(() => selectedCategory === "all" ? null : categoryFilterIds(categories, selectedCategory), [categories, selectedCategory]);
+  const categoryNodes = useMemo(() => new Map(categories.map(category => [category.id, category])), [categories]);
 
   const filteredOffers = useMemo(() => {
-    if (selectedCategory === "all") {
+    if (!selectedIds) {
       return offers;
     }
 
     return offers.filter(
-      (offer) => offer.items.some((item) => item.product.categoryId === selectedCategory),
+      (offer) => offer.items.some((item) => selectedIds.has(item.product.categoryId)),
     );
-  }, [offers, selectedCategory]);
+  }, [offers, selectedIds]);
 
   const offerCategories = useMemo(() => {
     const categoryIds = new Set(
       offers.flatMap((offer) => offer.items.map((item) => item.product.categoryId)),
     );
 
-    return categories.filter((category) => categoryIds.has(category.id));
+    const parents = new Set(categories.filter(category => categoryIds.has(category.id)).map(category => category.parentId));
+    return categories.filter(category => categoryIds.has(category.id) || parents.has(category.id));
   }, [categories, offers]);
   const selectedCategoryName = selectedCategory === "all"
     ? null
@@ -102,7 +106,7 @@ export default function OffersTab() {
             {offerCategories.map((category) => (
               <CategoryChip
                 key={category.id}
-                label={category.name}
+                label={categoryPath(category, categoryNodes)}
                 icon={category.icon}
                 active={selectedCategory === category.id}
                 onPress={() => setSelectedCategory(category.id)}

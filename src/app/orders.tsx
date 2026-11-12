@@ -1,6 +1,10 @@
+import { userErrorMessage } from "@/lib/user-error-message";
+import { LoadingSkeleton } from "@/components/ui/LoadingState";
+import { useReadScope } from "@/hooks/useReadScope";
+import { LiveStatus } from "@/components/ui/LiveStatus";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppButton } from "@/components/ui/AppButton";
@@ -48,6 +52,10 @@ const statusLabels: Record<OrderStatus, string> = {
 };
 
 export default function OrdersScreen() {
+  const {user}=useAuth();
+  return <OrdersContent key={user?.id ?? "guest"}/>;
+}
+function OrdersContent() {
   const router = useRouter();
   const { colors } = useTheme();
   const { itemCount } = useCart();
@@ -59,14 +67,16 @@ export default function OrdersScreen() {
   const [activeFilter, setActiveFilter] = useState<OrderFilter>("all");
   const [refreshing, setRefreshing] = useState(false);
 
-  const refresh = useCallback(async (background = false) => {
-    if (!background) setLoading(true);
-    setError(null);
+  const reads=useReadScope(user?.id??"guest");
+  const refresh = useCallback(async () => {
+    const epoch=reads.begin();
     try {
       const rows = await getCustomerOrders();
+      if(!reads.current(epoch))return;
+      setError(null);
       setOrders(rows.map((order) => ({
         id: order.id,
-        displayId: order.c3?.references[`ORD:${order.id}`] ?? `TW-${order.order_number}`,
+        displayId: order.c3?.references[`ORD:${order.id}`] ?? "مرجع الطلب غير متاح",
         storeNames: order.stores.map((store) => store.storeName).join("، "),
         itemCount: order.stores.reduce((count, store) => count + groupOrderItems(store.items).length, 0),
         total: order.totals[0] ? formatCurrency(order.totals[0].total, order.totals[0].currency) : "غير متاح",
@@ -74,15 +84,16 @@ export default function OrdersScreen() {
         status: order.status,
       })));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "تعذر تحميل طلباتك.");
+      if(!reads.current(epoch))return;
+      setError(userErrorMessage(cause, "تعذر تحميل طلباتك."));
     } finally {
-      if (!background) setLoading(false);
+      if (reads.current(epoch)) { setLoading(false); setRefreshing(false); }
     }
-  }, []);
+  }, [reads]);
 
   const handlePullRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refresh(true);
+    await refresh();
     setRefreshing(false);
   }, [refresh]);
 
@@ -98,9 +109,9 @@ export default function OrdersScreen() {
     [user],
   );
   const refreshFromRealtime = useCallback(() => {
-    void refresh(true);
+    return refresh();
   }, [refresh]);
-  useOrderRealtime({
+  const live = useOrderRealtime({
     channelName: `customer-orders:${user?.id ?? "guest"}`,
     enabled: Boolean(user),
     subscriptions: realtimeSubscriptions,
@@ -162,6 +173,7 @@ export default function OrdersScreen() {
     >
       <AppHeader title="طلباتي" showBack cartCount={itemCount} mode="customer" />
 
+      <LiveStatus state={live}/>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
@@ -217,14 +229,8 @@ export default function OrdersScreen() {
           />
         </View>
 
-        {loading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginTop: Spacing.six }} />
-        ) : error ? (
-          <View style={{ gap: Spacing.three, padding: Spacing.four, alignItems: "center" }}>
-            <Text style={{ color: colors.error, textAlign: "center" }}>{error}</Text>
-            <AppButton title="إعادة المحاولة" variant="outline" onPress={() => void refresh()} />
-          </View>
-        ) : filteredOrders.length > 0 ? (
+        {error?<View style={{gap:Spacing.two}}><Text accessibilityRole="alert" style={{color:colors.errorForeground,textAlign:"right"}}>{orders.length?"تعذر تحديث الطلبات؛ المعروض آخر بيانات متاحة. ":""}{error}</Text><AppButton title="إعادة المحاولة" variant="outline" onPress={()=>{setRefreshing(true);void refresh();}}/></View>:null}
+        {(loading || refreshing) && !orders.length ? <LoadingSkeleton label="جارٍ تحميل طلباتك"/> : error && !orders.length ? null : filteredOrders.length > 0 ? (
           <View style={styles.orders}>
             {filteredOrders.map((order) => {
               const statusColors = getStatusColors(order.status);

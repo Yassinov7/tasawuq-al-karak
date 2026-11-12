@@ -1,0 +1,126 @@
+{
+  "moves": [
+    {
+      "archived": "archive/legacy-reference/docs/finance-c10-integration.md",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "docs/finance-c10-integration.md"
+    },
+    {
+      "archived": "archive/legacy-reference/docs/finance-c11-safe-transition.md",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "docs/finance-c11-safe-transition.md"
+    },
+    {
+      "archived": "archive/legacy-reference/docs/finance-c11-source-inventory.json",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "docs/finance-c11-source-inventory.json"
+    },
+    {
+      "archived": "archive/legacy-reference/docs/finance-c12-supabase-test-runbook.md",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "docs/finance-c12-supabase-test-runbook.md"
+    },
+    {
+      "archived": "archive/legacy-reference/docs/finance-c12-validation-results.json",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "docs/finance-c12-validation-results.json"
+    },
+    {
+      "archived": "archive/legacy-reference/docs/finance-c12-validation.md",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "docs/finance-c12-validation.md"
+    },
+    {
+      "archived": "archive/legacy-reference/docs/finance-c2-foundation.md",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "docs/finance-c2-foundation.md"
+    },
+    {
+      "archived": "archive/legacy-reference/docs/finance-c3-delivery-pricing.md",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "docs/finance-c3-delivery-pricing.md"
+    },
+    {
+      "archived": "archive/legacy-reference/docs/finance-c4-pickups-and-cash-cutover.md",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "docs/finance-c4-pickups-and-cash-cutover.md"
+    },
+    {
+      "archived": "archive/legacy-reference/docs/finance-c5-driver-custody.md",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "docs/finance-c5-driver-custody.md"
+    },
+    {
+      "archived": "archive/legacy-reference/docs/finance-c6-driver-wages.md",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "docs/finance-c6-driver-wages.md"
+    },
+    {
+      "archived": "archive/legacy-reference/docs/finance-c7-merchant-settlements.md",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "docs/finance-c7-merchant-settlements.md"
+    },
+    {
+      "archived": "archive/legacy-reference/docs/finance-c8-subscriptions.md",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "docs/finance-c8-subscriptions.md"
+    },
+    {
+      "archived": "archive/legacy-reference/docs/finance-c9-treasury.md",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "docs/finance-c9-treasury.md"
+    },
+    {
+      "archived": "archive/legacy-reference/docs/subscriptions",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "docs/subscriptions"
+    },
+    {
+      "archived": "archive/legacy-reference/docs/ui",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "docs/ui"
+    },
+    {
+      "archived": "archive/legacy-reference/docs/actor-flow-audit.ar.md",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "docs/actor-flow-audit.ar.md"
+    },
+    {
+      "archived": "archive/legacy-reference/docs/customer-flow-review.ar.md",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "docs/customer-flow-review.ar.md"
+    },
+    {
+      "archived": "archive/legacy-reference/docs/driver-directory-plan.md",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "docs/driver-directory-plan.md"
+    },
+    {
+      "archived": "archive/legacy-reference/source/SignupIntroStep.tsx.txt",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "src/components/signup/SignupIntroStep.tsx"
+    },
+    {
+      "archived": "archive/legacy-reference/source/merchant-application-draft.ts.txt",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "src/lib/merchant-application-draft.ts"
+    },
+    {
+      "archived": "archive/legacy-reference/source/useOnboardingDraft.ts.txt",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "src/hooks/useOnboardingDraft.ts"
+    },
+    {
+      "archived": "archive/legacy-reference/source/DraftExitModal.tsx.txt",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "src/components/auth/DraftExitModal.tsx"
+    },
+    {
+      "archived": "archive/legacy-reference/tests/test-merchant-draft-guard.cjs.txt",
+      "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
+      "source": "scripts/test-merchant-draft-guard.cjs"
+    }
+  ],
+  "remoteChanges": false,
+  "date": "2026-11-09"
+}

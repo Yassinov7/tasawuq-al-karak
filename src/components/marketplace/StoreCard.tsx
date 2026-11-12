@@ -1,8 +1,9 @@
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { ShoppingCardImage } from "@/components/marketplace/ShoppingCardImage";
 
 import { AppIcon } from "@/components/ui/AppIcon";
 import { RatingStars } from "@/components/marketplace/RatingStars";
-import { type Store } from "@/constants/catalog";
+import { type Store } from "@/types/catalog";
 import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
@@ -13,6 +14,9 @@ type StoreCardProps = {
   compact?: boolean;
   grid?: boolean;
   showFeatured?: boolean;
+  shelfWidth?: number;
+  searchResult?: boolean;
+  logo?: { url: string; key: string };
 };
 
 export function StoreCard({
@@ -21,19 +25,23 @@ export function StoreCard({
   compact = false,
   grid = false,
   showFeatured = true,
+  logo,
+  shelfWidth,
+  searchResult = false,
 }: StoreCardProps) {
   const { colors } = useTheme();
-  const { width } = useWindowDimensions();
+  const { width, fontScale } = useWindowDimensions();
   const { storeCategories: categories, products, storeRatings } = useCustomerCatalog();
 
   const category = categories.find((item) =>
     store.categoryIds.includes(item.id),
   );
 
-  const productCount = products.filter(
+  const productCount = shelfWidth === undefined && !searchResult ? products.filter(
     (product) => product.storeId === store.id,
-  ).length;
+  ).length : null;
   const rating = storeRatings.get(store.id);
+  const average = rating?.averageRating ?? store.rating;
 
   return (
     <Pressable
@@ -42,7 +50,9 @@ export function StoreCard({
       accessibilityLabel={store.name}
       style={({ pressed }) => [
         styles.card,
-        grid ? (width < 360 ? styles.singleColumnCard : styles.gridCard) : (compact ? styles.compactCard : styles.normalCard),
+        grid ? (width < 360 || fontScale > 1.25 ? styles.singleColumnCard : styles.gridCard) : (compact ? styles.compactCard : styles.normalCard),
+        searchResult && styles.singleColumnCard,
+        shelfWidth === undefined ? undefined : { width: shelfWidth },
         {
           backgroundColor: colors.surface,
           borderColor: colors.border,
@@ -50,7 +60,7 @@ export function StoreCard({
         },
       ]}
     >
-      <View style={styles.header}>
+      <View style={[styles.header, shelfWidth !== undefined && styles.shelfHeader]}>
         <View
           style={[
             styles.storeIcon,
@@ -60,14 +70,11 @@ export function StoreCard({
             },
           ]}
         >
-          <AppIcon
-            name={category?.icon ?? "storefront-outline"}
-            size={compact ? 23 : 26}
-            color={colors.primary}
-          />
+          <ShoppingCardImage uri={logo?.url} cacheKey={logo?.key} restricted fit="contain"
+            icon={category?.icon ?? "storefront-outline"} />
         </View>
 
-        <View style={styles.identity}>
+        <View style={[styles.identity, shelfWidth !== undefined && styles.shelfIdentity]}>
           <Text
             style={[
               styles.name,
@@ -102,7 +109,7 @@ export function StoreCard({
         ) : null}
       </View>
 
-      {store.description ? (
+      {shelfWidth === undefined && store.description ? (
         <Text
           style={[
             styles.description,
@@ -116,30 +123,24 @@ export function StoreCard({
         </Text>
       ) : null}
 
-      {rating && rating.averageRating !== null && rating.ratingCount > 0 ? (
+      {average != null ? (
         <View style={styles.ratingRow}>
-          <RatingStars rating={Math.round(rating.averageRating)} size={14} />
-          <Text style={[styles.ratingText, { color: colors.textSecondary }]}>{rating.averageRating.toFixed(1)} · {rating.ratingCount}</Text>
+          <RatingStars rating={Math.round(average)} size={14} />
+          <Text style={[styles.ratingText, { color: colors.textSecondary }]}>{average.toFixed(1)}{rating?.ratingCount ? " · " + rating.ratingCount : ""}</Text>
         </View>
       ) : null}
 
-      <View style={[styles.bottom, { borderTopColor: colors.border }]}>
-        <Text
-          style={[
-            styles.productCount,
-            {
-              color: colors.primary,
-            },
-          ]}
-        >
+      {shelfWidth === undefined ? <View style={[styles.bottom, { borderTopColor: colors.border }]}>
+        {productCount !== null ? <Text style={[styles.productCount, { color: colors.primary }]}>
           {productCount} منتج
-        </Text>
+        </Text> : null}
+        {searchResult && store.deliveryTime ? <Text style={[styles.category, { color: colors.textSecondary }]}>{store.deliveryTime}</Text> : null}
 
         <View style={styles.openAction}>
           <Text style={[styles.openText, { color: colors.primary }]}>عرض المتجر</Text>
           <AppIcon name="chevron-back-outline" size={15} color={colors.primary} />
         </View>
-      </View>
+      </View> : null}
     </Pressable>
   );
 }
@@ -176,6 +177,7 @@ const styles = StyleSheet.create({
 
   storeIcon: {
     width: 50,
+    overflow: "hidden",
     height: 50,
     alignItems: "center",
     justifyContent: "center",
@@ -186,6 +188,8 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
   },
+  shelfHeader: { flexDirection: "column" },
+  shelfIdentity: { flex: 0, alignItems: "center", alignSelf: "stretch" },
 
   identity: {
     flex: 1,

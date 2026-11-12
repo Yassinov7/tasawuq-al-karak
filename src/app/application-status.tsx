@@ -1,3 +1,7 @@
+import { logoutPersonalAccount } from "@/lib/personal-account";
+import { useOrderRealtime } from "@/hooks/useOrderRealtime";
+import { useReadScope } from "@/hooks/useReadScope";
+import { LiveStatus } from "@/components/ui/LiveStatus";
 import { OnboardingFrame } from "@/components/auth/OnboardingFrame";
 import { useRouter, type Href } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
@@ -49,6 +53,7 @@ function ApplicationStatusContent() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
+  const reads=useReadScope(user?.id??"guest");
   const loadStatus = useCallback(
     async (isRefresh = false) => {
       if (authLoading) return;
@@ -69,10 +74,12 @@ function ApplicationStatusContent() {
         setLoading(true);
       }
 
+      const epoch=reads.begin();
       setError("");
 
       try {
         const destination = await getAccountRoute(user.id);
+        if(!reads.current(epoch))return;
         if (destination !== "/application-status") {
           setRedirecting(true);
           router.replace(destination as Href);
@@ -85,6 +92,7 @@ function ApplicationStatusContent() {
           .eq("id", user.id)
           .maybeSingle();
 
+        if(!reads.current(epoch))return;
         if (profileError) {
           throw profileError;
         }
@@ -97,6 +105,7 @@ function ApplicationStatusContent() {
 
         if (currentRole !== "merchant" && currentRole !== "driver") {
           const currentDestination = await getAccountRoute(user.id);
+          if(!reads.current(epoch))return;
           if (currentDestination === "/application-status") {
             throw new AccountRoutingError("invalid-role");
           }
@@ -114,8 +123,8 @@ function ApplicationStatusContent() {
 
         const select =
           currentRole === "merchant"
-            ? "status,review_note,submitted_at,plan_price_snapshot,plan_currency_snapshot"
-            : "status,review_note,submitted_at";
+            ? "status,review_note,submitted_at,public_reference,plan_id,plan_price_snapshot,plan_currency_snapshot"
+            : "status,review_note,submitted_at,public_reference";
 
         const { data: application, error: applicationError } = await supabase
           .from(table)
@@ -123,6 +132,7 @@ function ApplicationStatusContent() {
           .eq("user_id", user.id)
           .maybeSingle();
 
+        if(!reads.current(epoch))return;
         if (applicationError) {
           throw applicationError;
         }
@@ -130,6 +140,7 @@ function ApplicationStatusContent() {
         const applicationStatus = application as Status | null;
         if (!applicationStatus) {
           const latestDestination = await getAccountRoute(user.id);
+          if(!reads.current(epoch))return;
           if (latestDestination !== "/application-status") {
             setRedirecting(true);
             router.replace(latestDestination as Href);
@@ -147,17 +158,17 @@ function ApplicationStatusContent() {
 
         setStatus(applicationStatus);
       } catch (loadError) {
+        if(!reads.current(epoch))return;
         setError(
           loadError instanceof AccountRoutingError
             ? getAccountRoutingErrorMessage(loadError)
             : "تعذر تحميل حالة الطلب. تحقق من اتصالك بالإنترنت ثم حاول مرة أخرى.",
         );
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if(reads.current(epoch)){setLoading(false);setRefreshing(false);}
       }
     },
-    [authLoading, initializationError, router, user],
+    [authLoading, initializationError, router, user,reads],
   );
 
   useEffect(() => {
@@ -165,9 +176,10 @@ function ApplicationStatusContent() {
     return () => clearTimeout(timer);
   }, [loadStatus]);
 
+  const live=useOrderRealtime({channelName:`application-status:${user?.id}`,enabled:!!user&&!authLoading,subscriptions:user?[{table:"merchant_applications",filter:`user_id=eq.${user.id}`},{table:"driver_applications",filter:`user_id=eq.${user.id}`}]:[],onChange:()=>loadStatus(true)});
   const handleLogout = async () => {
     try {
-      const { error: signOutError } = await supabase.auth.signOut();
+      const signOutError = user && !await logoutPersonalAccount(user.id);
       if (signOutError) {
         setError("تعذر تسجيل الخروج. تحقق من الاتصال ثم حاول مرة أخرى.");
         return;
@@ -224,6 +236,7 @@ function ApplicationStatusContent() {
           />
         }
       >
+        <LiveStatus state={live}/>
         <View
           style={[
             styles.statusCard,
@@ -276,7 +289,7 @@ function ApplicationStatusContent() {
           ]}
         >
           <Text style={[styles.detailsTitle, { color: colors.text }]}>
-            تفاصيل الطلب
+            تفاصيل الطلب — {status.public_reference}
           </Text>
 
           <View
@@ -412,7 +425,8 @@ function ApplicationStatusContent() {
         ) : null}
 
         <View style={styles.actions}>
-          {["changes_requested", "rejected"].includes(status.status) ? <AppButton design="refined" title="تعديل الطلب وإعادة تقديمه" onPress={() => router.push((isMerchant ? "/merchant-application?edit=1" : "/driver-application?edit=1") as Href)} /> : null}
+          {isMerchant && status.status === "pending" && !status.plan_id ? <AppButton title="اختيار خطة الاشتراك واستكمال الطلب" onPress={() => router.push("/merchant-application")}/> : null}
+        {["changes_requested", "rejected"].includes(status.status) ? <AppButton design="refined" title="تعديل الطلب وإعادة تقديمه" onPress={() => router.push((isMerchant ? "/merchant-application?edit=1" : "/driver-application?edit=1") as Href)} /> : null}
           {isAccepted && isMerchant ? (
             <AppButton design="refined"
               title="إدارة المتجر"

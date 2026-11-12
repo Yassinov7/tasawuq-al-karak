@@ -2,7 +2,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),crypto=require('node:crypto');
 function load(file,mocks={}) {
  const exports={};
- vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,Uint8Array,ArrayBuffer,Number,Date,Math,JSON,crypto:crypto.webcrypto,require(name){if(Object.hasOwn(mocks,name))return mocks[name];if(name==='@/constants/selling-units')return load('src/constants/selling-units.ts');throw Error(name);}});
+ vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,Uint8Array,ArrayBuffer,Number,Date,Math,JSON,crypto:crypto.webcrypto,require(name){if(Object.hasOwn(mocks,name))return mocks[name];if(name==='@/lib/catalog-categories')return load('src/lib/catalog-categories.ts',mocks);if(name==='@/constants/selling-units')return load('src/constants/selling-units.ts');throw Error(name);}});
  return exports;
 }
 const m=load('src/lib/merchant-product-create.ts');

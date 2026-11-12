@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Keyboard, Pressable, StyleSheet, Text, View } from "react-native";
+import { KeyboardAwareScrollView } from "@/components/ui/KeyboardAwareScrollView";
+import { useAppDialog } from "@/context/AppDialogContext";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { AppButton } from "@/components/ui/AppButton";
@@ -17,6 +19,7 @@ const finiteWithPrecision = (value: number, precision: number) => Number.isFinit
 export default function AdminPlanFormScreen() {
   const { colors } = useTheme();
   const router = useRouter();
+  const { alert } = useAppDialog();
   const { planId: rawPlanId } = useLocalSearchParams<{ planId?: string | string[] }>();
   const planId = Array.isArray(rawPlanId) ? rawPlanId[0] : rawPlanId;
   const editing = Boolean(planId);
@@ -85,9 +88,9 @@ export default function AdminPlanFormScreen() {
     setSaving(true);
     try {
       await saveManagedSubscriptionPlan({ name: name.trim(), description: description.trim(), durationMonths: durationValue, price: priceValue, commissionRate: commissionValue, productLimit: productLimitValue, features, isActive }, planId);
-      Alert.alert("تم الحفظ", editing ? "تم حفظ تعديلات الخطة. لا تتغير الاشتراكات أو الفواتير أو اللقطات السابقة." : "تم إنشاء الخطة كمسودة أو خطة نشطة بحسب الإعدادات.", [{ text: "حسنًا", onPress: () => router.back() }]);
+      const acknowledged = await alert("تم الحفظ", editing ? "تم حفظ تعديلات الخطة. لا تتغير الاشتراكات أو الفواتير أو اللقطات السابقة." : "تم إنشاء الخطة كمسودة أو خطة نشطة بحسب الإعدادات.");
+      if (acknowledged) router.back();
     } catch (requestError) {
-      console.warn("Unable to save subscription plan", requestError);
       const message = requestError instanceof Error ? requestError.message : "";
       setSubmitError(message.includes("active subscription plan") ? "لا يمكن تفعيل خطة غير مكتملة الشروط المطلوبة للتسجيل." : "تعذر حفظ الخطة. احتفظنا بالمدخلات؛ تحقق من البيانات والصلاحيات ثم أعد المحاولة.");
     } finally { setSaving(false); }
@@ -96,8 +99,8 @@ export default function AdminPlanFormScreen() {
   if (initialLoading) return <View style={[styles.center, { backgroundColor: colors.background }]}><Text style={[styles.loading, { color: colors.textSecondary }]}>يتم تحميل بيانات الخطة…</Text></View>;
   if (loadError) return <View style={[styles.center, { backgroundColor: colors.background }]}><Text style={[styles.errorText, { color: colors.error }]}>{loadError}</Text><AppButton title="إعادة المحاولة" variant="outline" onPress={() => void load()} /></View>;
 
-  return <KeyboardAvoidingView style={[styles.screen, { backgroundColor: colors.background }]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+  return <View style={[styles.screen, { backgroundColor: colors.background }]}>
+    <KeyboardAwareScrollView contentContainerStyle={styles.content}>
       <View style={[styles.notice, { backgroundColor: colors.primaryLight, borderColor: colors.border }]}><AppIcon name="information-circle-outline" size={20} color={colors.primary} /><Text style={[styles.noticeText, { color: colors.textSecondary }]}>تُحفظ شروط الخطة الجديدة فقط؛ الاشتراكات وطلبات التجار السابقة تحتفظ باللقطات المسجلة لها.</Text></View>
       <Section title="البيانات الأساسية"><AppTextField label="اسم الخطة" value={name} onChangeText={setName} maxLength={80} error={errors.name} /><AppTextField label="وصف الخطة" value={description} onChangeText={setDescription} multiline error={errors.description} helperText="يظهر للمتقدم عند اختيار الخطة." /><Choice label="الحالة" value={isActive ? "active" : "draft"} values={[["draft", "مسودة"], ["active", "نشطة"]]} onChange={(value) => setIsActive(value === "active")} /></Section>
       <Section title="الرسوم والعمولة"><AppTextField label="رسوم الاشتراك" value={price} onChangeText={setPrice} keyboardType="decimal-pad" error={errors.price} placeholder="0" /><AppTextField label="نسبة العمولة (%)" value={commission} onChangeText={setCommission} keyboardType="decimal-pad" error={errors.commission} helperText="يسمح بـ 0% عند تحديدها صراحة." /></Section>
@@ -107,8 +110,8 @@ export default function AdminPlanFormScreen() {
       {submitError ? <View style={[styles.submitError, { backgroundColor: colors.surfaceSecondary }]}><Text style={[styles.errorText, { color: colors.error }]}>{submitError}</Text></View> : null}
       <AppButton title={editing ? "حفظ التعديلات" : "إنشاء الخطة"} icon="checkmark-outline" loading={saving} disabled={saving} onPress={() => void save()} />
       <AppButton title="إلغاء" variant="outline" disabled={saving} onPress={() => router.back()} />
-    </ScrollView>
-  </KeyboardAvoidingView>;
+    </KeyboardAwareScrollView>
+  </View>;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) { const { colors } = useTheme(); return <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}><Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>{children}</View>; }

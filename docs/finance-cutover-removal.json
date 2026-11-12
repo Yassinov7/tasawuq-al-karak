@@ -1,0 +1,752 @@
+{
+  "preserved_tables": [
+    "audit_logs",
+    "customer_addresses",
+    "customer_cart_items",
+    "customer_cart_offer_selections",
+    "customer_cart_store_notes",
+    "customer_carts",
+    "customer_order_requests",
+    "customer_order_totals",
+    "customer_orders",
+    "delivery_tasks",
+    "delivery_zones",
+    "driver_applications",
+    "merchant_applications",
+    "merchants",
+    "notifications",
+    "order_pricing_current",
+    "order_pricing_revisions",
+    "order_pricing_snapshots",
+    "product_categories",
+    "product_media",
+    "product_reviews",
+    "products",
+    "profiles",
+    "store_branding_assets",
+    "store_categories",
+    "store_offer_media",
+    "store_offer_products",
+    "store_offers",
+    "store_order_items",
+    "store_order_status_history",
+    "store_order_totals",
+    "store_orders",
+    "store_reviews",
+    "stores",
+    "subscription_plans"
+  ],
+  "removed_tables": [
+    "c7_merchant_settlement_payments",
+    "customer_order_cash_obligations",
+    "delivery_collection_results",
+    "delivery_pickup_workflows",
+    "delivery_store_pickups",
+    "delivery_wage_snapshots",
+    "driver_cash_credit_payouts",
+    "driver_cash_handover_attempts",
+    "driver_cash_handover_requests",
+    "driver_cash_receipt_allocations",
+    "driver_cash_remittances",
+    "driver_delivery_fee_entitlements",
+    "driver_wage_entitlements",
+    "driver_wage_payment_items",
+    "driver_wage_payments",
+    "driver_wage_policies",
+    "financial_account_definitions",
+    "financial_accounts",
+    "financial_document_references",
+    "financial_events",
+    "financial_operations",
+    "invoice_payment_allocations",
+    "journal_entries",
+    "journal_lines",
+    "merchant_billing_settings",
+    "merchant_credit_limits",
+    "merchant_delivery_positions",
+    "merchant_financial_audit_events",
+    "merchant_ledger_entries",
+    "merchant_order_entitlement_adjustments",
+    "merchant_order_entitlements",
+    "merchant_settlement_batch_entitlements",
+    "merchant_settlement_batches",
+    "merchant_settlement_document_items",
+    "merchant_settlement_documents",
+    "merchant_settlement_payment_allocations",
+    "merchant_settlement_payments",
+    "merchant_subscription_plan_changes",
+    "merchant_subscriptions",
+    "order_financial_modes",
+    "order_lifecycle_events",
+    "store_order_commission_reversals",
+    "store_order_commissions",
+    "subscription_account_events",
+    "subscription_billing_documents",
+    "subscription_cash_receipts",
+    "subscription_invoices",
+    "subscription_memberships",
+    "subscription_payment_allocation_batches",
+    "subscription_payments",
+    "subscription_plan_versions",
+    "treasury_control_documents",
+    "treasury_finance_events",
+    "treasury_finance_postings",
+    "treasury_finance_requests",
+    "wallet_transactions",
+    "wallets"
+  ],
+  "removed_views": [
+    "admin_cash_movement_events",
+    "admin_delivery_fee_report_rows",
+    "admin_merchant_financial_report_events",
+    "admin_merchant_payout_report_rows",
+    "admin_merchant_settlement_report_batches",
+    "admin_platform_revenue_report_events",
+    "driver_cash_custody_positions",
+    "merchant_account_sale_rows",
+    "merchant_account_settlement_rows",
+    "merchant_financial_positions",
+    "merchant_order_entitlement_positions",
+    "merchant_settlement_batch_positions"
+  ],
+  "replaced_public_functions": [
+    "review_driver_application",
+    "review_merchant_application",
+    "validate_invoice_payment_allocation",
+    "validate_merchant_ledger_entry",
+    "allocate_subscription_payment",
+    "subscription_renewal_internal",
+    "reject_store_order_after_subscription_grace",
+    "store_accepts_new_orders",
+    "set_merchant_auto_renew",
+    "schedule_merchant_subscription_plan_change",
+    "record_subscription_payment",
+    "process_due_merchant_subscription_renewals",
+    "admin_financial_report",
+    "apply_store_order_commission_status_change",
+    "snapshot_subscription_commission_rate",
+    "reconcile_subscription_commission_rate",
+    "append_commission_reversal_entitlement_adjustment",
+    "find_c2_document_reference",
+    "record_merchant_settlement_payment",
+    "apply_wallet_transaction",
+    "accept_delivery_task",
+    "snapshot_store_order_commission_after_totals",
+    "save_c3_delivery_zone",
+    "get_c3_order_context",
+    "record_wallet_transaction",
+    "set_merchant_credit_limit",
+    "admin_sales_revenue_report",
+    "merchant_financial_account",
+    "pay_driver_cash_credit",
+    "record_driver_cash_remittance",
+    "create_merchant_settlement_batch",
+    "get_c2_financial_operation",
+    "update_store_order_status",
+    "cancel_customer_order",
+    "update_delivery_task_status",
+    "create_c3_order_from_cart",
+    "quote_c3_cart",
+    "get_c3_pricing_exceptions",
+    "make_order_delivery_available",
+    "create_order_from_cart",
+    "confirm_c4_store_pickup",
+    "get_c4_pickup_context",
+    "accrue_store_order_commission",
+    "create_delivered_order_cash_foundations",
+    "reverse_store_order_commission",
+    "complete_delivery_and_collect_cash",
+    "recover_delivery_collection",
+    "request_c5_cash_handover",
+    "recover_c5_cash_handover",
+    "get_c5_driver_custody",
+    "list_c5_cash_requests",
+    "confirm_c5_cash_handover",
+    "save_c6_wage_policy",
+    "pay_c6_driver_wages",
+    "recover_c6_operation",
+    "get_c6_wage_policy",
+    "get_c6_driver_wages",
+    "list_c6_driver_wages",
+    "prepare_c7_settlement",
+    "pay_c7_settlement",
+    "recover_c7_operation",
+    "get_c7_merchant_settlements",
+    "list_c7_merchant_settlements",
+    "read_subscription_account",
+    "save_subscription_plan_version",
+    "enroll_subscription_account",
+    "recover_subscription_operation",
+    "change_subscription_account",
+    "issue_subscription_invoice",
+    "collect_subscription_invoice",
+    "list_subscription_accounts",
+    "can_read_treasury_document",
+    "record_treasury_action",
+    "recover_treasury_action",
+    "read_treasury_control",
+    "request_treasury_finance",
+    "act_on_treasury_finance",
+    "can_read_treasury_finance",
+    "read_treasury_finance",
+    "read_financial_reconciliation",
+    "set_finance_transition_gate",
+    "transition_legacy_subscription",
+    "get_legacy_delivery_collection",
+    "read_finance_transition",
+    "renew_merchant_subscription",
+    "publish_store_branding",
+    "create_delivered_order_cash_foundations_after_store_delivery",
+    "create_delivered_order_cash_foundations_after_task_delivery",
+    "branding_can_read",
+    "branding_asset_readable",
+    "branding_read_allowed"
+  ],
+  "removed_private_objects": [
+    {
+      "schema": "finance_private",
+      "name": "reject_mutation",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c4_is_order",
+      "args": "order_value uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c3_fee",
+      "args": "base_value numeric, uplift_value numeric, stores_count integer"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c3_recalculate",
+      "args": "target_order uuid, source_child uuid, change_reason text"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c3_zone_version",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "defer_foundation_constraints",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "next_reference",
+      "args": "kind text"
+    },
+    {
+      "schema": "finance_private",
+      "name": "assign_reference",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "guard_journal_entry",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "enforce_journal",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "complete_operation",
+      "args": "target_operation uuid, trusted_result jsonb, rejected_attempt boolean"
+    },
+    {
+      "schema": "finance_private",
+      "name": "guard_operation",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c6_validate_payment_item",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c6_require_payment",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c4_defer_extensions",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "require_completed_operation",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c4_no_reassignment",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c6_previous_confirm_handover",
+      "args": "target_request uuid, target_driver uuid, expected_user uuid, attempt_key uuid, counted_amount numeric"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c5_validate_request",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c6_can",
+      "args": "permission_value text"
+    },
+    {
+      "schema": "finance_private",
+      "name": "begin_operation",
+      "args": "operation_name text, key_value uuid, trusted_input jsonb"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c5_request_complete",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c4_reject_operation",
+      "args": "operation_value uuid, code_value text"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c6_treasury_balance",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c8_owns",
+      "args": "merchant_value uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c8_enabled",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c6_allocate_new_rct",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c7_validate_item",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c8_reject",
+      "args": "op_value uuid, code_value text"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c7_owns",
+      "args": "store_value uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c7_can",
+      "args": "permission_value text"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c7_capture_delivery",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c6_cash_remaining",
+      "args": "task_value uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c4_mark_birth",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c8_issue",
+      "args": "merchant_value uuid, key_value uuid, automatic_value boolean, issue_reason text"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c7_require_settlement",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c7_require_payment",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c8_can",
+      "args": "action_value text"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c8_merchant_owner",
+      "args": "merchant_value uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c8_plan_fence",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c9_can",
+      "args": "permission_value text"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c11_can",
+      "args": "control_value boolean"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c6_validate_allocation",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c4_select_mode",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c8_state",
+      "args": "merchant_value uuid, at_time timestamp with time zone"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c8_legacy_store_eligibility",
+      "args": "target_store uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "require_posted_event",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c7_capture",
+      "args": "task_value uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c6_validate_snapshot",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c4_delivery_extensions",
+      "args": "target_task uuid, target_operation uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c4_legacy_reverse_commission",
+      "args": "target_commission uuid, reversal_amount numeric, reversal_idempotency_key uuid, reversal_reason text"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c6_require_accrual",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c6_allocate_receipt",
+      "args": "receipt_value uuid, basis_value text"
+    },
+    {
+      "schema": "finance_private",
+      "name": "post_journal",
+      "args": "target_event uuid, trusted_lines jsonb, posting_reason text, original_entry uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "register_document",
+      "args": "kind_value text, target_document uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "validate_account_owner",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "guard_journal_line",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c3_dispatch",
+      "args": "target_order uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c3_legacy_update_store_order_status",
+      "args": "target_store_order uuid, next_status store_order_status, reason text"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c3_legacy_cancel_customer_order",
+      "args": "target_customer_order uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c7_position",
+      "args": "store_value uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "check_journal",
+      "args": "target_entry uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "record_financial_event",
+      "args": "target_reference uuid, event_name text, target_operation uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "validate_lifecycle_event",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "append_lifecycle_event",
+      "args": "target_order uuid, target_store_order uuid, target_task uuid, event_name text, previous_status text, next_status text, source_name text, key_value text, event_reason text, corrected_event uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c5_receiver",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c5_register_receipt",
+      "args": "attempt_value uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c3_legacy_accept_delivery_task",
+      "args": "target_customer_order uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c3_legacy_update_delivery_task_status",
+      "args": "target_customer_order uuid, next_status delivery_task_status"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c3_cart_signature",
+      "args": "cart_value uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c3_lock_cart",
+      "args": "owner_value uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c4_validate_pickup",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c4_legacy_accrue",
+      "args": "target_store_order uuid, delivered_at_value timestamp with time zone"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c5_validate_attempt",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c4_legacy_cash_foundations",
+      "args": "target_customer_order uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c5_require_receipt",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c6_position",
+      "args": "driver_value uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c4_guard_legacy_write",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c8_receivable",
+      "args": "merchant_value uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c4_guard_task_progress",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c4_require_atomic_result",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c4_account",
+      "args": "code_value text, user_value uuid, merchant_value uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c5_position",
+      "args": "driver_value uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c8_native_fence",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c8_done",
+      "args": "op_value uuid, r jsonb, reject_value boolean"
+    },
+    {
+      "schema": "finance_private",
+      "name": "subscription_invoice_voided",
+      "args": "invoice_value uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "subscription_activation_start",
+      "args": "previous_end timestamp with time zone, paid_at timestamp with time zone"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c8_require_document",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "run_due_subscription_invoices",
+      "args": "batch_limit integer"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c11_membership_admission",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c8_legacy_quote",
+      "args": "target_zone uuid, expected_user uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c9_lock_c5_receipt",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c9_cash_cut",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c9_validate_document",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c11_treasury_admission",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c9_finance_can",
+      "args": "kind_value text, action_value text"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c9_request_state",
+      "args": "request_value uuid"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c11_record_subscription_transition",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c9_finance_validate",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c9_finance_result",
+      "args": "request_value uuid, action_value text"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c11_readiness",
+      "args": "path_value text"
+    },
+    {
+      "schema": "finance_private",
+      "name": "c6_capture_policy",
+      "args": ""
+    },
+    {
+      "schema": "finance_private",
+      "name": "c11_guard_order_event",
+      "args": ""
+    }
+  ],
+  "removed_private_relations": [
+    "c10_account_comparison",
+    "c10_expected_lines",
+    "c10_permissions",
+    "c10_reconciliation_issues",
+    "c10_required_references",
+    "c11_gate_audit",
+    "c11_gates",
+    "c11_legacy_review",
+    "c11_order_contracts",
+    "c11_permissions",
+    "c11_subscription_transitions",
+    "c4_order_births",
+    "c4_rollout",
+    "c5_cash_receivers",
+    "c5_rollout",
+    "c6_control",
+    "c6_permissions",
+    "c6_task_births",
+    "c6_treasury_mutex",
+    "c7_control",
+    "c7_permissions",
+    "c8_control",
+    "c8_permissions",
+    "c9_cash_lines",
+    "c9_control",
+    "c9_permissions",
+    "c9_system_owners",
+    "subscription_job_failures"
+  ]
+}

@@ -1,0 +1,6 @@
+interface:
+  display_name: "تسوق — واجهات الهاتف"
+  short_description: "تطوير صفحة هاتف واحدة آمنة وواضحة وفق قواعد تسوق"
+  default_prompt: "Use $react-native-ui to review and improve the current approved RUI page in Tasawuq, preserving accepted functionality and awaiting owner phone acceptance."
+policy:
+  allow_implicit_invocation: true

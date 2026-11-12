@@ -1,25 +1,32 @@
-import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useToast } from "@/context/ToastContext";
+import { LoadingSkeleton } from "@/components/ui/LoadingState";
+import { useDriverTaskRefresh } from "@/hooks/useDriverTaskRefresh";
+import type { DriverReadReason } from "@/lib/driver-read-queue";
+import { useReadScope } from "@/hooks/useReadScope";
+import { useRouter,useLocalSearchParams,useFocusEffect } from "expo-router";
+import { AppButton } from "@/components/ui/AppButton";
+import { AppIcon } from "@/components/ui/AppIcon";
+import { DriverPickupPreview, DriverTaskDestination } from "@/components/driver/DriverTaskLocation";
+import { useCallback, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 
-import { DeliveryTaskCard, toAvailableTaskCard } from "@/components/driver/DeliveryTaskCard";
+import { FinancialAmount } from "@/components/ui/FinancialAmount";
+import { readMoney } from "@/lib/invoice-finance";
 import { AppHeader } from "@/components/navigation/AppHeader";
-import { AppIcon } from "@/components/ui/AppIcon";
 import {
-  FontSizes,
-  Fonts,
   MaxContentWidth,
   Radius,
   Spacing,
+  Typography,
 } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -27,18 +34,32 @@ import { useOrderRealtime } from "@/hooks/useOrderRealtime";
 import {
   acceptDeliveryTask,
   getAvailableDeliveryTasks,
-  getDriverAssignedTasks,
+  getDriverHomeAssignment,
   getDriverApplication,
   setDriverAvailability,
   type AvailableDeliveryTask,
+  type DriverHomeTask,
 } from "@/lib/driver-deliveries";
 
 export default function DriverHomeScreen() {
+  const { user } = useAuth();
+  return <DriverHome key={user?.id ?? "guest"}/>;
+}
+
+function DriverHome() {
   const router = useRouter();
+  const {taskId}=useLocalSearchParams<{taskId?:string}>();
   const { user, loading: authLoading } = useAuth();
   const { colors } = useTheme();
+  const userId = user?.id;
+  const toast = useToast();
+  const actionLock = useRef(false);
+  const hasLoaded = useRef(false);
   const [tasks, setTasks] = useState<AvailableDeliveryTask[]>([]);
   const [driverName, setDriverName] = useState("");
+  const [currentTask, setCurrentTask] = useState<DriverHomeTask | null>(null);
+  const [money, setMoney] = useState<{ collection: string; payable: string } | null>(null);
+  const [showAll, setShowAll] = useState(false);
   const [activeDeliveryCount, setActiveDeliveryCount] = useState(0);
   const [isAvailable, setIsAvailable] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -46,505 +67,256 @@ export default function DriverHomeScreen() {
   const [availabilityBusy, setAvailabilityBusy] = useState(false);
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [readError, setReadError] = useState("");
 
+  const reads=useReadScope(user?.id??"guest");
+  const actionReads = useReadScope(`actions:${userId ?? "guest"}`);
+  useFocusEffect(useCallback(() => {
+    reads.open(); actionReads.open();
+    return () => { reads.close(); actionReads.close(); };
+  }, [reads, actionReads]));
   const loadData = useCallback(
-    async (refresh = false, background = false) => {
+    async (signal: AbortSignal, reason: DriverReadReason) => {
+      const refresh = reason === "manual", background = reason === "change";
       if (authLoading) return;
-      if (!user) {
+      const epoch=reads.begin();
+      if (!userId) {
         router.replace("/login");
         setLoading(false);
         return;
       }
 
-      if (refresh) setRefreshing(true);
-      else if (!background) setLoading(true);
-      setError("");
+      if (refresh || (reason === "initial" && hasLoaded.current)) setRefreshing(true);
+      else if (!background && !hasLoaded.current) setLoading(true);
 
+      let financeRead: Promise<Awaited<ReturnType<typeof readMoney>> | null> | undefined;
       try {
-        const application = await getDriverApplication(user.id);
+        const application = await getDriverApplication(userId, signal);
+        if(signal.aborted || !reads.current(epoch))return;
         if (!application || application.status !== "accepted") {
           router.replace("/application-status");
           return;
         }
 
-        const [availableTasks, assignedTasks] = await Promise.all([
+        financeRead = readMoney("", 0, undefined, signal).catch(() => null);
+        const [availableTasks, assignment] = await Promise.all([
           application.is_available
-            ? getAvailableDeliveryTasks()
+            ? getAvailableDeliveryTasks(signal)
             : Promise.resolve([]),
-          getDriverAssignedTasks(user.id),
+          getDriverHomeAssignment(userId, signal),
         ]);
+        if(signal.aborted || !reads.current(epoch))return;
+        setReadError("");
         setDriverName(application.full_name);
-        setActiveDeliveryCount(
-          assignedTasks.filter(
-            (task) => task.status === "accepted" || task.status === "picked_up",
-          ).length,
-        );
+        setActiveDeliveryCount(assignment.count);
+        setCurrentTask(assignment.task);
         setIsAvailable(application.is_available);
         setTasks(availableTasks);
-      } catch {
-        setError("تعذر تحميل المهام أو حالة التوفر. تحقق من اتصالك ثم أعد المحاولة.");
-      } finally {
-        if (!background) setLoading(false);
+        hasLoaded.current = true;
+        setLoading(false);
         setRefreshing(false);
+        const finance = await financeRead;
+        if(signal.aborted || !reads.current(epoch))return;
+        setMoney(finance?.owner === userId && !finance.admin && finance.account_reference
+          ? { collection: finance.collection_due, payable: finance.payable } : null);
+      } catch {
+        if(signal.aborted || !reads.current(epoch))return;
+        setReadError("تعذر تحميل المهام أو حالة التوفر. تحقق من اتصالك ثم أعد المحاولة.");
+      } finally {
+        if(!signal.aborted && reads.current(epoch)){hasLoaded.current = true;setLoading(false);setRefreshing(false);}
+        await financeRead;
       }
     },
-    [authLoading, router, user],
+    [authLoading, router, userId,reads],
   );
 
-  useEffect(() => {
-    const timer = setTimeout(() => void loadData(), 0);
-    return () => clearTimeout(timer);
-  }, [loadData]);
+  const refreshTasks = useDriverTaskRefresh(loadData, Boolean(userId && !authLoading));
 
-  const realtimeSubscriptions = useMemo(
-    () => [{ table: "delivery_tasks" as const }],
-    [],
-  );
+  const hasSnapshot=Boolean(driverName);
+  const matchingTasks = taskId ? tasks.filter(task => task.task_id === taskId) : tasks;
+  const visibleTasks = showAll ? matchingTasks : matchingTasks.slice(0, 3);
   const refreshFromRealtime = useCallback(() => {
-    void loadData(false, true);
-  }, [loadData]);
+    return refreshTasks("change");
+  }, [refreshTasks]);
   useOrderRealtime({
     channelName: `driver-delivery-tasks:${user?.id ?? "guest"}`,
     enabled: Boolean(user && !authLoading),
-    subscriptions: realtimeSubscriptions,
+    subscriptions: userId ? [
+      { table: "delivery_tasks" },
+      { table: "driver_applications", filter: `user_id=eq.${userId}` },
+      { table: "money_invoices", filter: `owner_id=eq.${userId}` },
+      { table: "store_orders" },
+    ] : [],
+    sdkManagedRecovery: true,
+    acceptEvent: (table, payload) => table !== "store_orders" || (
+      "customer_order_id" in payload.new && (!hasSnapshot || payload.new.customer_order_id === currentTask?.orderId)
+    ),
     onChange: refreshFromRealtime,
   });
 
   const changeAvailability = async (nextValue: boolean) => {
+    if (actionLock.current || !userId || readError) return;
+    actionLock.current = true;
+    const token = actionReads.begin();
     setAvailabilityBusy(true);
     setError("");
-    setNotice("");
     try {
-      await setDriverAvailability(nextValue);
+      await setDriverAvailability(nextValue, userId);
+      if (!actionReads.current(token)) return;
       setIsAvailable(nextValue);
       setTasks([]);
-      setNotice(
-        nextValue
+      toast.show({tone:"success",key:`driver-availability:${nextValue}`,message:nextValue
           ? "أصبحت متاحًا لاستقبال مهام توصيل جديدة."
-          : "أوقفت استقبال المهام الجديدة. يمكنك إكمال توصيلاتك الحالية.",
-      );
-      if (nextValue) {
-        try {
-          setTasks(await getAvailableDeliveryTasks());
-        } catch {
-          setError("تم حفظ حالة التوفر، لكن تعذر تحميل المهام. حاول تحديث القائمة.");
-        }
-      }
+          : "أوقفت استقبال المهام الجديدة. يمكنك إكمال توصيلاتك الحالية."});
+      await refreshTasks("change");
     } catch {
+      if (!actionReads.current(token)) return;
       setError("تعذر تحديث حالة التوفر. تحقق من الاتصال ثم حاول مرة أخرى.");
     } finally {
+      actionLock.current = false;
       setAvailabilityBusy(false);
     }
   };
 
   const acceptTask = async (task: AvailableDeliveryTask) => {
+    if (actionLock.current || !userId || readError) return;
+    actionLock.current = true;
+    const token = actionReads.begin();
     setBusyTaskId(task.task_id);
     setError("");
-    setNotice("");
     try {
-      await acceptDeliveryTask(task.customer_order_id);
-      setNotice(`تم قبول مهمة ${task.reference ?? `الطلب TW-${task.order_number}`}.`);
-      await loadData(true);
+      await acceptDeliveryTask(task.customer_order_id, userId);
+      if (!actionReads.current(token)) return;
+      setTasks(previous => previous.filter(item => item.task_id !== task.task_id));
+      toast.show({tone:"success",key:`accept:${task.task_id}`,message:`تم قبول مهمة ${task.reference ?? "التوصيل"}.`});
+      await refreshTasks("change");
     } catch {
+      if (!actionReads.current(token)) return;
       setError("تعذر قبول المهمة؛ ربما قبلها سائق آخر. حدّث قائمة المهام وحاول مجددًا.");
     } finally {
+      actionLock.current = false;
       setBusyTaskId(null);
     }
   };
 
-  return (
-    <View style={[styles.screen, { backgroundColor: colors.background }]}>
-      <AppHeader title="مساحة السائق" />
-      <ScrollView
-        contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => void loadData(true)}
-            tintColor={colors.primary}
-            colors={[colors.primary]}
-          />
-        }
-      >
-        <View style={styles.container}>
-          <View
-            style={[
-              styles.welcomeCard,
-              { backgroundColor: colors.primaryLight, borderColor: colors.border },
-            ]}
-          >
-            <View style={styles.welcomeTop}>
-              <View style={styles.welcomeText}>
-                <Text style={[styles.welcomeEyebrow, { color: colors.primary }]}>
-                  مساحة السائق
-                </Text>
-                <Text style={[styles.welcomeTitle, { color: colors.text }]}>
-                  أهلًا {driverName || "بك"} 👋
-                </Text>
-                <Text style={[styles.welcomeSubtitle, { color: colors.textSecondary }]}>
-                  جاهز لتوصيل جديد اليوم؟
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.welcomeIcon,
-                  { backgroundColor: colors.surface },
-                ]}
-              >
-                <AppIcon name="bicycle-outline" size={30} color={colors.primary} />
-              </View>
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="عرض توصيلاتي"
-              onPress={() => router.push("/driver/orders")}
-              style={({ pressed }) => [
-                styles.welcomeAction,
-                {
-                  backgroundColor: colors.primary,
-                  opacity: pressed ? 0.78 : 1,
-                },
-              ]}
-            >
-              <Text style={[styles.welcomeActionText, { color: colors.surface }]}>
-                متابعة توصيلاتي
-              </Text>
-              <AppIcon
-                name="chevron-back-outline"
-                size={18}
-                color={colors.surface}
-              />
-            </Pressable>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <View
-              style={[
-                styles.summaryCard,
-                { backgroundColor: colors.surface, borderColor: colors.border },
-              ]}
-            >
-              <View
-                style={[
-                  styles.summaryIcon,
-                  { backgroundColor: colors.accentLight },
-                ]}
-              >
-                <AppIcon
-                  name="bicycle-outline"
-                  size={20}
-                  color={colors.accentText}
-                />
-              </View>
-              <Text style={[styles.summaryValue, { color: colors.text }]}>
-                {loading ? "—" : activeDeliveryCount}
-              </Text>
-              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
-                توصيلات جارية
-              </Text>
-            </View>
-            <View
-              style={[
-                styles.summaryCard,
-                { backgroundColor: colors.surface, borderColor: colors.border },
-              ]}
-            >
-              <View
-                style={[
-                  styles.summaryIcon,
-                  { backgroundColor: colors.primaryLight },
-                ]}
-              >
-                <AppIcon
-                  name="receipt-outline"
-                  size={20}
-                  color={colors.primary}
-                />
-              </View>
-              <Text style={[styles.summaryValue, { color: colors.text }]}>
-                {loading || !isAvailable ? "—" : tasks.length}
-              </Text>
-              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
-                مهام متاحة
-              </Text>
-            </View>
-          </View>
-
-          <View
-            style={[
-              styles.availabilityCard,
-              { backgroundColor: colors.surface, borderColor: colors.border },
-            ]}
-          >
-            <View style={styles.availabilityInfo}>
-              <View
-                style={[
-                  styles.availabilityIcon,
-                  {
-                    backgroundColor: isAvailable
-                      ? colors.primaryLight
-                      : colors.surfaceSecondary,
-                  },
-                ]}
-              >
-                <AppIcon
-                  name={isAvailable ? "radio-button-on" : "pause-circle-outline"}
-                  size={23}
-                  color={isAvailable ? colors.primary : colors.textMuted}
-                />
-              </View>
-              <View style={styles.availabilityText}>
-                <Text style={[styles.availabilityTitle, { color: colors.text }]}>
-                  {isAvailable ? "متاح لاستقبال المهام" : "غير متاح حاليًا"}
-                </Text>
-                <Text style={[styles.availabilityHint, { color: colors.textSecondary }]}>
-                  {isAvailable
-                    ? "ستظهر لك المهام الجديدة المؤهلة."
-                    : "لن تصلك مهام جديدة، ويمكنك إكمال توصيلاتك الحالية."}
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={isAvailable}
-              onValueChange={(value) => void changeAvailability(value)}
-              disabled={loading || availabilityBusy}
-              trackColor={{ false: colors.border, true: colors.primaryLight }}
-              thumbColor={isAvailable ? colors.primary : colors.textMuted}
-              accessibilityLabel="حالة التوفر لاستقبال مهام التوصيل"
-            />
-          </View>
-
-          {notice ? (
-            <Text style={[styles.feedback, { color: colors.primary }]}>
-              {notice}
-            </Text>
-          ) : null}
-          {error ? (
-            <Text style={[styles.feedback, { color: colors.error }]}>
-              {error}
-            </Text>
-          ) : null}
-
-          <View style={styles.sectionHeading}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              مهام توصيل متاحة
-            </Text>
-            <Text style={[styles.taskCount, { color: colors.textSecondary }]}>
-              {isAvailable ? `${tasks.length} مهمة` : "فعّل التوفر لرؤية المهام"}
+  const actionsDisabled = Boolean(readError || availabilityBusy || busyTaskId || refreshing);
+  const openAssigned = (id: string) => router.push({ pathname: "/driver/task-details", params: { taskId: id } });
+  const labelColor = isAvailable ? colors.successForeground : colors.textSecondary;
+  return <View style={[styles.screen, { backgroundColor: colors.background }]}>
+    <AppHeader title="مساحة السائق" />
+    <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl
+      refreshing={refreshing} onRefresh={() => void refreshTasks("manual")} tintColor={colors.primary} colors={[colors.primary]}
+    />}>
+      <View style={styles.container}>
+        <View style={[styles.surface, styles.row, { backgroundColor: colors.surfaceSecondary }]}>
+          <View style={styles.flex}>
+            <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>{driverName || "حالة السائق"}</Text>
+            <Text style={[styles.caption, { color: labelColor }]}>
+              {hasSnapshot ? isAvailable ? "متاح لاستقبال المهام" : "استقبال المهام متوقف" : "حالة التوفر غير مؤكدة"}
             </Text>
           </View>
-
-          {loading ? (
-            <ActivityIndicator size="large" color={colors.primary} />
-          ) : isAvailable && tasks.length > 0 ? (
-            tasks.map((task) => (
-              <DeliveryTaskCard
-                key={task.task_id}
-                {...toAvailableTaskCard(task)}
-                taskStatus="available"
-                statusLabel="متاح"
-                actionTitle="قبول مهمة التوصيل"
-                actionIcon="checkmark-circle-outline"
-                actionTone="primary"
-                actionLoading={busyTaskId === task.task_id}
-                onAction={() => void acceptTask(task)}
-              />
-            ))
-          ) : (
-            <View
-              style={[
-                styles.emptyCard,
-                { backgroundColor: colors.surface, borderColor: colors.border },
-              ]}
-            >
-              <AppIcon
-                name={isAvailable ? "bicycle-outline" : "time-outline"}
-                size={28}
-                color={colors.textMuted}
-              />
-              <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                {isAvailable ? "لا توجد مهام متاحة الآن" : "أنت غير متاح"}
-              </Text>
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                {isAvailable
-                  ? "ستظهر المهام هنا عندما تصبح جاهزة للتوصيل."
-                  : "غيّر حالتك إلى متاح عندما ترغب باستقبال مهام جديدة."}
-              </Text>
-            </View>
-          )}
+          <Switch value={isAvailable} onValueChange={value => void changeAvailability(value)}
+            disabled={!hasSnapshot || loading || actionsDisabled}
+            trackColor={{ false: colors.borderStrong, true: colors.surfaceSelected }}
+            thumbColor={isAvailable ? colors.primary : colors.textSecondary}
+            accessibilityLabel="استقبال مهام التوصيل الجديدة" />
         </View>
-      </ScrollView>
+        {error || readError ? <View style={styles.stack}>
+          <Text accessibilityRole="alert" style={[styles.caption, { color: colors.errorForeground }]}>{error || readError}</Text>
+          {readError ? <AppButton compact fullWidth={false} title="إعادة المحاولة" variant="outline" onPress={() => void refreshTasks("manual")} /> : null}
+        </View> : null}
+
+        {loading && !hasSnapshot ? <LoadingSkeleton label="جارٍ تحميل مهام التوصيل" /> : null}
+        {hasSnapshot ? <>
+          <View style={styles.stack}>
+            <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>المهمة الحالية</Text>
+            {currentTask ? <Pressable accessibilityRole="button" accessibilityHint="يفتح تفاصيل المهمة" onPress={() => openAssigned(currentTask.id)}
+              style={({ pressed }) => [styles.surface, styles.stack, { backgroundColor: pressed ? colors.surfacePressed : colors.surface, borderColor: colors.borderSubtle, borderWidth: 1 }]}>
+              <View style={styles.row}>
+                <Text style={[styles.reference, styles.flex, { color: colors.text }]}>{currentTask.reference ?? `طلب رقم ${currentTask.orderNumber}`}</Text>
+                <Text style={[styles.badge, {
+                  color: currentTask.status === "picked_up" ? colors.infoForeground : colors.warningForeground,
+                  backgroundColor: currentTask.status === "picked_up" ? colors.infoSurface : colors.warningSurface,
+                }]}>{currentTask.status === "picked_up" ? "في طريق التسليم" : "بانتظار الاستلام"}</Text>
+                <AppIcon name="chevron-back-outline" size={16} color={colors.textSecondary} />
+              </View>
+              {currentTask.status === "accepted" && !readError ? <DriverPickupPreview stores={currentTask.pickupStores} /> : null}
+              <DriverTaskDestination destination={currentTask.destination} active stale={Boolean(readError)} />
+              {!readError && currentTask.collection.state === "ready" ? <View style={styles.row}>
+                <Text style={[styles.caption, styles.flex, { color: colors.textSecondary }]}>المطلوب تحصيله من العميل</Text>
+                <FinancialAmount amount={currentTask.collection.amount} />
+              </View> : <Text style={[styles.caption, { color: colors.warningForeground }]}>
+                {currentTask.collection.state === "blocked" ? "التحصيل متوقف حتى تنتهي مراجعة الطلب." : "مبلغ التحصيل غير مؤكد. راجع تفاصيل المهمة."}
+              </Text>}
+            </Pressable> : <Text style={[styles.caption, { color: colors.textSecondary }]}>لا توجد مهمة جارية.</Text>}
+          </View>
+
+          <View style={[styles.links, { borderColor: colors.borderSubtle }]}>
+            <AppButton compact fullWidth={false} title={activeDeliveryCount > 1 ? `توصيلاتي · ${activeDeliveryCount.toLocaleString("ar-SY")} جارية` : "توصيلاتي"}
+              icon="bicycle-outline" variant="outline" onPress={() => router.push("/driver/orders")} />
+          </View>
+
+          <DriverHomeMoney collection={readError ? undefined : money?.collection} payable={readError ? undefined : money?.payable}
+            onOpen={() => router.push("/driver/cash-account")} />
+
+          {taskId ? <AppButton compact fullWidth={false} title="عرض المهام المتاحة" variant="outline" onPress={() => router.replace("/driver")} /> : null}
+          {taskId && !readError && !matchingTasks.length ? <Text style={[styles.caption, { color: colors.textSecondary }]}>هذه المهمة لم تعد متاحة للقبول.</Text> : null}
+          {isAvailable ? <View style={styles.stack}>
+            <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>مهام متاحة</Text>
+            {!matchingTasks.length && !taskId ? <Text style={[styles.caption, { color: colors.textSecondary }]}>{readError ? "تعذر تأكيد المهام المتاحة." : "لا توجد مهام متاحة الآن."}</Text> : null}
+            {visibleTasks.map(task => <View key={task.task_id} style={[styles.available, { borderColor: colors.borderSubtle }]}>
+              <View style={styles.flex}>
+                <Text style={[styles.reference, { color: colors.text }]}>{task.reference ?? `طلب رقم ${task.order_number}`}</Text>
+                <Text style={[styles.caption, { color: colors.textSecondary }]}>{task.delivery_zone_name_snapshot} · عدد المتاجر {task.store_count.toLocaleString("ar-SY")}</Text>
+              </View>
+              <AppButton compact fullWidth={false} title="قبول المهمة" icon="checkmark-outline" variant="outline"
+                loading={busyTaskId === task.task_id} disabled={actionsDisabled} onPress={() => void acceptTask(task)} />
+            </View>)}
+            {matchingTasks.length > 3 ? <AppButton compact fullWidth={false} title={showAll ? "عرض أقل" : "عرض بقية المهام"} variant="outline"
+              onPress={() => setShowAll(value => !value)} /> : null}
+          </View> : null}
+        </> : null}
+      </View>
+    </ScrollView>
+  </View>;
+}
+
+function DriverHomeMoney({ collection, payable, onOpen }: { collection?: string; payable?: string; onOpen: () => void }) {
+  const { colors } = useTheme();
+  const { width, fontScale } = useWindowDimensions();
+  const columns = Math.min(width, MaxContentWidth) - (Spacing.four + Spacing.three) * 2 >= 260 * fontScale
+    && Math.max(collection?.length ?? 0, payable?.length ?? 0) <= 12;
+  return <View style={[styles.surface, styles.stack, { backgroundColor: colors.surface, borderColor: colors.borderSubtle, borderWidth: 1 }]}>
+    <View style={styles.row}>
+      <Text accessibilityRole="header" style={[styles.title, styles.flex, { color: colors.text }]}>الحساب المالي</Text>
+      <AppButton design="refined" compact fullWidth={false} title="فتح المالية" icon="chevron-back-outline" variant="outline" onPress={onOpen} />
     </View>
-  );
+    <View style={[styles.moneyValues, { flexDirection: columns ? "row-reverse" : "column" }]}>
+      {([
+        ["النقد الواجب توريده للمنصة", collection],
+        ["مستحقات السائق من الأجور", payable],
+      ] as const).map(([label, value]) => <View key={label} style={columns ? styles.moneyColumn : styles.stack}>
+        <Text style={[styles.caption, { color: colors.textSecondary }]}>{label}</Text>
+        {value === undefined ? <Text style={[styles.caption, { color: colors.textSecondary }]}>غير مؤكد</Text> : <FinancialAmount amount={value} />}
+      </View>)}
+    </View>
+  </View>;
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.six,
-  },
-  container: {
-    width: "100%",
-    maxWidth: MaxContentWidth,
-    alignSelf: "center",
-    gap: Spacing.four,
-  },
-  welcomeCard: {
-    gap: Spacing.four,
-    padding: Spacing.four,
-    borderWidth: 1,
-    borderRadius: Radius.xl,
-  },
-  welcomeTop: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: Spacing.three,
-  },
-  welcomeText: {
-    flex: 1,
-    gap: Spacing.one,
-  },
-  welcomeEyebrow: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.xs,
-    textAlign: "right",
-  },
-  welcomeTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.xl,
-    textAlign: "right",
-  },
-  welcomeSubtitle: {
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    textAlign: "right",
-  },
-  welcomeIcon: {
-    width: 58,
-    height: 58,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.full,
-  },
-  welcomeAction: {
-    minHeight: 46,
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.two,
-    borderRadius: Radius.md,
-  },
-  welcomeActionText: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.sm,
-  },
-  summaryRow: {
-    flexDirection: "row-reverse",
-    gap: Spacing.three,
-  },
-  summaryCard: {
-    flex: 1,
-    alignItems: "center",
-    gap: Spacing.one,
-    padding: Spacing.three,
-    borderWidth: 1,
-    borderRadius: Radius.lg,
-  },
-  summaryIcon: {
-    width: 38,
-    height: 38,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.full,
-  },
-  summaryValue: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.xl,
-  },
-  summaryLabel: {
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.xs,
-    textAlign: "center",
-  },
-  availabilityCard: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: Spacing.three,
-    padding: Spacing.four,
-    borderWidth: 1,
-    borderRadius: Radius.lg,
-  },
-  availabilityInfo: {
-    flex: 1,
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: Spacing.three,
-  },
-  availabilityIcon: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.full,
-  },
-  availabilityText: {
-    flex: 1,
-    gap: Spacing.one,
-  },
-  availabilityTitle: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.md,
-    textAlign: "right",
-  },
-  availabilityHint: {
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.xs,
-    textAlign: "right",
-  },
-  feedback: {
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.sm,
-    textAlign: "right",
-  },
-  sectionHeading: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: Spacing.two,
-    marginTop: Spacing.two,
-  },
-  sectionTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.lg,
-    textAlign: "right",
-  },
-  taskCount: {
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    textAlign: "left",
-  },
-  emptyCard: {
-    alignItems: "center",
-    gap: Spacing.two,
-    padding: Spacing.six,
-    borderWidth: 1,
-    borderRadius: Radius.lg,
-  },
-  emptyTitle: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.md,
-    textAlign: "center",
-  },
-  emptyText: {
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    textAlign: "center",
-  },
+  screen: { flex: 1 },
+  content: { padding: Spacing.four, paddingBottom: Spacing.six },
+  container: { width: "100%", maxWidth: MaxContentWidth, alignSelf: "center", gap: Spacing.three },
+  row: { flexDirection: "row-reverse", alignItems: "center", flexWrap: "wrap", gap: Spacing.two },
+  flex: { flexGrow: 1, flexShrink: 1, flexBasis: 105, minWidth: 0 },
+  stack: { gap: Spacing.two },
+  moneyValues: { gap: Spacing.three },
+  moneyColumn: { flex: 1, minWidth: 0, gap: Spacing.two },
+  surface: { borderRadius: Radius.md, padding: Spacing.three },
+  title: { ...Typography.cardTitle, textAlign: "right" },
+  caption: { ...Typography.caption, textAlign: "right" },
+  reference: { ...Typography.bodyStrong, textAlign: "right", writingDirection: "auto" },
+  badge: { ...Typography.caption, paddingHorizontal: Spacing.two, paddingVertical: Spacing.half, borderRadius: Radius.full },
+  links: { flexDirection: "row-reverse", flexWrap: "wrap", gap: Spacing.two, paddingBottom: Spacing.two, borderBottomWidth: StyleSheet.hairlineWidth },
+  available: { flexDirection: "row-reverse", flexWrap: "wrap", alignItems: "center", gap: Spacing.two, paddingVertical: Spacing.one, borderBottomWidth: StyleSheet.hairlineWidth },
 });

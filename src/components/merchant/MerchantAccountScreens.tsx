@@ -1,121 +1,107 @@
-import {MerchantStoreBranding} from '@/components/merchant/MerchantStoreBranding';
-import { formatSypNumber } from "@/lib/money";
+import type { ReactNode } from "react";
+import Constants from "expo-constants";
 import { useRouter } from "expo-router";
-import { useCallback, useRef, useState } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { AccountShell } from "@/components/account/AccountShell";
-import {SharedAccountIdentity,SharedAccountMenu,AccountLogout} from "@/components/account/SharedAccountParts";
-import {PersonalInfoScreen} from "@/components/account/PersonalInfoScreen";
+import { AccountLogout } from "@/components/account/SharedAccountParts";
+import { PersonalInfoScreen } from "@/components/account/PersonalInfoScreen";
 import { AccountMenuItem } from "@/components/account/AccountMenuItem";
-import { AccountSection } from "@/components/account/AccountSection";
 import { AppButton } from "@/components/ui/AppButton";
-import { AppTextField } from "@/components/ui/AppTextField";
-import { FinancialCard, FinancialText, FinancialLink, financialDate } from "@/components/merchant/MerchantFinancialCards";
-import { useAuth } from "@/context/AuthContext";
-import { useTheme } from "@/context/ThemeContext";
+import { AppIcon } from "@/components/ui/AppIcon";
+import { MaxContentWidth, Radius, Spacing, Typography } from "@/constants/theme";
 import { useMerchantWorkspace } from "@/context/MerchantWorkspaceContext";
-import { useMerchantLoad } from "@/hooks/useMerchantLoad";
-import { loadMerchantIdentity, loadMerchantSubscription, saveMerchantStoreInfo, type MerchantIdentity, type StoreInfoDraft } from "@/lib/merchant-account";
-import { Fonts, Spacing } from "@/constants/theme";
+import { useTheme } from "@/context/ThemeContext";
+import { usePersonalAccount } from "@/hooks/usePersonalAccount";
 
-function LoadState({ loading, error, retry }: { loading: boolean; error: string; retry: () => void }) {
-  const { colors } = useTheme();
-  return <>{loading ? <ActivityIndicator color={colors.primary} /> : null}{error ? <View style={{ gap: Spacing.two }}><Text accessibilityRole="alert" style={{ color: colors.error, textAlign: "right", fontFamily: Fonts.regular }}>{error}</Text><AppButton title="إعادة المحاولة" variant="outline" onPress={retry} /></View> : null}</>;
-}
-function useIdentity() {
-  const { user } = useAuth();
-  const userId = user?.id;
-  return useMerchantLoad(useCallback(() => {
-    if (!userId) throw new Error("سجّل الدخول بحساب التاجر.");
-    return loadMerchantIdentity(userId);
-  }, [userId]));
-}
 export function MerchantAccountHub() {
- const router=useRouter();
- return <AccountShell header={null}><SharedAccountIdentity expectedRole="merchant"/>
- <AccountSection title="المتجر والاشتراك">
- <AccountMenuItem title="معلومات المتجر" subtitle="الاسم والتصنيف والتواصل والعنوان" icon="storefront-outline" onPress={()=>router.push('/merchant/store-info')}/>
- <AccountMenuItem title="الاشتراك والخطط" icon="calendar-outline" onPress={()=>router.push('/merchant/subscription')}/>
- <AccountMenuItem title="حسابي المالي" icon="wallet-outline" onPress={()=>router.push('/merchant/finance')}/>
- <AccountMenuItem title="الإشعارات" icon="notifications-outline" isLast onPress={()=>router.push('/notifications')}/>
- </AccountSection><SharedAccountMenu role="merchant"/><AccountLogout/></AccountShell>;
-}
-export function MerchantPersonalInfo(){const {headerHeight}=useMerchantWorkspace();return <PersonalInfoScreen embedded keyboardOffset={headerHeight}/>;}
+  const router = useRouter();
+  const { colors } = useTheme();
+  const { data, loading, error, reload } = usePersonalAccount();
+  const profile = data?.role === "merchant" ? data : null;
+  const appName = Constants.expoConfig?.name ?? "تسوق";
+  const appVersion = Constants.expoConfig?.version;
 
-export function MerchantStoreInfo() {
- const {user}=useAuth();
- return user?<StoreInfoAccount key={user.id}/>:<FinancialText>سجّل الدخول بحساب التاجر.</FinancialText>;
-}
-function StoreInfoAccount() {
-  const { headerHeight } = useMerchantWorkspace();
-  const state = useIdentity();
-  const {user}=useAuth();
-  return <AccountShell header={null} keyboardAware keyboardVerticalOffset={headerHeight}><LoadState loading={state.loading} error={state.error} retry={() => void state.load()} />
-    {!state.loading && !state.error && state.data ? state.data.store ? <View key={user?.id+state.data.store.id} style={{gap:16}}><StoreForm key={JSON.stringify(state.data.store)} identity={state.data} />{user?<MerchantStoreBranding key={user.id+state.data.store.id} owner={user.id} store={state.data.store.id}/>:null}</View> : <FinancialText>لا يوجد متجر مرتبط بحسابك. تواصل مع الإدارة.</FinancialText> : null}
+  return <AccountShell header={null}>
+    <View style={styles.content}>
+      <View style={[styles.identity, { backgroundColor: colors.surfaceSecondary }]}>
+        <View style={[styles.avatar, { backgroundColor: colors.surfaceSelected }]}>
+          <AppIcon name="person-outline" size={24} color={colors.primary} />
+        </View>
+        <View style={styles.identityText}>
+          <Text accessibilityRole="header" style={[styles.name, { color: colors.text }]}>{profile?.full_name || "حساب التاجر"}</Text>
+          {profile?.email ? <Text style={[styles.email, { color: colors.textSecondary }]}>{profile.email}</Text> : null}
+        </View>
+        {loading && !profile ? <ActivityIndicator size="small" color={colors.primary} accessibilityLabel="جارٍ تحميل بيانات الحساب" /> : null}
+      </View>
+      {error ? <View style={styles.feedback}>
+        <Text accessibilityRole="alert" style={[styles.feedbackText, { color: colors.errorForeground }]}>
+          {profile ? "تعذر تحديث بيانات الحساب. تظهر آخر بيانات متاحة." : "تعذر تحميل بيانات الحساب."}
+        </Text>
+        <AppButton compact fullWidth={false} title="إعادة المحاولة" variant="outline" onPress={() => void reload()} />
+      </View> : null}
+
+      <MerchantAccountGroup title="المتجر والمالية">
+        <AccountMenuItem compact title="بيانات المتجر" icon="storefront-outline" onPress={() => router.push("/merchant/store-info")} />
+        <AccountMenuItem compact title="حسابي المالي" icon="wallet-outline" onPress={() => router.push("/merchant/finance")} />
+        <AccountMenuItem compact title="فواتير الاشتراك" icon="receipt-outline" isLast onPress={() => router.push({ pathname: "/merchant/finance", params: { search: "SUB-" } })} />
+      </MerchantAccountGroup>
+
+      <MerchantAccountGroup title="إدارة الحساب">
+        <AccountMenuItem compact title="المعلومات الشخصية" icon="person-outline" onPress={() => router.push("/merchant/personal-info")} />
+        <AccountMenuItem compact title="الإشعارات" icon="notifications-outline" onPress={() => router.push("/notifications")} />
+        <AccountMenuItem compact title="الإعدادات" icon="settings-outline" isLast onPress={() => router.push("/merchant/settings")} />
+      </MerchantAccountGroup>
+
+      <MerchantAccountGroup title="الخصوصية والأمان">
+        <AccountMenuItem compact title="الأمان وكلمة المرور" icon="lock-closed-outline" onPress={() => router.push("/merchant/security")} />
+        <AccountMenuItem compact title="الخصوصية" icon="shield-checkmark-outline" onPress={() => router.push("/privacy")} />
+        <AccountMenuItem compact title="شروط الاستخدام" icon="document-text-outline" isLast onPress={() => router.push("/terms")} />
+      </MerchantAccountGroup>
+
+      <MerchantAccountGroup title="حول التطبيق">
+        <AccountMenuItem compact title="عن تسوق" icon="information-circle-outline" isLast onPress={() => router.push("/about")} />
+      </MerchantAccountGroup>
+
+      <View style={[styles.appInfo, { borderColor: colors.borderSubtle }]}>
+        <Text style={[styles.appLabel, { color: colors.textSecondary }]}>{appName}</Text>
+        {appVersion ? <View style={styles.versionLabel}>
+          <Text style={[styles.appLabel, { color: colors.textSecondary }]}>الإصدار</Text>
+          <Text style={[styles.version, { color: colors.textSecondary }]}>{appVersion}</Text>
+        </View> : null}
+      </View>
+      <View style={styles.logout}><AccountLogout compact /></View>
+    </View>
   </AccountShell>;
 }
-function StoreForm({ identity }: { identity: MerchantIdentity }) {
-  const { user } = useAuth();
-  const { setNotice } = useMerchantWorkspace();
-  const store = identity.store!;
-  const [draft, setDraft] = useState<StoreInfoDraft>({ name: store.name, description: store.description, phone: store.phone, address: store.address });
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const lock = useRef(false);
-  const save = async () => {
-    if (!user || lock.current) return;
-    lock.current = true; setBusy(true); setError("");
-    try { await saveMerchantStoreInfo(user.id, store.id, draft); setNotice("تم حفظ معلومات المتجر."); }
-    catch (failure) { setError(failure instanceof Error ? failure.message : "تعذر الحفظ."); }
-    finally { lock.current = false; setBusy(false); }
-  };
-  return <FinancialCard title="متجرك">
-    <FinancialText>الاعتماد: {store.status === "accepted" ? "معتمد" : store.status === "pending" ? "قيد المراجعة" : "غير معتمد"}</FinancialText>
-    <FinancialText>التصنيف: {identity.categoryName} · يحدّثه فريق الإدارة</FinancialText>
-    {([["name", "اسم المتجر", 120], ["description", "وصف المتجر", 5000], ["phone", "رقم التواصل", 32], ["address", "العنوان والموقع", 300]] as const).map(([key, label, maxLength]) =>
-      <AppTextField key={key} label={label} maxLength={maxLength} multiline={key === "description" || key === "address"} keyboardType={key === "phone" ? "phone-pad" : "default"} editable={!busy} value={draft[key]} onChangeText={(value) => setDraft((previous) => ({ ...previous, [key]: value }))} />)}
-    {error ? <FinancialText>{error}</FinancialText> : null}
-    <AppButton title="حفظ بيانات المتجر" loading={busy} onPress={() => void save()} />
-  </FinancialCard>;
+
+function MerchantAccountGroup({ title, children }: { title: string; children: ReactNode }) {
+  const { colors } = useTheme();
+  return <View style={styles.group}>
+    <Text accessibilityRole="header" style={[styles.groupTitle, { color: colors.textSecondary }]}>{title}</Text>
+    <View style={[styles.groupRows, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>{children}</View>
+  </View>;
 }
 
-export function MerchantSubscriptionScreen({embedded=false}:{embedded?:boolean}={}) {
-  const { user } = useAuth();
-  const userId = user?.id;
-  const state = useMerchantLoad(useCallback(() => {
-    if (!userId) throw new Error("سجّل الدخول بحساب التاجر.");
-    return loadMerchantSubscription(userId);
-  }, [userId]));
-  const data = state.data;
-  const current = data?.current;
-  const status = ({ active: "فعّال", grace: "فترة سماح", expired: "منتهٍ" } as Record<string, string>)[String(data?.status)] ?? "لا توجد فترة بدأت";
-  const features = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
-  const content=<>
-    <LoadState loading={state.loading} error={state.error} retry={() => void state.load()} />
-    {!state.loading && !state.error && data ? <>
-      <FinancialCard title={current?.plan_name_snapshot ?? "الاشتراك الحالي"}>
-        <FinancialText>الحالة: {status}</FinancialText>
-        {current ? <><FinancialText>البداية: {financialDate(current.starts_at)}</FinancialText><FinancialText>النهاية: {financialDate(current.expires_at)}</FinancialText>
-          <FinancialText>الرسوم المحفوظة: {formatSypNumber(Number(current.price_snapshot))} {current.currency_snapshot}</FinancialText>
-          <FinancialText>العمولة المحفوظة: {data.commissionRate == null ? "قيد مراجعة الإدارة" : `${data.commissionRate}%`}</FinancialText></> : null}
-        <FinancialText>تفضيل التجديد التلقائي: {data.autoRenew ? "مفعّل" : "غير مفعّل"}</FinancialText>
-        <FinancialText>حد المنتجات حسب تعريف الخطة: {data.currentPlan?.product_limit ?? "غير محدد"}</FinancialText>
-        {features(data.currentPlan?.features).map((feature) => <FinancialText key={feature}>• {feature}</FinancialText>)}
-      </FinancialCard>
-      {data.next ? <FinancialCard title="الفترة القادمة المسجلة"><FinancialText>{data.next.plan_name_snapshot}</FinancialText><FinancialText>تبدأ {financialDate(data.next.starts_at)}</FinancialText></FinancialCard> : null}
-      {data.change ? <FinancialCard title="الخطة المختارة للفترة التالية"><FinancialText>{data.change.plan_name_snapshot}</FinancialText></FinancialCard> : null}
-      <FinancialCard title="التجديد وتغيير الخطة"><FinancialText>تغيير الخطة والتجديد يديرهما فريق الإدارة حاليًا. تواصل مع الإدارة لاختيار خطة الفترة التالية أو تعديل تفضيل التجديد.</FinancialText><FinancialText>تفضيل التجديد لا يمنح موافقة ائتمانية؛ المدفوعات يدوية ونقدية.</FinancialText></FinancialCard>
-      <FinancialText title>الخطط المتاحة للمقارنة</FinancialText>
-      {data.plans.map((plan) => <FinancialCard key={plan.id} title={plan.name}>
-        <FinancialText>{plan.description || "لا يوجد وصف إضافي"}</FinancialText>
-        <FinancialText>{plan.duration_months} شهر · {formatSypNumber(Number(plan.price))} {"SYP"}</FinancialText>
-        <FinancialText>العمولة: {plan.commission_rate == null ? "قيد المراجعة" : `${plan.commission_rate}%`} · حد المنتجات: {plan.product_limit ?? "غير محدد"}</FinancialText>
-        {features(plan.features).map((feature) => <FinancialText key={feature}>• {feature}</FinancialText>)}
-      </FinancialCard>)}
-      {!data.plans.length ? <FinancialText>لا توجد خطط متاحة للمقارنة حاليًا.</FinancialText> : null}
-      <FinancialLink title="فواتير الاشتراك" href="/merchant/subscription-invoices" />
-      <FinancialLink title="مدفوعات الاشتراك" href="/merchant/subscription-payments" />
-    </> : null}
-  </>;
-  return embedded?content:<AccountShell header={null}>{content}</AccountShell>;
+export function MerchantPersonalInfo() {
+  const { headerHeight } = useMerchantWorkspace();
+  return <PersonalInfoScreen embedded keyboardOffset={headerHeight} />;
 }
+
+const styles = StyleSheet.create({
+  content: { width: "100%", maxWidth: MaxContentWidth, alignSelf: "center", gap: Spacing.three },
+  identity: { flexDirection: "row-reverse", alignItems: "center", borderRadius: Radius.lg, padding: Spacing.three, gap: Spacing.three },
+  avatar: { width: 44, height: 44, borderRadius: Radius.full, justifyContent: "center", alignItems: "center" },
+  identityText: { flex: 1, minWidth: 0, gap: Spacing.half },
+  name: { ...Typography.cardTitle, textAlign: "right" },
+  email: { ...Typography.caption, textAlign: "right", writingDirection: "ltr" },
+  group: { gap: Spacing.one },
+  groupTitle: { ...Typography.bodyStrong, textAlign: "right", paddingHorizontal: Spacing.one },
+  groupRows: { borderRadius: Radius.md, borderWidth: StyleSheet.hairlineWidth },
+  feedback: { flexDirection: "row-reverse", alignItems: "center", flexWrap: "wrap", gap: Spacing.two },
+  feedbackText: { ...Typography.caption, textAlign: "right", flexGrow: 1, flexShrink: 1 },
+  appInfo: { flexDirection: "row-reverse", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: Spacing.two, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: Spacing.two },
+  appLabel: { ...Typography.caption, textAlign: "right", flexShrink: 1 },
+  versionLabel: { flexDirection: "row-reverse", alignItems: "center", flexWrap: "wrap", gap: Spacing.one },
+  version: { ...Typography.caption, writingDirection: "ltr" },
+  logout: { alignItems: "flex-end", paddingTop: Spacing.one },
+});

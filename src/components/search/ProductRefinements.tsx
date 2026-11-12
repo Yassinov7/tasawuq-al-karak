@@ -1,7 +1,8 @@
+import { categoryPath } from "@/lib/category-tree";
 import type { Dispatch, SetStateAction } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 
-import type { Category } from "@/constants/catalog";
+import type { Category } from "@/types/catalog";
 import { CategoryChip } from "@/components/marketplace/CategoryChip";
 import { styles } from "@/components/search/searchStyles";
 import { AppIcon } from "@/components/ui/AppIcon";
@@ -12,6 +13,7 @@ type Props = { filtersVisible: boolean; filter: SearchFilter; productResultsForR
 
 export function ProductRefinements(props: Props) {
   const { filtersVisible, filter, productResultsForRefinement, colors, selectedCategoryId, productCategories, productSort, setSelectedCategoryId, setProductSort, setFilter } = props;
+  const nodes = new Map(productCategories.map(category => [category.id, category]));
   return (<>
         {filtersVisible && (filter === "all" || filter === "products") &&
         productResultsForRefinement ? (
@@ -78,7 +80,7 @@ export function ProductRefinements(props: Props) {
                     return (
                       <CategoryChip
                         key={category.id}
-                        label={category.name}
+                        label={categoryPath(category, nodes)}
                         icon={category.icon}
                         active={selected}
                         onPress={() => {

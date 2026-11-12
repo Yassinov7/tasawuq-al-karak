@@ -7,8 +7,8 @@
     "icon": "./assets/images/branding/taswoq-icon-light.png",
     "scheme": "taswoqalkarak",
     "userInterfaceStyle": "automatic",
-    "backgroundColor": "#F7F8F5",
-    "primaryColor": "#0F6B4F",
+    "backgroundColor": "#FCFBF7",
+    "primaryColor": "#2F6B3C",
     "ios": {
       "icon": "./assets/images/branding/taswoq-icon-light.png"
     },
@@ -31,7 +31,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F7F8F5",
+          "backgroundColor": "#FCFBF7",
           "image": "./assets/images/branding/taswoq-logo-light.png",
           "imageWidth": 210,
           "resizeMode": "contain",
@@ -55,7 +55,14 @@
           "microphonePermission": false
         }
       ],
-      "expo-video"
+      "expo-video",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "operations",
+          "color": "#2F6B3C"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

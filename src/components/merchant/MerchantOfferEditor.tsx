@@ -1,10 +1,12 @@
 import{useCallback,useEffect,useMemo,useRef,useState}from'react';
 import{useFocusEffect,useNavigation,useRouter}from'expo-router';
 import{usePreventRemove}from'expo-router/react-navigation';
-import{ActivityIndicator,BackHandler,KeyboardAvoidingView,Platform,ScrollView,Text,View}from'react-native';
+import{ActivityIndicator,BackHandler,type ScrollView,Text,View}from'react-native';
+import{KeyboardAwareScrollView}from'@/components/ui/KeyboardAwareScrollView';
+import{useOrderRealtime}from'@/hooks/useOrderRealtime';
 import{AppButton}from'@/components/ui/AppButton';
 import{AppModal}from'@/components/ui/AppModal';
-import{MerchantOfferForm,emptyOfferPicker,type OfferPickerState}from'@/components/merchant/MerchantOfferForm';
+import{MerchantOfferForm,emptyOfferPicker,type OfferPickerState,type OfferSection}from'@/components/merchant/MerchantOfferForm';
 import{productEditorStyles as styles}from'@/components/merchant/MerchantProductForm';
 import{useTheme}from'@/context/ThemeContext';
 import{useMerchantWorkspace}from'@/context/MerchantWorkspaceContext';
@@ -18,13 +20,16 @@ import{createOfferReadGate,emptyOfferForm,formFromOffer,validateOffer,type Offer
 import{createOfferEditorSession,readMerchantOffer,readOfferAttempt,readOfferProducts,readSelectedOfferProducts}from'@/lib/merchant-offer-editor-api';
 const copyForm=(form:OfferForm):OfferForm=>({...form,items:form.items.map(item=>({...item}))});
 const mergeProducts=(previous:OfferProduct[],next:OfferProduct[])=>[...new Map([...previous,...next].map(row=>[row.id,row])).values()];
-export function MerchantOfferEditor({ownerId,offerId}:{ownerId:string;offerId:string|null}){
- const{colors}=useTheme(),{headerHeight,setNotice}=useMerchantWorkspace(),{refresh}=useCustomerCatalog();const router=useRouter(),navigation=useNavigation();
+export function MerchantOfferEditor({ownerId,offerId,fromCatalog}:{ownerId:string;offerId:string|null;fromCatalog:boolean}){
+ const{colors}=useTheme(),{setNotice}=useMerchantWorkspace(),{refresh}=useCustomerCatalog();const router=useRouter(),navigation=useNavigation();
  const[store,setStore]=useState<{id:string;name:string}|null>(null),[form,setForm]=useState<OfferForm|null>(null),[baselineForm,setBaselineForm]=useState<OfferForm|null>(null),[products,setProducts]=useState<OfferProduct[]>([]);
  const[loading,setLoading]=useState(true),[loadError,setLoadError]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[errors,setErrors]=useState<OfferErrors>({});
  const[pending,setPending]=useState<OfferAttempt|null>(null),[conflict,setConflict]=useState(false),[exitOpen,setExitOpen]=useState(false),[busyExit,setBusyExit]=useState(false),[reviewOpen,setReviewOpen]=useState(false),[nextType,setNextType]=useState<OfferType|null>(null);
  const[picker,setPicker]=useState<OfferPickerState>(emptyOfferPicker),[pickerRetry,setPickerRetry]=useState(0);
  const alive=useRef(true),focused=useRef(true),busyRef=useRef(false),allowExit=useRef(false),baseline=useRef<OfferLoaded|null>(null),initialRequest=useRef<AbortController|null>(null),pickerRequest=useRef<AbortController|null>(null),pickerBusy=useRef(false),pickerCursor=useRef<string|null>(null),pendingExit=useRef<(()=>void)|null>(null),scroll=useRef<ScrollView>(null);
+ const sectionOffsets=useRef<Partial<Record<OfferSection,number>>>({});
+ const selectedRequest=useRef<AbortController|null>(null);
+ const [availabilityError,setAvailabilityError]=useState(false);
  const gate=useMemo(()=>createOfferReadGate(),[]),pickerGate=useMemo(()=>createOfferReadGate(),[]),session=useMemo(()=>createOfferEditorSession(),[]);
  const[startsAt,setStartsAt]=useState<string|undefined>(undefined);
  const[now,setNow]=useState(()=>Date.now()),[savedId,setSavedId]=useState<string|null>(null);const finishedId=useRef<string|null>(null);
@@ -38,7 +43,7 @@ export function MerchantOfferEditor({ownerId,offerId}:{ownerId:string;offerId:st
   if(decision==='busy'){setBusyExit(true);return;}if(decision==='confirm'){if(!pendingExit.current){pendingExit.current=action;setExitOpen(true);}return;}action();
  },[dirty]);
  usePreventRemove(dirty||busy,({data})=>requestExit(()=>navigation.dispatch(data.action)));
- useFocusEffect(useCallback(()=>{focused.current=true;session.activate();const handler=BackHandler.addEventListener('hardwareBackPress',()=>{requestExit(leave);return true;});return()=>{focused.current=false;session.deactivate();handler.remove();};},[leave,requestExit,session]));
+ useFocusEffect(useCallback(()=>{focused.current=true;session.activate();const handler=BackHandler.addEventListener('hardwareBackPress',()=>{requestExit(leave);return true;});return()=>{focused.current=false;selectedRequest.current?.abort();session.deactivate();handler.remove();};},[leave,requestExit,session]));
  const load=useCallback(async()=>{
   const latest=gate.begin();initialRequest.current?.abort();initialRequest.current=new AbortController();const signal=initialRequest.current.signal,current=()=>alive.current&&!signal.aborted&&latest();setLoading(true);setError('');
   try{
@@ -68,30 +73,58 @@ export function MerchantOfferEditor({ownerId,offerId}:{ownerId:string;offerId:st
  // Search and pagination share a request function without coupling page results to search effects.
  useEffect(()=>{if(!picker.open||!store?.id)return;const storeId=store.id;const timer=setTimeout(()=>{void loadPicker(false,storeId,picker.query);},250);return()=>{clearTimeout(timer);pickerRequest.current?.abort();pickerGate.cancel();pickerBusy.current=false;};
  },[loadPicker,picker.open,picker.query,pickerRetry,store?.id,pickerGate]);
+ const refreshAvailability=async()=>{
+  if(!store||!form||busyRef.current||!focused.current)return;
+  if(picker.open)setPickerRetry(value=>value+1);
+  const ids=[...new Set(form.items.map(item=>item.productId))];
+  if(!ids.length)return;
+  selectedRequest.current?.abort();
+  const request=new AbortController();
+  selectedRequest.current=request;
+  const current=()=>alive.current&&focused.current&&!request.signal.aborted;
+  try{
+   const fresh=await readSelectedOfferProducts(store.id,ids,request.signal);
+   if(!current())return;
+   const found=new Set(fresh.map(item=>item.id)),selected=new Set(ids);
+   setProducts(previous=>mergeProducts(previous.map(item=>selected.has(item.id)&&!found.has(item.id)?{...item,is_available:false}:item),fresh));
+   setAvailabilityError(false);
+  }catch{if(current())setAvailabilityError(true);}
+ };
+ useOrderRealtime({channelName:`offer-editor-products:${ownerId}:${store?.id??'pending'}`,enabled:Boolean(store&&form),
+  subscriptions:store?[{table:'products',filter:`store_id=eq.${store.id}`}]:[],onChange:refreshAvailability});
  const closePicker=()=>{pickerRequest.current?.abort();pickerGate.cancel();pickerBusy.current=false;setPicker(previous=>({...previous,open:false}));};
  const change=<K extends keyof OfferForm>(key:K,value:OfferForm[K])=>{if(busyRef.current||pending||loading)return;setForm(previous=>previous?{...previous,[key]:value}:previous);setErrors({});setError('');};
  const choose=(product:OfferProduct)=>{
   if(!form||locked||busyRef.current||!product.is_available)return;const role=picker.role;setProducts(previous=>mergeProducts(previous,[product]));
   setForm(previous=>{if(!previous)return previous;const exists=previous.items.some(item=>item.productId===product.id&&item.role===role);const item={key:`${role}:${product.id}`,productId:product.id,role,quantity:String(product.minimum_quantity)};
-   const items=role==='buy'||role==='reward'?[...previous.items.filter(item=>item.role!==role),item]:exists?previous.items.filter(item=>!(item.productId===product.id&&item.role===role)):[...previous.items,item];return{...previous,items};});setErrors({});if(role==='buy'||role==='reward')closePicker();
+   const items=role==='buy'||role==='reward'?(exists?previous.items:[...previous.items.filter(item=>item.role!==role),item]):exists?previous.items.filter(item=>!(item.productId===product.id&&item.role===role)):[...previous.items,item];return{...previous,items};});setErrors({});if(role==='buy'||role==='reward')closePicker();
  };
  const invalidate=useCallback(async()=>{invalidateMerchantHome(ownerId);await invalidateLocalCache(`merchant-offers:${ownerId}`);await invalidatePublicCatalog();void refresh().catch(()=>undefined);},[ownerId,refresh]);
  const complete=async(result:OfferSaveResult)=>{
   if(!alive.current)return;
   setPending(session.saver.getPending());
-  if(result.kind==='confirmed'){finishedId.current=result.id;setSavedId(result.id);await invalidate();if(!alive.current||!focused.current)return;setNotice(offerId?'تم حفظ تعديلات العرض.':'تم إنشاء العرض.');allowExit.current=true;catalog();}
+  if(result.kind==='confirmed'){finishedId.current=result.id;setSavedId(result.id);await invalidate();if(!alive.current||!focused.current)return;setNotice(offerId?'تم حفظ تعديلات العرض.':'تم إنشاء العرض.');allowExit.current=true;if(fromCatalog)leave();else catalog();}
   else{setError(result.message);setConflict(result.kind==='conflict');if(result.kind==='unknown')await invalidate();scroll.current?.scrollTo({y:0,animated:true});}
+ };
+ const showErrors=(issues:OfferErrors)=>{
+  setErrors(issues);
+  const section:OfferSection=issues.title||issues.description?'identity'
+   :issues.type||issues.discountValue||issues.bundlePrice?'pricing'
+   :issues.items||form?.items.some(item=>issues[item.key])?'products':'period';
+  scroll.current?.scrollTo({y:Math.max(0,(sectionOffsets.current[section]??0)-8),animated:true});
  };
  const save=async()=>{
   if(busyRef.current||!form||!store||loading)return;
   if(finishedId.current){busyRef.current=true;setBusy(true);try{await complete({kind:'confirmed',id:finishedId.current});}catch{if(alive.current)setError('تم حفظ العرض؛ تعذر تحديث القائمة. حاول العودة إلى العروض مجددًا.');}finally{busyRef.current=false;if(alive.current)setBusy(false);}return;}
-  const local=pending?null:validateOffer(form,products,offerId,startsAt);if(local&&!local.args){setErrors(local.errors);scroll.current?.scrollTo({y:0,animated:true});return;}
+  const local=pending?null:validateOffer(form,products,offerId,startsAt);if(local&&!local.args){showErrors(local.errors);return;}
+  selectedRequest.current?.abort();
   busyRef.current=true;setBusy(true);setError('');
   try{
    if(pending){await complete(await session.saver.verify());return;}
    const fresh=await readSelectedOfferProducts(store.id,form.items.map(item=>item.productId));if(!alive.current||!focused.current)return;
+   setAvailabilityError(false);
    const selected=new Set(form.items.map(item=>item.productId)),found=new Set(fresh.map(item=>item.id));setProducts(previous=>mergeProducts(previous.map(item=>selected.has(item.id)&&!found.has(item.id)?{...item,is_available:false}:item),fresh));
-   const checked=validateOffer(form,fresh,offerId,startsAt);if(!checked.args){setErrors(checked.errors);scroll.current?.scrollTo({y:0,animated:true});return;}
+   const checked=validateOffer(form,fresh,offerId,startsAt);if(!checked.args){showErrors(checked.errors);return;}
    const attempt:OfferAttempt={version:1,ownerId,storeId:store.id,offerId,form:copyForm(form),args:checked.args,baseline:baseline.current,status:'sending',resultId:null};
    await complete(await session.saver.save(attempt));
   }catch{if(alive.current){setPending(session.saver.getPending());setError('تعذر إتمام التحقق أو تحديث العرض. إن أُرسلت محاولة فستبقى محفوظة للتحقق دون إعادة إرسال تلقائية.');}}
@@ -104,13 +137,13 @@ export function MerchantOfferEditor({ownerId,offerId}:{ownerId:string;offerId:st
   finally{busyRef.current=false;if(alive.current)setBusy(false);}
  };
  const preview=form?validateOffer(form,products,offerId,startsAt,now).preview:null;
- return<KeyboardAvoidingView style={[styles.screen,{backgroundColor:colors.background}]} behavior={Platform.OS==='ios'?'padding':'height'} keyboardVerticalOffset={headerHeight}>
-  <ScrollView ref={scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+ return<View style={[styles.screen,{backgroundColor:colors.background}]}>
+  <KeyboardAwareScrollView ref={scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
    {loading?<View style={styles.status}><ActivityIndicator color={colors.primary}/><Text style={[styles.body,{color:colors.textSecondary}]}>جارٍ تحميل العرض والتحقق من المتجر…</Text></View>:null}
    {error?<View style={[styles.message,{backgroundColor:colors.errorSurface,borderColor:colors.errorBorder}]}><Text accessibilityLiveRegion="polite" style={[styles.body,{color:colors.errorForeground}]}>{error}</Text>{loadError?<AppButton design="refined" title="إعادة المحاولة" variant="outline" disabled={loading||busy} onPress={()=>{void load();}}/>:null}</View>:null}
-   {pending?<View style={[styles.message,{backgroundColor:colors.warningSurface,borderColor:colors.warningBorder}]}><Text style={[styles.body,{color:colors.warningForeground}]}>هناك محاولة حفظ تحتاج إلى تحقق. الحقول ثابتة، ولن نعيد إرسال RPC تلقائيًا. {pending.offerId||pending.resultId?'زر الحفظ يتحقق بالقراءة فقط.':'معرف الإنشاء غير مؤكد؛ راجع قائمة العروض أولًا.'}</Text><AppButton design="refined" title="فتح قائمة العروض للتحقق" variant="outline" disabled={busy} onPress={()=>requestExit(catalog)}/><AppButton design="refined" title={offerId?'راجعت النتيجة؛ تحميل النسخة الحالية':'راجعت القائمة؛ بدء نموذج جديد'} variant="outline" disabled={busy} onPress={()=>setReviewOpen(true)}/></View>:null}
+   {pending?<View style={[styles.message,{backgroundColor:colors.warningSurface,borderColor:colors.warningBorder}]}><Text style={[styles.body,{color:colors.warningForeground}]}>هناك محاولة حفظ تحتاج إلى تحقق. الحقول ثابتة، ولن نعيد إرسال العملية تلقائيًا. {pending.offerId||pending.resultId?'زر الحفظ يتحقق بالقراءة فقط.':'معرف الإنشاء غير مؤكد؛ راجع قائمة العروض أولًا.'}</Text><AppButton design="refined" title="فتح قائمة العروض للتحقق" variant="outline" disabled={busy} onPress={()=>requestExit(catalog)}/><AppButton design="refined" title={offerId?'راجعت النتيجة؛ تحميل النسخة الحالية':'راجعت القائمة؛ بدء نموذج جديد'} variant="outline" disabled={busy} onPress={()=>setReviewOpen(true)}/></View>:null}
    {conflict?<AppButton design="refined" title="إعادة تحميل النسخة الحالية" variant="outline" disabled={busy} onPress={()=>setReviewOpen(true)}/>:null}
-   {form&&!loadError?<MerchantOfferForm form={form} products={products} errors={errors} preview={preview} startsAt={startsAt} now={now} confirmed={Boolean(savedId)} locked={locked} busy={busy} pending={Boolean(pending)}
+   {form&&!loadError?<MerchantOfferForm form={form} products={products} errors={errors} onSectionLayout={(section,y)=>{sectionOffsets.current[section]=y;}} availabilityError={availabilityError} refreshAvailability={()=>{void refreshAvailability();}} preview={preview} startsAt={startsAt} now={now} confirmed={Boolean(savedId)} locked={locked} busy={busy} pending={Boolean(pending)}
     change={change} changeType={type=>{if(locked||busyRef.current||form.type===type)return;if(form.items.length)setNextType(type);else change('type',type);}}
     openPicker={role=>{if(!locked&&!busyRef.current)setPicker({...emptyOfferPicker,open:true,role,loading:true});}}
     remove={key=>{if(!locked&&!busyRef.current){setForm(previous=>previous?{...previous,items:previous.items.filter(item=>item.key!==key)}:previous);setErrors({});}}}
@@ -118,10 +151,10 @@ export function MerchantOfferEditor({ownerId,offerId}:{ownerId:string;offerId:st
     save={()=>{void save();}} cancel={()=>requestExit(leave)} picker={picker}
     pickerQuery={value=>{pickerRequest.current?.abort();pickerGate.cancel();pickerBusy.current=false;setPicker(previous=>({...previous,query:value,rows:[],loading:true,hasMore:false,error:''}));}}
     pickerMore={()=>{if(store&&picker.open&&picker.hasMore&&!picker.error&&!picker.loading)void loadPicker(true,store.id,picker.query);}} pickerRetry={()=>setPickerRetry(value=>value+1)} pickerClose={closePicker} choose={choose}/>:!loading?<AppButton design="refined" title="العودة" variant="outline" onPress={()=>requestExit(leave)}/>:null}
-  </ScrollView>
+  </KeyboardAwareScrollView>
   <AppModal design="refined" visible={exitOpen} title="مغادرة نموذج العرض؟" message={pending?'ستبقى محاولة الحفظ للتحقق عند العودة. المغادرة لا تلغي عرضًا قد حُفظ على الخادم.':'ستفقد التغييرات غير المحفوظة.'} confirmText="تجاهل التغييرات والمغادرة" cancelText="البقاء" destructive onCancel={()=>{pendingExit.current=null;setExitOpen(false);}} onConfirm={()=>{const action=pendingExit.current;pendingExit.current=null;setExitOpen(false);allowExit.current=true;action?.();}}/>
   <AppModal design="refined" visible={busyExit} title="الحفظ قيد التنفيذ" message="انتظر نتيجة الحفظ أو التحقق قبل المغادرة." onCancel={()=>setBusyExit(false)}/>
   <AppModal design="refined" visible={nextType!==null} title="تغيير نوع العرض؟" message="ستحتاج إلى اختيار مكونات النوع الجديد صراحةً. لن نحتفظ بمكونات مخفية من النوع السابق." confirmText="تغيير النوع والمكونات" cancelText="البقاء" onCancel={()=>setNextType(null)} onConfirm={()=>{if(nextType&&!busyRef.current&&!pending){setForm(previous=>previous?{...previous,type:nextType,items:[]}:previous);setErrors({});}setNextType(null);}}/>
-  <AppModal design="refined" visible={reviewOpen} title="تأكيد مراجعة النتيجة" message="لا نعرف أن محاولة غير مؤكدة قد أُلغيت. تأكد من قائمة العروض أولًا. سننهي المتابعة المحلية ونحمّل نموذجًا جديدًا أو أحدث نسخة؛ لا يُحذف أي عرض ولا تُرسل RPC هنا." confirmText="راجعت النتيجة؛ متابعة" cancelText="البقاء" busy={busy} onCancel={()=>setReviewOpen(false)} onConfirm={()=>{void reviewReset();}}/>
- </KeyboardAvoidingView>;
+  <AppModal design="refined" visible={reviewOpen} title="تأكيد مراجعة النتيجة" message="لا نعرف أن محاولة غير مؤكدة قد أُلغيت. تأكد من قائمة العروض أولًا. سننهي المتابعة المحلية ونحمّل نموذجًا جديدًا أو أحدث نسخة؛ لا يُحذف أي عرض ولا تُرسل عملية حفظ هنا." confirmText="راجعت النتيجة؛ متابعة" cancelText="البقاء" busy={busy} onCancel={()=>setReviewOpen(false)} onConfirm={()=>{void reviewReset();}}/>
+ </View>;
 }

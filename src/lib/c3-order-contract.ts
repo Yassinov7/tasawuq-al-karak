@@ -44,7 +44,7 @@ export function decodeC3Context(value: unknown): C3Context {
   const refs = c3Object(row.references);
   const references: Record<string, string> = {};
   for (const [key, ref] of Object.entries(refs)) {
-    if (typeof ref !== "string" || !/^(ORD|SUB|DLV)-\d{6,}$/.test(ref)) throw new Error("مرجع طلب غير صالح.");
+    if (typeof ref !== "string" || !/^(ORD|SOR|TSK)-\d{6,}$/.test(ref)) throw new Error("مرجع طلب غير صالح.");
     references[key] = ref;
   }
   if (row.pricing === null) return { references, pricing: null };

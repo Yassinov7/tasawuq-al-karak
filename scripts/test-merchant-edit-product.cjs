@@ -1,6 +1,6 @@
 // Offline production-code tests. No Supabase connection, app server, or real user records.
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),crypto=require('node:crypto');
-function load(file,mocks={}){const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,Uint8Array,ArrayBuffer,Number,Date,JSON,crypto:crypto.webcrypto,require(name){if(Object.hasOwn(mocks,name))return mocks[name];if(name==='@/constants/selling-units')return load('src/constants/selling-units.ts');if(name==='@/lib/merchant-product-create')return load('src/lib/merchant-product-create.ts');if(name==='@/lib/merchant-product-edit')return load('src/lib/merchant-product-edit.ts');throw Error(name);}});return exports;}
+function load(file,mocks={}){const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports,Uint8Array,ArrayBuffer,Number,Date,JSON,crypto:crypto.webcrypto,require(name){if(Object.hasOwn(mocks,name))return mocks[name];if(name==='@/lib/catalog-categories')return load('src/lib/catalog-categories.ts',mocks);if(name==='@/constants/selling-units')return load('src/constants/selling-units.ts');if(name==='@/lib/merchant-product-create')return load('src/lib/merchant-product-create.ts');if(name==='@/lib/merchant-product-edit')return load('src/lib/merchant-product-edit.ts');throw Error(name);}});return exports;}
 const m=load('src/lib/merchant-product-edit.ts');const plain=value=>JSON.parse(JSON.stringify(value));
 const product=()=>({id:'product',store_id:'store-a',title:'منتج أصلي',description:'وصف',category_id:'cat-a',price:1234.5,selling_unit:'قطعة',minimum_quantity:0.5,quantity_step:0.1,is_available:true,updated_at:'2026-10-29T00:00:00Z'});
 const stored=(id,order,type='image')=>({id,storage_path:`store-a/products/product/${id}`,media_type:type,display_order:order,alt_text:id});
@@ -23,6 +23,19 @@ let passed=0;async function test(name,run){await run();passed++;console.log('PAS
 (async()=>{
  await test('real product values populate form without add defaults',()=>{const row=product(),form=m.productEditForm(row);assert.equal(form.price,'1234.5');assert.equal(form.minimum,'0.5');assert.equal(form.step,'0.1');assert.equal(form.categoryId,'cat-a');row.is_available=false;assert.equal(m.productEditForm(row).available,false);});
  await test('UPDATE changes title, SYP price and category on the existing product',async()=>{const h=harness();await h.saver.save(h.attempt,()=>{});assert.equal(h.row.id,'product');assert.equal(h.row.title,'اسم جديد');assert.equal(h.row.price,2000.75);assert.equal(h.row.category_id,'cat-b');assert.equal(h.writes,1);assert.equal(h.calls[0],'persist');assert.ok(!Object.hasOwn(h.attempt.values,'currency'));});
+ await test('existing disabled category can be retained but a new disabled assignment is rejected',async()=>{
+  const baseline=product(),form={...m.productEditForm(baseline),title:'اسم معدل'};
+  assert.equal(m.validateProductEdit(form,[],baseline).errors.categoryId,undefined);
+  assert.ok(m.validateProductEdit({...form,categoryId:'disabled'},[],baseline).errors.categoryId);
+  const unchanged=harness({patch:{title:form.title}});
+  unchanged.api.category=async()=>{throw Error('unchanged historical category must not be revalidated');};
+  await unchanged.saver.save(unchanged.attempt,()=>{});
+  assert.equal(unchanged.row.category_id,baseline.category_id);
+  const reassigned=harness();
+  reassigned.api.category=async()=>false;
+  await fails(reassigned.saver.save(reassigned.attempt,()=>{}));
+  assert.equal(reassigned.writes,0);
+ });
  await test('snapshot ignores later changes to input and preserves legacy units verbatim',()=>{const row=product();row.selling_unit='5 أقلام';const form=m.productEditForm(row);assert.equal(m.validateProductEdit(form,[{id:'cat-a'}],row).errors.unit,undefined);const attempt=m.productEditAttempt('owner-a',row,[],form,[],[{id:'cat-a'}]);form.title='changed';assert.equal(attempt.values.title,'منتج أصلي');});
  await test('numeric precision, Arabic input and ambiguous grouping use add validation',()=>{const row=product(),form=m.productEditForm(row);assert.ok(m.validateProductEdit({...form,price:'1.001'},[{id:'cat-a'}],row).errors.price);assert.ok(m.validateProductEdit({...form,step:'0.0001'},[{id:'cat-a'}],row).errors.step);assert.ok(m.validateProductEdit({...form,price:'1,000'},[{id:'cat-a'}],row).errors.price);assert.equal(m.validateProductEdit({...form,price:'١٢٫٢٥'},[{id:'cat-a'}],row).numbers.price,12.25);});
  await test('unchanged media retain IDs, paths, order and current main image',async()=>{const original=[stored('first',4),stored('second',9),stored('video',12,'video')];const h=harness({originals:original});await h.saver.save(h.attempt,()=>{});assert.deepEqual(plain(h.rows),original);assert.equal(h.calls.filter(x=>['upload','unlink','link'].includes(x)).length,0);});
@@ -50,6 +63,39 @@ let passed=0;async function test(name,run){await run();passed++;console.log('PAS
  await test('delete only targets a known original row and never touches Storage',async()=>{calls.length=0;const h=harness();await apiModule.createProductEditApi(()=>true).removeLinks(h.attempt,['old']);assert.equal(calls[0].table,'product_media');assert.ok(calls[0].filters.some(([k,v])=>k==='storage_path'&&v==='store-a/products/product/old'));await fails(apiModule.createProductEditApi(()=>true).removeLinks(h.attempt,['unknown']));});
  await test('pending edit restores the same snapshot; corrupt records are not treated as new',async()=>{const h=harness();await apiModule.createProductEditApi(()=>true).persist(h.attempt);const pending=await apiModule.readProductEditAttempt('owner-a','store-a','product');assert.equal(pending.id,h.attempt.id);assert.equal(pending.form.title,'اسم جديد');assert.equal(await apiModule.readProductEditAttempt('other','store-a','product'),null);const key=[...storage.keys()][0];storage.set(key,'bad json');await fails(apiModule.readProductEditAttempt('owner-a','store-a','product'));});
  await test('both modes use the same refined form and omit normal category refresh',()=>{for(const file of ['MerchantAddProduct','MerchantEditProduct']){const ui=fs.readFileSync('src/components/merchant/'+file+'.tsx','utf8');assert.ok(ui.includes('<MerchantProductForm'));assert.ok(!ui.includes('تحديث التصنيفات'));assert.ok(ui.includes('usePreventRemove'));assert.ok(ui.includes('hardwareBackPress'));assert.ok(ui.includes('router.canGoBack()'));}const shared=fs.readFileSync('src/components/merchant/MerchantProductForm.tsx','utf8');assert.ok(!shared.includes('تحديث التصنيفات'));assert.ok(shared.includes('design="refined"'));assert.ok(shared.includes('MerchantCategorySelect'));});
+ await test('shared product form keeps numeric keyboards, draft media and explicit actions in both palettes',()=>{
+  const theme=load('src/constants/theme.ts',{'react-native':{Platform:{select:values=>values.default??values.ios}},'./fonts':{FontFamily:{}}});
+  const jsx=(type,props)=>({type,props}),actions=[];
+  const flatten=node=>Array.isArray(node)?node.flatMap(flatten):!node?.props?[node]:
+   typeof node.type==='function'?flatten(node.type(node.props)):[node,...flatten(node.props.children)];
+  for(const colors of [theme.LightColors,theme.DarkColors]){
+   const {MerchantProductForm}=load('src/components/merchant/MerchantProductForm.tsx',{
+    'react/jsx-runtime':{jsx,jsxs:jsx,Fragment:'Fragment'},
+    'react-native':{Image:'Image',Pressable:'Pressable',Switch:'Switch',Text:'Text',View:'View',StyleSheet:{create:v=>v,hairlineWidth:1}},
+    '@/components/ui/AppButton':{AppButton:'Button'},'@/components/ui/AppIcon':{AppIcon:'Icon'},
+    '@/components/ui/AppTextField':{AppTextField:'Field'},'@/components/merchant/MerchantCategorySelect':{MerchantCategorySelect:'Category'},
+    '@/components/merchant/SellingUnitSelect':{SellingUnitSelect:'Unit'},'@/constants/theme':theme,
+    '@/context/ThemeContext':{useTheme:()=>({colors})},
+   });
+   const props={form:m.productEditForm(product()),media:[old(stored('saved-photo',0))],categories:[{id:'cat-a',name:'تصنيف'}],
+    errors:{},ready:true,loading:false,locked:false,picking:false,busy:false,progress:'',saveLabel:'حفظ التعديلات',
+    saveDisabled:false,saveError:'تعذر الحفظ',change:(key,value)=>actions.push([key,value]),onFieldRef(){},
+    onFirstSectionLayoutY(){},onCategoryLayoutY(){},onPricingLayoutY(){},onUnitLayoutY(){},
+    pick:type=>actions.push(type),onRemoveMedia:key=>actions.push(key),onSave:()=>actions.push('save'),onCancel:()=>actions.push('cancel')};
+   actions.length=0;
+   const tree=flatten(MerchantProductForm(props));
+   assert.deepEqual(actions,[]);
+   assert.equal(tree.filter(n=>n?.type==='Field'&&n.props.keyboardType==='decimal-pad').length,3);
+   assert.equal(tree.find(n=>n?.type==='Category').props.value,'cat-a');
+   assert(tree.some(n=>n?.type==='Image'&&n.props.source.uri.includes('saved-photo')));
+   assert(tree.includes('تعذر الحفظ'));
+   tree.find(n=>n?.type==='Switch').props.onValueChange(false);
+   tree.find(n=>n?.props?.accessibilityLabel==='إزالة saved-photo').props.onPress();
+   tree.find(n=>n?.props?.title==='حفظ التعديلات').props.onPress();
+   tree.find(n=>n?.props?.title==='إلغاء').props.onPress();
+   assert.deepEqual(actions,[['available',false],'saved-photo','save','cancel']);
+  }
+ });
  await test('reference retries preserve edited inputs and initial product has no defaults',()=>{const ui=fs.readFileSync('src/components/merchant/MerchantEditProduct.tsx','utf8');assert.ok(ui.includes('if(!initial.current)'));assert.ok(ui.includes('!signal.aborted&&latest()'));assert.ok(ui.includes('useState<ProductForm|null>(null)'));assert.ok(!ui.includes('emptyProductForm'));assert.ok(ui.includes('readProductCategories(signal)'));});
  await test('editing has no product INSERT and invalidates authoritative catalogues',()=>{const api=fs.readFileSync('src/lib/merchant-product-edit-api.ts','utf8'),ui=fs.readFileSync('src/components/merchant/MerchantEditProduct.tsx','utf8');assert.ok(!api.includes('from("products").insert'));assert.ok(!api.includes('.storage.from("store-media").remove'));assert.ok(ui.includes('invalidateMerchantHome(ownerId)'));assert.ok(ui.includes('merchant-products:${ownerId}'));assert.ok(ui.includes('refreshProductAvailability(productId)'));});
  console.log(passed+' merchant edit-product tests passed (offline)');

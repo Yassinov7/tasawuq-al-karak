@@ -22,7 +22,7 @@ const pages: Record<string, { title: string; section: MerchantSection; parent?: 
   "/merchant/account": { title: "حسابي", section: "/merchant/account" },
   "/merchant/personal-info": { title: "المعلومات الشخصية", section: "/merchant/account", parent: "/merchant/account" },
   "/merchant/store-info": { title: "معلومات المتجر", section: "/merchant/account", parent: "/merchant/account" },
-  "/merchant/subscription": { title: "الاشتراك والخطط", section: "/merchant/account", parent: "/merchant/account" },
+  "/merchant/subscription": { title: "فواتير الاشتراك", section: "/merchant/account", parent: "/merchant/account" },
   "/merchant/settings": { title: "الإعدادات", section: "/merchant/account", parent: "/merchant/account" },
   "/merchant/security": { title: "الأمان وكلمة المرور", section: "/merchant/account", parent: "/merchant/account" },
 };

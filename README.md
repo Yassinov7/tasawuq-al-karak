@@ -1,56 +1,30 @@
-# Welcome to your Expo app 👋
+# تسوق | الكرك الشرقي
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+تطبيق سوق محلي عربي للجوال، مبني باستخدام Expo SDK 57 وReact Native وTypeScript وExpo Router.
 
-## Get started
+## المراجع الحالية
 
-1. Install dependencies
+المالية الجديدة نجحت في تجربة المالك على Android للتدفقات المسجلة؛ العمل الحالي تحسين UI/UX والتحديث والإشعارات، والراتب مؤجل عن الإطلاق.
 
-   ```bash
-   npm install
-   ```
+- [خطة تحسين الواجهات الحالية](docs/ui-ux-implementation-plan.ar.md): المراجعة، الأدوار، الثيم، الإشعارات وترتيب الشاشات.
 
-2. Start the app
+- [تسليم المالية الجديدة وخطوات الاختبار](docs/invoice-finance-test-plan.ar.md): الترحيل، الأثر، المثال المالي، وتجربة كل دور.
+- [شروط البناء والعمل](PROJECT_RULES.md): المرجع الملزم لكل طلب.
+- [ضوابط Google Play وApple](STORE_POLICIES.md): التسجيل والاشتراكات والخصوصية والنشر.
+- [متابعة المراحل](WORK_PROGRESS.md): ما أنجز، وما ينتظر ترحيل المالك وتجربة الهاتف، والخطوة التالية.
+- [خطة التنفيذ الموحدة](docs/implementation-master-plan.ar.md).
+- [مواصفات الماليات المبسطة](docs/simple-finance-spec.ar.md).
+- [جرد الاستبدال والتأثر](docs/finance-replacement-inventory.ar.md).
+- [تسليم التسجيل الجديد وتجربته](docs/onboarding-release-notes.ar.md).
 
-   ```bash
-   npx expo start
-   ```
+## التشغيل
 
-In the output, you'll find options to open the app in a
+ثبّت الاعتماديات باستخدام `npm ci`، وضع إعدادات Supabase العامة في `.env.local` دون إيداع أسرار في Git، ثم شغّل `npx expo start`. المسارات في `src/app/`، والمكونات والخدمات خارج مجلد المسارات.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+التغييرات على قاعدة المالك تسلم داخل `supabase/migrations/`، ويطبقها المالك. لا يعمل التسجيل الجديد على مخطط أقدم من ترحيل التسجيل الضروري؛ راجع ملف المتابعة قبل تجربة الهاتف.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## الفحص
 
-## Get a fresh project
+`npx expo lint` و`npx tsc --noEmit`، ثم اختبارات التغيير المناسبة من `scripts/`. اختبار SQL المحلي: `node scripts/test-invoice-finance-sql.cjs`، وترقية قاعدة تجريبية فيها سجلات قديمة: `node scripts/test-finance-cutover-upgrade-sql.cjs`، وإعادة محاولة العميل: `node scripts/test-invoice-finance-client.cjs`. تتطلب اختبارات SQL تثبيت أداة PGlite المعزولة كما في ورقة تسليم التسجيل؛ لا تنفذ على قاعدة المالك.
 
-When you're ready, run:
-
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-### Other setup steps
-
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+الوثائق والكود المرجعي المستبدل في [الأرشيف](archive/legacy-reference/README.md)، ولا تدخل في تعليمات البناء الحالية. لا يوجد أمر لتصفير المشروع من README؛ إعادة تأسيس القاعدة تسلّم بخطة وترحيل محددين ينفذهما المالك.

@@ -2,7 +2,7 @@ import { purchaseAvailabilityMessage } from "@/lib/purchase-availability";
 import { supabase } from "@/lib/supabase";
 import { c3Object, c3Number, c3Money, c3TotalMatches, decodeC3Context, type C3Context, type C3Quote } from "@/lib/c3-order-contract";
 import { readLocalCache, writeLocalCache, invalidateLocalCache } from "@/lib/local-cache";
-import { newIdempotencyKey } from "@/lib/driver-cash";
+import { newIdempotencyKey } from "@/lib/request-key";
 import { createFinancialTransport } from "@/lib/financial-transport";
 
 type C3RpcName = "recover_c3_order_request" | "get_c3_delivery_zones" | "save_c3_delivery_zone" | "get_c3_order_context" | "create_c3_order_from_cart" | "quote_c3_cart" | "get_c3_pricing_exceptions";
@@ -10,21 +10,21 @@ type C3RpcName = "recover_c3_order_request" | "get_c3_delivery_zones" | "save_c3
 // schema type generation and review. This cast is not generated schema evidence.
 const client = supabase as unknown as { rpc(name: C3RpcName, args?: Record<string, unknown>): PromiseLike<{ data: unknown; error: { code?: string; message: string } | null }> };
 const rpc = createFinancialTransport(client);
-export async function c3Rpc(name: C3RpcName, args?: Record<string, unknown>) {
-  const result = await rpc(name, args ?? {});
+export async function c3Rpc(name: C3RpcName, args?: Record<string, unknown>, signal?: AbortSignal) {
+  const result = await rpc(name, args ?? {}, signal);
   if (result.error) {
     if (result.error.message.includes("C8_STORE_UNAVAILABLE")) throw new Error("أحد المتاجر غير متاح لاستقبال طلبات جديدة. راجع السلة وأزل المتجر غير المتاح، ثم حدّث عرض السعر قبل التأكيد.");
     if (result.error.message.includes("C3_ACCOUNT_CHANGED")) throw new Error("تغير الحساب؛ لم نؤكد أي إجراء للحساب الجديد.");
     if (result.error.message.includes("C3_PRICE_CHANGED")) throw new Error("تغير السعر في الخادم. حدّث ملخص الطلب ثم راجعه قبل التأكيد.");
-    throw new Error(result.error.code === "42883" || result.error.code === "PGRST202" ? "عقد C3 غير متاح في الخادم بعد." : "تعذر تأكيد بيانات الطلب. حدّث السجل وتحقق من الاتصال.");
+    throw new Error(result.error.code === "42883" || result.error.code === "PGRST202" ? "خدمة الطلبات غير متاحة حاليًا. حاول مرة أخرى لاحقًا." : "تعذر تأكيد بيانات الطلب. حدّث السجل وتحقق من الاتصال.");
   }
   return result.data;
 }
-export async function getC3Contexts(ids: string[]): Promise<Record<string, C3Context>> {
+export async function getC3Contexts(ids: string[], signal?: AbortSignal): Promise<Record<string, C3Context>> {
   const result: Record<string, C3Context> = {};
   const unique = [...new Set(ids)];
   for (let offset = 0; offset < unique.length; offset += 80) {
-    const rows = c3Object(await c3Rpc("get_c3_order_context", { target_orders: unique.slice(offset, offset + 80) }));
+    const rows = c3Object(await c3Rpc("get_c3_order_context", { target_orders: unique.slice(offset, offset + 80) }, signal));
     for (const [id, row] of Object.entries(rows)) result[id] = decodeC3Context(row);
   }
   return result;

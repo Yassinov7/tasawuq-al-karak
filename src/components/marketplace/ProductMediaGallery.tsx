@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { ProductMediaPreview } from "@/components/marketplace/ProductMediaPreview";
 import { AppIcon } from "@/components/ui/AppIcon";
-import type { IconName, Product } from "@/constants/catalog";
+import type { IconName, Product } from "@/types/catalog";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 

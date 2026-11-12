@@ -1,162 +1,47 @@
 import { Stack } from "expo-router";
-import { useOnboardingExit } from "@/hooks/useOnboardingExit";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  View,
-} from "react-native";
-import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-
+import { ScrollView, View } from "react-native";
+import { KeyboardAwareScrollView } from "@/components/ui/KeyboardAwareScrollView";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { SignupCredentialsStep } from "@/components/signup/SignupCredentialsStep";
-import { SignupIntroStep } from "@/components/signup/SignupIntroStep";
 import { SignupProgress } from "@/components/signup/SignupProgress";
 import { SignupRoleStep } from "@/components/signup/SignupRoleStep";
-import { Spacing } from "@/constants/theme";
+import { SignupReviewStep } from "@/components/signup/SignupReviewStep";
+import { ProfessionalApplicationFields } from "@/components/signup/ProfessionalApplicationFields";
+import { SignupErrorNotice } from "@/components/signup/SignupErrorNotice";
+import { AppButton } from "@/components/ui/AppButton";
 import { useTheme } from "@/context/ThemeContext";
 import { useSignup } from "@/hooks/useSignup";
+import { useOnboardingExit } from "@/hooks/useOnboardingExit";
 
 export default function SignupScreen() {
   const { colors } = useTheme();
-  const {
-    acceptedTerms,
-    accountCreated,
-    ageRange,
-    busy,
-    clearError,
-    createAccount,
-    email,
-    error,
-    fieldErrors,
-    fullName,
-    gender,
-    password,
-    passwordConfirmation,
-    role,
-    retryAccountRouting,
-    setAgeRange,
-    setGender,
-    setRole,
-    toggleAcceptedTerms,
-    updateField,
-    validateDetails,
-  } = useSignup();
-
+  const signup = useSignup();
+  const { busy, accountCreated, clearError } = signup;
+  const [page, setPage] = useState(1);
   const scrollRef = useRef<ScrollView>(null);
-  const [page, setPage] = useState<1 | 2 | 3>(1);
-
-  const onBack = useCallback(() => { if (busy) return true; if (page > 1) { setPage(page === 3 ? 2 : 1); return true; } return false; }, [busy, page]);
-  const exitSignup = useOnboardingExit({ dirty: Boolean(fullName || email || password || passwordConfirmation || role), busy, onBack });
-
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ y: 0, animated: false });
-  }, [page]);
-
-  const goToPage = (nextPage: 1 | 2 | 3) => {
-    clearError();
-    setPage(nextPage);
-  };
-
-  const continueToRole = () => {
-    if (validateDetails()) setPage(3);
-  };
-
-  return (
-    <SafeAreaProvider>
-      <Stack.Screen options={{ gestureEnabled: false }} />
-      <SafeAreaView
-        edges={["top", "bottom"]}
-        style={[styles.safeArea, { backgroundColor: colors.background }]}
-      >
-        <KeyboardAvoidingView
-          style={styles.container}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
-          <SignupProgress
-            step={page}
-            onCancel={exitSignup}
-            busy={busy}
-            onBack={
-              page === 1
-                ? undefined
-                : busy ? undefined : () => goToPage(page === 3 ? 2 : 1)
-            }
-          />
-          <ScrollView
-            ref={scrollRef}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-            contentContainerStyle={[
-              styles.scrollContent,
-              page === 1 ? styles.introContent : styles.formContent,
-            ]}
-          >
-            {page === 1 ? (
-              <SignupIntroStep onExit={exitSignup} onContinue={() => goToPage(2)} />
-            ) : page === 2 ? (
-              <SignupCredentialsStep
-                onExit={exitSignup}
-                ageRange={ageRange}
-                email={email}
-                error={error}
-                fieldErrors={fieldErrors}
-                fullName={fullName}
-                gender={gender}
-                passwordValue={password}
-                passwordConfirmation={passwordConfirmation}
-                onChangeAgeRange={setAgeRange}
-                onChangeEmail={(value) => updateField("email", value)}
-                onChangeFullName={(value) => updateField("fullName", value)}
-                onChangeGender={setGender}
-                onChangePassword={(value) => updateField("password", value)}
-                onChangePasswordConfirmation={(value) =>
-                  updateField("passwordConfirmation", value)
-                }
-                onContinue={continueToRole}
-              />
-            ) : (
-              <SignupRoleStep
-                acceptedTerms={acceptedTerms}
-                accountCreated={accountCreated}
-                busy={busy}
-                error={error}
-                role={role}
-                onClearError={clearError}
-                onContinue={() => void createAccount()}
-                onRetryRouting={() => void retryAccountRouting()}
-                onSetRole={setRole}
-                onToggleTerms={toggleAcceptedTerms}
-              />
-            )}
-            <View style={styles.bottomSpacer} />
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-    </SafeAreaProvider>
-  );
+  const professional = signup.role === "merchant" || signup.role === "driver";
+  const total = professional ? 4 : 3;
+  const onBack = useCallback(() => {
+    if (busy || accountCreated) return true;
+    if (page > 1) { setPage(p => p - 1); clearError(); return true; }
+    return false;
+  }, [busy, accountCreated, clearError, page]);
+  const exit = useOnboardingExit({ dirty: !!(signup.role || Object.values(signup.details).some(Boolean) || Object.values(signup.application).some(Boolean)), busy: signup.busy, onBack });
+  useEffect(() => { scrollRef.current?.scrollTo({ y: 0, animated: false }); }, [page]);
+  const labels = professional ? ["نوع الحساب", "بيانات الحساب", "طلب الانضمام", "المراجعة"] : ["نوع الحساب", "بيانات الحساب", "المراجعة"];
+  return <SafeAreaView edges={["top", "bottom"]} style={{ flex: 1, backgroundColor: colors.background }}>
+    <Stack.Screen options={{ gestureEnabled: false }}/>
+      <SignupProgress step={page} labels={labels} onCancel={exit} busy={signup.busy} onBack={page > 1 && !signup.accountCreated ? () => { onBack(); } : undefined}/>
+      <KeyboardAwareScrollView ref={scrollRef} contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 20, paddingBottom: 24 }}>
+        {page === 1 ? <SignupRoleStep role={signup.role} onSetRole={signup.setRole} onContinue={() => setPage(2)} onExit={exit} error={signup.error}/> : null}
+        {page === 2 && signup.role ? <SignupCredentialsStep value={signup.details} role={signup.role} errors={signup.fieldErrors} error={signup.error} onChange={signup.updateField} onContinue={() => { if (signup.validateDetails()) setPage(3); }}/> : null}
+        {page === 3 && professional ? <View style={{ width: "100%", maxWidth: 520, alignSelf: "center", gap: 20, paddingVertical: 20 }}>
+          <ProfessionalApplicationFields role={signup.role as "merchant" | "driver"} value={signup.application} onChange={signup.updateApplication} errors={signup.applicationErrors}/>
+          <SignupErrorNotice message={signup.error}/>
+          <AppButton design="refined" title="التالي: المراجعة والإرسال" onPress={() => { if (signup.validateApplication()) setPage(4); }}/>
+        </View> : null}
+        {page === total && signup.role ? <SignupReviewStep role={signup.role} details={signup.details} application={signup.application} accepted={signup.acceptedTerms} busy={signup.busy} created={signup.accountCreated} error={signup.error} onToggle={signup.toggleAcceptedTerms} onSubmit={() => void signup.createAccount()} onRetry={() => void signup.retryAccountRouting()}/> : null}
+      </KeyboardAwareScrollView>
+  </SafeAreaView>;
 }
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: Spacing.five,
-  },
-  introContent: {
-    paddingHorizontal: 0,
-  },
-  formContent: {
-    paddingBottom: Spacing.four,
-  },
-  bottomSpacer: {
-    height: Spacing.two,
-  },
-});

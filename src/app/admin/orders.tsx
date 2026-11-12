@@ -1,6 +1,11 @@
+import { LoadingSkeleton, RefreshStatus } from "@/components/ui/LoadingState";
+import { useAuth } from "@/context/AuthContext";
+import { useOrderRealtime } from "@/hooks/useOrderRealtime";
+import { useReadScope } from "@/hooks/useReadScope";
+import { LiveStatus } from "@/components/ui/LiveStatus";
 import { formatSyp } from "@/lib/money";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { type Href, useRouter } from "expo-router";
+import { type Href, useRouter, useLocalSearchParams } from "expo-router";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { AppIcon } from "@/components/ui/AppIcon";
@@ -11,7 +16,7 @@ import { getAdminOrderPage, getCachedAdminOrderPage, isCachedAdminOrderPageFresh
 
 const pageSize = 20;
 const filters: { id: AdminOrderListFilter; label: string }[] = [
-  { id: "all", label: "الكل" }, { id: "new", label: "الجديدة" }, { id: "in_progress", label: "قيد التنفيذ" },
+  { id: "pricing_review", label: "مراجعة السعر" }, { id: "all", label: "الكل" }, { id: "new", label: "الجديدة" }, { id: "in_progress", label: "قيد التنفيذ" },
   { id: "awaiting_delivery", label: "بانتظار التوصيل" }, { id: "completed", label: "المكتملة" }, { id: "cancelled", label: "الملغاة" },
 ];
 const statusLabels: Record<string, string> = { submitted: "تم إرسال الطلب", in_progress: "قيد المعالجة", ready_for_delivery: "جاهز للتوصيل", out_for_delivery: "قيد التوصيل", delivered: "مكتمل", partially_cancelled: "أُلغي جزء من الطلب", cancelled: "ملغى" };
@@ -19,10 +24,16 @@ const formatDate = (value: string) => new Date(value).toLocaleDateString("ar-SY"
 const formatAmount = (value: number, currency: string) => formatSyp(Number(value), currency);
 
 export default function AdminOrdersScreen() {
+  const {user}=useAuth();
+  const {filter:raw}=useLocalSearchParams<{filter?:string}>();
+  const initialFilter=filters.find(item=>item.id===raw)?.id??"all";
+  return user?<AdminOrders key={`${user.id}:${initialFilter}`} initialFilter={initialFilter} owner={user.id}/>:null;
+}
+function AdminOrders({initialFilter,owner}:{initialFilter:AdminOrderListFilter;owner:string}) {
   const { colors } = useTheme();
   const router = useRouter();
-  const [filter, setFilter] = useState<AdminOrderListFilter>("all");
-  const initialCache = getCachedAdminOrderPage("all", 0, pageSize)?.data;
+  const [filter, setFilter] = useState<AdminOrderListFilter>(initialFilter);
+  const initialCache = getCachedAdminOrderPage(initialFilter, 0, pageSize)?.data;
   const [orders, setOrders] = useState<AdminOrderSummary[]>(initialCache?.orders ?? []);
   const [hasMore, setHasMore] = useState(initialCache?.hasMore ?? false);
   const [loading, setLoading] = useState(!initialCache);
@@ -31,6 +42,8 @@ export default function AdminOrdersScreen() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [activeSearch, setActiveSearch] = useState("");
+  const scope=JSON.stringify([filter,activeSearch]);
+  const [rowsScope,setRowsScope]=useState(JSON.stringify([initialFilter,""]));
   const nextPage = useRef(1);
 
   useEffect(() => {
@@ -38,38 +51,46 @@ export default function AdminOrdersScreen() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  const reads = useReadScope(JSON.stringify([owner,filter,activeSearch]));
   const refresh = useCallback(async (manual = false) => {
+    const epoch=reads.begin();
+    setLoadingMore(false);
     const cached = getCachedAdminOrderPage(filter, 0, pageSize, activeSearch)?.data;
-    if (cached) { setOrders(cached.orders); setHasMore(cached.hasMore); }
+    if (cached && !manual) { setRowsScope(JSON.stringify([filter,activeSearch])); setOrders(cached.orders); setHasMore(cached.hasMore); }
     nextPage.current = 1;
     if (!manual && isCachedAdminOrderPageFresh(filter, 0, pageSize, activeSearch)) { setLoading(false); return; }
     if (cached) setRefreshing(true); else setLoading(true);
-    setError("");
     try {
       const result = await getAdminOrderPage({ filter, page: 0, pageSize, force: manual, search: activeSearch });
+      if(!reads.current(epoch))return;
+      setError("");
+      setRowsScope(JSON.stringify([filter,activeSearch]));
       setOrders(result.orders); setHasMore(result.hasMore);
-    } catch { setError("تعذّر تحميل الطلبات. احتفظنا بالبيانات السابقة إن كانت متاحة؛ حاول التحديث لاحقًا."); }
-    finally { setLoading(false); setRefreshing(false); }
-  }, [activeSearch, filter]);
+    } catch { if(reads.current(epoch))setError("تعذّر تحميل الطلبات. احتفظنا بالبيانات السابقة إن كانت متاحة؛ حاول التحديث لاحقًا."); }
+    finally { if(reads.current(epoch)){setLoading(false); setRefreshing(false);} }
+  }, [activeSearch, filter, reads]);
 
   useEffect(() => { const timer = setTimeout(() => void refresh(), 0); return () => clearTimeout(timer); }, [refresh]);
 
   const loadMore = useCallback(async () => {
     if (!hasMore || loadingMore || loading || refreshing) return;
+    const epoch=reads.begin();
     setLoadingMore(true);
     try {
       const result = await getAdminOrderPage({ filter, page: nextPage.current, pageSize, search: activeSearch });
+      if(!reads.current(epoch))return;
       setOrders((current) => [...current, ...result.orders.filter((order) => !current.some((saved) => saved.id === order.id))]);
       setHasMore(result.hasMore); nextPage.current += 1;
-    } catch { setError("تعذّر تحميل المزيد من الطلبات."); }
-    finally { setLoadingMore(false); }
-  }, [activeSearch, filter, hasMore, loading, loadingMore, refreshing]);
+    } catch { if(reads.current(epoch))setError("تعذّر تحميل المزيد من الطلبات."); }
+    finally { if(reads.current(epoch))setLoadingMore(false); }
+  }, [activeSearch, filter, hasMore, loading, loadingMore, refreshing, reads]);
+  const live=useOrderRealtime({channelName:"admin-orders",enabled:true,subscriptions:[{table:"customer_orders"},{table:"store_orders"},{table:"delivery_tasks"},{table:"order_pricing_current"}],onChange:()=>refresh(true)});
   const attentionCount = orders.filter((order) => order.status === "submitted" || order.status === "in_progress").length;
 
-  return <View style={[styles.screen, { backgroundColor: colors.background }]}><FlatList data={orders} keyExtractor={(order) => order.id} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh(true)} tintColor={colors.primary} colors={[colors.primary]} />}
-    ListHeaderComponent={<View style={styles.head}><View style={[styles.count, { backgroundColor: colors.accentLight }]}><AppIcon name="time-outline" size={18} color={colors.accentText} /><Text style={[styles.countText, { color: colors.accentText }]}>{attentionCount} طلب يحتاج متابعة</Text></View><View style={[styles.search, { backgroundColor: colors.surface, borderColor: colors.border }]}><AppIcon name="search-outline" size={20} color={colors.textSecondary} /><TextInput value={search} onChangeText={setSearch} placeholder="ابحث برقم الطلب أو العميل" placeholderTextColor={colors.textMuted} style={[styles.searchInput, { color: colors.text }]} textAlign="right" /></View><View style={styles.filters}>{filters.map((item) => <Pressable key={item.id} onPress={() => setFilter(item.id)} style={({ pressed }) => [styles.filter, { backgroundColor: filter === item.id ? colors.primaryLight : colors.surface, borderColor: filter === item.id ? colors.primary : colors.border, opacity: pressed ? 0.72 : 1 }]}><Text style={[styles.filterText, { color: filter === item.id ? colors.primary : colors.textSecondary }]}>{item.label}</Text></Pressable>)}</View>{refreshing ? <Text style={[styles.refresh, { color: colors.textSecondary }]}>يتم التحديث في الخلفية…</Text> : null}{error ? <View style={[styles.error, { backgroundColor: colors.surfaceSecondary }]}><Text style={[styles.errorText, { color: colors.error }]}>{error}</Text><AppButton title="إعادة المحاولة" variant="outline" onPress={() => void refresh(true)} /></View> : null}</View>}
+  return <View style={[styles.screen, { backgroundColor: colors.background }]}><FlatList maintainVisibleContentPosition={{minIndexForVisible:0}} data={rowsScope===scope?orders:[]} keyExtractor={(order) => order.id} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh(true)} tintColor={colors.primary} colors={[colors.primary]} />}
+    ListHeaderComponent={<View style={styles.head}><LiveStatus state={live}/><View style={[styles.count, { backgroundColor: colors.accentLight }]}><AppIcon name="time-outline" size={18} color={colors.accentText} /><Text style={[styles.countText, { color: colors.accentText }]}>{attentionCount} طلب يحتاج متابعة ضمن النتائج المحمّلة</Text></View><View style={[styles.search, { backgroundColor: colors.surface, borderColor: colors.border }]}><AppIcon name="search-outline" size={20} color={colors.textSecondary} /><TextInput value={search} onChangeText={setSearch} placeholder="ابحث برقم الطلب أو العميل" placeholderTextColor={colors.textMuted} style={[styles.searchInput, { color: colors.text }]} textAlign="right" /></View><View style={styles.filters}>{filters.map((item) => <Pressable key={item.id} onPress={() => setFilter(item.id)} style={({ pressed }) => [styles.filter, { backgroundColor: filter === item.id ? colors.primaryLight : colors.surface, borderColor: filter === item.id ? colors.primary : colors.border, opacity: pressed ? 0.72 : 1 }]}><Text style={[styles.filterText, { color: filter === item.id ? colors.primary : colors.textSecondary }]}>{item.label}</Text></Pressable>)}</View><RefreshStatus busy={refreshing}/>{error ? <View style={[styles.error, { backgroundColor: colors.surfaceSecondary }]}><Text style={[styles.errorText, { color: colors.error }]}>{error}</Text><AppButton title="إعادة المحاولة" variant="outline" onPress={() => void refresh(true)} /></View> : null}</View>}
     renderItem={({ item }) => <OrderCard order={item} onPress={() => router.push(`/admin/order-details?orderId=${encodeURIComponent(item.id)}` as Href)} />}
-    ListEmptyComponent={loading ? <View style={styles.center}><ActivityIndicator color={colors.primary} /></View> : <EmptyState hasSearch={Boolean(activeSearch)} onRetry={() => void refresh(true)} />}
+    ListEmptyComponent={loading||(rowsScope!==scope&&!error) ? <LoadingSkeleton label="جارٍ تحميل الطلبات"/> : error ? null : <EmptyState hasSearch={Boolean(activeSearch)} onRetry={() => void refresh(true)} />}
     ListFooterComponent={hasMore ? <View style={styles.footer}>{loadingMore ? <ActivityIndicator color={colors.primary} /> : <AppButton title="تحميل المزيد" variant="outline" fullWidth={false} onPress={() => void loadMore()} />}</View> : null}
   /></View>;
 }

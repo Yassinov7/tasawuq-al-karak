@@ -1,2 +1,2 @@
-import {FinancialReconciliation} from '@/components/admin/FinancialReconciliation';
-export default function ReconciliationPage(){return <FinancialReconciliation/>;}
+import { Redirect } from "expo-router";
+export default function PreviousFinanceRoute(){return <Redirect href="/admin/finance"/>;}

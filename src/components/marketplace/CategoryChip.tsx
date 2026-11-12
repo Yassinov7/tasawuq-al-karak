@@ -8,6 +8,7 @@ type CategoryChipProps = {
   label: string;
   icon?: React.ComponentProps<typeof AppIcon>["name"];
   active?: boolean;
+  tile?: boolean;
   onPress: () => void;
 };
 
@@ -15,6 +16,7 @@ export function CategoryChip({
   label,
   icon,
   active = false,
+  tile = false,
   onPress,
 }: CategoryChipProps) {
   const { colors } = useTheme();
@@ -22,13 +24,14 @@ export function CategoryChip({
   return (
     <Pressable
       onPress={onPress}
-      accessibilityRole="button"
+      accessibilityRole={tile ? "link" : "button"}
       accessibilityLabel={label}
       accessibilityState={{
         selected: active,
       }}
       style={({ pressed }) => [
         styles.chip,
+        tile && styles.tile,
         {
           backgroundColor: active ? colors.primary : colors.surface,
           borderColor: active ? colors.primary : colors.border,
@@ -69,7 +72,9 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
   },
 
+  tile: { minHeight: 48, maxWidth: 220, borderRadius: Radius.lg },
   text: {
+    flexShrink: 1,
     fontFamily: Fonts.medium,
     fontSize: FontSizes.xs,
   },

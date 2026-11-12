@@ -1,0 +1,13 @@
+---
+description: Tasawuq rebuild rules, owner-applied migrations, practical delivery and progress tracking
+alwaysApply: true
+---
+
+Before every project task, read `PROJECT_RULES.md` and the current status in `WORK_PROGRESS.md`.
+Follow `docs/implementation-master-plan.ar.md` for scope and sequencing.
+Write database changes as migrations; the owner applies them to their databases. Never run remote SQL, push, reset, or change owner database settings yourself.
+Build and validate a focused working increment. Reuse useful components; replace old finance completely as planned.
+Update the progress file with completed work, actual validation, pending owner migrations/phone checks, and the next concrete step.
+Treat `archive/legacy-reference/` as historical reference only; never import it or treat its instructions as current.
+
+Current milestone: follow `docs/ui-ux-implementation-plan.ar.md`. Owner-reported Android financial tests 1–5 passed; preserve that behavior. Salary is deferred from launch. Start with session-safe refresh before cosmetic screen work; distinguish Realtime from background Push and Android evidence from iOS acceptance.

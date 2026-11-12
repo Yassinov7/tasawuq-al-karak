@@ -1,9 +1,10 @@
+import { disablePushDevice } from "@/lib/push-device";
 import type {Database} from '@/types/database';
 import { createClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { invalidateLocalCache } from '@/lib/local-cache';
 import { personalValues, samePersonal, type PersonalDraft } from '@/lib/personal-account-model';
-const columns='id,full_name,age_range,gender,role,updated_at' as const;
+const columns='id,full_name,age_range,gender,role,updated_at,birth_date' as const;
 const saving=new Set<string>();
 function boundClient(token:string){return createClient<Database>(process.env.EXPO_PUBLIC_SUPABASE_URL!,process.env.EXPO_PUBLIC_SUPABASE_KEY!,{global:{headers:{Authorization:'Bearer '+token}},auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});}
 async function accountFetch(input:Parameters<typeof fetch>[0]|URL,init?:Parameters<typeof fetch>[1]){
@@ -58,6 +59,9 @@ export async function logoutPersonalAccount(owner:string){
  if(logoutBusy)throw Error('يجري تسجيل الخروج.');logoutBusy=true;
  let sent=false;
  try{
+  await assertAccount(owner);
+  let pushTimer:ReturnType<typeof setTimeout>|undefined;
+  await Promise.race([disablePushDevice(owner).catch(()=>undefined),new Promise<void>(resolve=>{pushTimer=setTimeout(resolve,1500);})]).finally(()=>clearTimeout(pushTimer));
   await assertAccount(owner);
   const operation=supabase.auth.signOut({scope:'local'});sent=true;
   void operation.finally(()=>{logoutBusy=false;}).catch(()=>{});

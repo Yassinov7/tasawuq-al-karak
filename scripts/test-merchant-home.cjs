@@ -37,6 +37,7 @@ function harness() {
       return { data: call.options.head ? null : matching, count: missingCount ? null : matching.length, error: failTable===table ? {message:'offline'} : null };
     };
     const query = {
+      abortSignal() { return query; },
       select(columns,options={}) { call.columns=columns;call.options=options;return query; },
       eq(key,value) { call.filters.push(['eq',key,value]);return query; },
       lte(key,value) { call.filters.push(['lte',key,value]);return query; },
@@ -49,11 +50,12 @@ function harness() {
       },
     };return query;
   } };
-  const module = load('src/lib/merchant-home.ts',{'@/lib/supabase':{supabase:client}});
+  let finance = async (search,page,owner,signal) => ({owner,admin:false,account_reference:'ACC-0000001',payable:'700.25',receivable:'100.50'});
+  const module = load('src/lib/merchant-home.ts',{'@/lib/invoice-finance':{readMoney:(...args)=>finance(...args)},'@/lib/supabase':{supabase:client},'@/lib/operational-home':{readMerchantHomeStatus:async()=>({eligible:true,reason:'ready',recheckDelay:null})}});
   let state;const states=[];
   const controller=module.createMerchantHomeController('owner-a',value=>{state=value;states.push(value);});
   controller.activate();
-  return {rows,calls,module,controller,states,get state(){return state;},fail(table){failTable=table;},missing(value){missingCount=value;},hold(){held=undefined;holdNextOrder=true;},get held(){return held;}};
+  return {rows,calls,module,controller,states,setFinance(fn){finance=fn;},get state(){return state;},fail(table){failTable=table;},missing(value){missingCount=value;},hold(){held=undefined;holdNextOrder=true;},get held(){return held;}};
 }
 async function waitForHold(h){for(let i=0;i<100&&!h.held;i++)await new Promise(resolve=>setImmediate(resolve));assert(h.held,'Request did not reach controlled delay');}
 async function run() {
@@ -94,6 +96,24 @@ async function run() {
   assert(race.states.some(state=>state.identity?.store.id==='replacement'&&state.snapshot===null),'Old counts must clear before replacement counts arrive');
   race.held.resolve();await older;assert.equal(race.state.snapshot.storeId,'replacement','Delayed older request cannot overwrite the new store');
   race.hold();const leaving=race.controller.refresh(true);await waitForHold(race);race.controller.deactivate();const published=race.states.length;race.held.resolve();await leaving;assert.equal(race.states.length,published,'Blur/unmount invalidates pending responses');
+  const money = harness(); await money.controller.refresh(true);
+  assert.deepEqual(plain(money.state.snapshot.finance),{payable:'700.25',receivable:'100.50'},'keep both server directions; no netting');
+  money.setFinance(async()=>{throw Error('offline');});await money.controller.refresh(true);
+  assert.equal(money.state.error,false,'money failure does not fail order counts');
+  assert.equal(money.state.snapshot.financeError,true);
+  assert.equal(money.state.snapshot.finance.payable,'700.25','keep last same-account totals marked stale');
+  const wrong = harness();wrong.setFinance(async()=>({owner:'other',admin:false,account_reference:'ACC',payable:'999',receivable:'0'}));await wrong.controller.refresh(true);
+  assert.equal(wrong.state.snapshot.finance,undefined);assert.equal(wrong.state.snapshot.financeError,true);
+  wrong.setFinance(async()=>({owner:'owner-a',admin:false,account_reference:'ACC',payable:'9007199254740993.25',receivable:'123.75'}));await wrong.controller.refresh(true);
+  assert.equal(wrong.state.snapshot.finance.payable,'9007199254740993.25','never convert money to Number');
+  const lateMoney=harness();let resolveMoney,financialSignal;
+  lateMoney.setFinance((search,page,owner,signal)=>{assert.equal(search,'');assert.equal(page,0);assert.equal(owner,'owner-a');financialSignal=signal;return new Promise(resolve=>{resolveMoney=resolve;});});
+  const waitingMoney=lateMoney.controller.refresh(true);for(let turn=0;turn<40&&!resolveMoney;turn++)await Promise.resolve();assert(resolveMoney);
+  lateMoney.controller.deactivate();const financePublished=lateMoney.states.length;
+  assert.equal(financialSignal.aborted,true,'financial read is cancelled on blur');
+  resolveMoney({owner:'owner-a',admin:false,account_reference:'ACC',payable:'9999.00',receivable:'99.00'});await waitingMoney;
+  assert.equal(lateMoney.states.length,financePublished,'late financial result cannot publish after blur');
+  console.log('PASS central finance: both directions, large exact amounts, independent failure, stale marking, owner mismatch and recovery.');
   const source=fs.readFileSync(path.join(__dirname,'../src/app/merchant/index.tsx'),'utf8');
   assert(source.includes('useFocusEffect'));assert(source.includes('key={user.id}'));
   for(const removed of ['readLocalCache','recentProducts','activeOffers.map','<AppHeader','<AppBottomNav','notifications'])assert(!source.includes(removed),removed);

@@ -1,14 +1,20 @@
-import { formatSypNumber } from "@/lib/money";
+import { formatSyp } from "@/lib/money";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { AppIcon } from "@/components/ui/AppIcon";
-import { ProductMediaPreview } from "@/components/marketplace/ProductMediaPreview";
+import { ShoppingCardImage } from "@/components/marketplace/ShoppingCardImage";
 import type { CustomerOffer } from "@/lib/customer-offers";
 import { getOfferPriceSummary } from "@/lib/offer-presentation";
 import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
+
+const offerIcons = {
+  discount: "pricetag-outline",
+  bundle: "cube-outline",
+  buy_x_get_y: "gift-outline",
+} as const;
 
 type OfferCardProps = {
   offer: CustomerOffer;
@@ -16,149 +22,69 @@ type OfferCardProps = {
   featured?: boolean;
   expanded?: boolean;
   added?: boolean;
+  cardWidth?: number;
 };
 
-export function OfferCard({
-  offer,
-  onPress,
-  featured = false,
-  expanded = false,
-  added = false,
-}: OfferCardProps) {
+export function OfferCard({ offer, onPress, featured, expanded, added, cardWidth }: OfferCardProps) {
   const { colors } = useTheme();
   const { stores } = useCustomerCatalog();
   const summary = getOfferPriceSummary(offer);
-  const store = stores.find((item) => item.id === offer.store_id);
-  const bundleDescription = offer.items
-    .map((item) => `${item.product.name} × ${item.quantity}`)
-    .join("، ");
-  const endsAt = offer.ends_at ? new Date(offer.ends_at) : null;
-  const [currentTime, setCurrentTime] = useState(() => Date.now());
-  const hasValidEndDate = endsAt !== null && !Number.isNaN(endsAt.getTime()) && endsAt.getTime() > currentTime;
-  const previewMedia = offer.items[0]?.product.media?.find((item) => item.type === "image");
+  const store = stores.find(item => item.id === offer.store_id);
+  const price = formatSyp(summary.finalTotal);
+  const rule = offer.offer_type === "bundle" ? "باقة منتجات" : summary.rule;
+  const icon = offerIcons[offer.offer_type];
+  const items = offer.items.slice(0, 2);
+  const remaining = offer.items.length - items.length;
+  const labels = items.map(item => item.product.name + " × " + item.quantity + " " + item.product.unit);
+  const preview = offer.items.flatMap(item => item.product.media ?? []).find(media => media.type === "image");
+  const endTime = offer.ends_at ? Date.parse(offer.ends_at) : NaN;
+  const [currentTime, setCurrentTime] = useState(Date.now);
+  const expiry = Number.isFinite(endTime) ? endTime <= currentTime
+    ? "انتهى العرض" : "ينتهي " + new Date(endTime).toLocaleDateString("ar") : "";
 
   useEffect(() => {
-    if (!offer.ends_at) return;
-    const endTime = new Date(offer.ends_at).getTime();
-    if (Number.isNaN(endTime)) return;
-    const timeout = setTimeout(
-      () => setCurrentTime(Date.now()),
-      Math.max(0, endTime - Date.now()),
-    );
+    const delay = endTime - Date.now();
+    if (!Number.isFinite(delay) || delay > 2_147_483_647) return;
+    const timeout = setTimeout(() => setCurrentTime(Date.now()), Math.max(0, delay));
     return () => clearTimeout(timeout);
-  }, [offer.ends_at]);
+  }, [endTime]);
 
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`تفاصيل العرض ${offer.title}`}
-      style={({ pressed }) => [
-        styles.card,
-        featured ? styles.featuredCard : styles.normalCard,
-        expanded && styles.expandedCard,
-        {
-          backgroundColor: colors.surface,
-          borderColor: colors.border,
-          opacity: pressed ? 0.76 : 1,
-        },
-      ]}
-    >
-      <View style={styles.header}>
-        <View style={[styles.offerIcon, { backgroundColor: colors.accentLight }]}>
-          {previewMedia ? <ProductMediaPreview media={previewMedia} width={42} height={42} fallbackIcon="pricetag-outline" /> : <AppIcon name="pricetag-outline" size={featured ? 24 : 21} color={colors.accent} />}
-        </View>
-        <View style={styles.headerText}>
-          <Text style={[styles.rule, { color: colors.accent }]} numberOfLines={1}>
-            {summary.rule}
-          </Text>
-          {store ? <Text style={[styles.store, { color: colors.textMuted }]} numberOfLines={1}>{store.name}</Text> : null}
-        </View>
-        {added ? (
-          <View style={[styles.addedBadge, { backgroundColor: colors.primaryLight }]}>
-            <AppIcon name="checkmark-circle" size={14} color={colors.primary} />
-            <Text style={[styles.addedText, { color: colors.primary }]}>في السلة</Text>
-          </View>
-        ) : null}
+  return <Pressable onPress={onPress} accessibilityRole="link"
+    accessibilityLabel={[offer.title, store?.name, rule, price, ...labels, remaining ? "منتجات أخرى: " + remaining : "", expiry,
+      added ? "في السلة" : ""].filter(Boolean).join("، ")}
+    style={({ pressed }) => [styles.card, {
+      width: cardWidth ?? (expanded ? "100%" : featured ? 232 : 208),
+      backgroundColor: pressed ? colors.surfacePressed : colors.surface, borderColor: colors.border,
+    }]}>
+    <View style={styles.identity}>
+      <View style={[styles.media, { backgroundColor: colors.accentLight }]}>
+        <ShoppingCardImage uri={preview?.uri} icon={icon} />
       </View>
-
-      <Text
-        style={[styles.title, featured && styles.featuredTitle, { color: colors.text }]}
-        numberOfLines={2}
-      >
-        {offer.title}
-      </Text>
-      {offer.description ? (
-        <Text style={[styles.description, { color: colors.textSecondary }]} numberOfLines={2}>
-          {offer.description}
-        </Text>
-      ) : null}
-
-      <View style={[styles.bundle, { backgroundColor: colors.surfaceSecondary }]}>
-        <Text style={[styles.bundleLabel, { color: colors.textMuted }]}>يشمل</Text>
-        <Text style={[styles.bundleContents, { color: colors.textSecondary }]} numberOfLines={2}>
-          {bundleDescription}
-        </Text>
+      <View style={styles.names}>
+        <Text style={[styles.title, { color: colors.text }]}>{offer.title}</Text>
+        {store ? <Text style={[styles.meta, { color: colors.textSecondary }]}>{store.name}</Text> : null}
       </View>
-
-      {hasValidEndDate ? (
-        <View style={styles.expiryRow}>
-          <AppIcon name="time-outline" size={14} color={colors.textMuted} />
-          <Text style={[styles.expiryText, { color: colors.textMuted }]}>ينتهي {endsAt?.toLocaleDateString("ar")}</Text>
-        </View>
-      ) : null}
-
-      <View style={styles.footer}>
-        <View>
-          {summary.savings > 0 ? (
-            <Text style={[styles.savings, { color: colors.success }]}>
-              وفّر {formatSypNumber(summary.savings)} {"ل.س"}
-            </Text>
-          ) : null}
-          {summary.savings > 0 ? (
-            <Text style={[styles.originalPrice, { color: colors.textMuted }]}>
-              {formatSypNumber(summary.originalTotal)} {"ل.س"}
-            </Text>
-          ) : null}
-          <Text style={[styles.priceLabel, { color: colors.textMuted }]}>سعر العرض</Text>
-          <Text style={[styles.price, { color: colors.primary }]}>
-            {formatSypNumber(summary.finalTotal)} {"ل.س"}
-          </Text>
-        </View>
-        <View style={[styles.detailsAction, { backgroundColor: colors.primaryLight }]}>
-          <Text style={[styles.detailsText, { color: colors.primary }]}>التفاصيل</Text>
-          <AppIcon name="chevron-back-outline" size={16} color={colors.primary} />
-        </View>
-      </View>
-    </Pressable>
-  );
+    </View>
+    <View style={styles.identity}>
+      <AppIcon name={icon} size={15} color={colors.primary} />
+      <Text style={[styles.meta, styles.names, { color: colors.textSecondary }]}>{rule}</Text>
+    </View>
+    {expanded && offer.description ? <Text style={[styles.meta, { color: colors.textSecondary }]}>{offer.description}</Text> : null}
+    {items.map((item, index) => <Text key={item.id} style={[styles.meta, { color: colors.text }]}>{labels[index]}</Text>)}
+    {remaining > 0 ? <Text style={[styles.meta, { color: colors.textSecondary }]}>+ {remaining} من المنتجات الأخرى</Text> : null}
+    <Text style={[styles.price, { color: colors.primary }]}>{price}</Text>
+    {expiry || added ? <Text style={[styles.meta, { color: colors.textSecondary }]}>
+      {[expiry, added ? "في السلة" : ""].filter(Boolean).join(" · ")}
+    </Text> : null}
+  </Pressable>;
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: Radius.xl, borderWidth: 1, gap: Spacing.three, padding: Spacing.three },
-  normalCard: { width: 250 },
-  featuredCard: { width: 285 },
-  expandedCard: { width: "100%" },
-  header: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.two },
-  offerIcon: { alignItems: "center", borderRadius: Radius.md, height: 42, justifyContent: "center", width: 42 },
-  headerText: { flex: 1, gap: 2 },
-  addedBadge: { alignItems: "center", borderRadius: Radius.full, flexDirection: "row-reverse", gap: 3, paddingHorizontal: Spacing.two, paddingVertical: Spacing.one },
-  addedText: { fontFamily: Fonts.medium, fontSize: 10 },
-  rule: { fontFamily: Fonts.bold, fontSize: FontSizes.sm, textAlign: "right" },
-  store: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "right" },
-  title: { fontFamily: Fonts.semiBold, fontSize: FontSizes.md, lineHeight: 23, textAlign: "right" },
-  featuredTitle: { fontSize: FontSizes.lg },
-  description: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, lineHeight: 19, textAlign: "right" },
-  bundle: { borderRadius: Radius.md, gap: Spacing.one, minHeight: 62, padding: Spacing.two },
-  bundleLabel: { fontFamily: Fonts.medium, fontSize: FontSizes.xs, textAlign: "right" },
-  bundleContents: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, lineHeight: 18, textAlign: "right" },
-  expiryRow: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.one },
-  expiryText: { fontFamily: Fonts.medium, fontSize: FontSizes.xs },
-  footer: { alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between" },
-  savings: { fontFamily: Fonts.medium, fontSize: FontSizes.xs },
-  originalPrice: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, textDecorationLine: "line-through" },
-  priceLabel: { fontFamily: Fonts.regular, fontSize: FontSizes.xs },
-  price: { fontFamily: Fonts.bold, fontSize: FontSizes.md },
-  detailsAction: { alignItems: "center", borderRadius: Radius.full, flexDirection: "row-reverse", gap: Spacing.one, minHeight: 36, paddingHorizontal: Spacing.two },
-  detailsText: { fontFamily: Fonts.semiBold, fontSize: FontSizes.xs },
+  card: { borderRadius: Radius.lg, borderWidth: 1, padding: Spacing.two, gap: Spacing.one, minHeight: 48 },
+  identity: { direction: "rtl", flexDirection: "row", alignItems: "center", gap: Spacing.two },
+  names: { flex: 1, minWidth: 0 },
+  media: { width: 36, height: 36, borderRadius: Radius.sm, overflow: "hidden", alignItems: "center", justifyContent: "center" },
+  title: { fontFamily: Fonts.bold, fontSize: FontSizes.sm, textAlign: "right" },
+  meta: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "right" },
+  price: { fontFamily: Fonts.bold, fontSize: FontSizes.md, textAlign: "right" },
 });

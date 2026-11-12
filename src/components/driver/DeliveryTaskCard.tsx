@@ -57,7 +57,6 @@ type DeliveryTaskCardProps = {
 };
 
 export function DeliveryTaskCard({
-  orderNumber,
   reference,
   zoneName,
   createdAt,
@@ -118,7 +117,7 @@ export function DeliveryTaskCard({
       <View style={styles.heading}>
         <View style={styles.headingText}>
           <Text style={[styles.orderNumber, { color: colors.text }]}>
-            {reference ?? `طلب رقم TW-${orderNumber}`}
+            {reference ?? "مرجع المهمة غير متاح"}
           </Text>
           <Text style={[styles.createdAt, { color: colors.textSecondary }]}>
             {new Date(createdAt).toLocaleString("ar-SY", {

@@ -1,3 +1,4 @@
+import { categoryFilterIds, categoryPath } from "@/lib/category-tree";
 import { Href, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -21,14 +22,15 @@ export default function StoresScreen() {
 
   const [searchText, setSearchText] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const selectedIds = useMemo(() => selectedCategory === "all" ? null : categoryFilterIds(categories, selectedCategory), [categories, selectedCategory]);
+  const categoryNodes = useMemo(() => new Map(categories.map(category => [category.id, category])), [categories]);
 
   const filteredStores = useMemo(() => {
     const query = searchText.trim().toLocaleLowerCase();
 
     return stores.filter((store) => {
       const matchesCategory =
-        selectedCategory === "all" ||
-        store.categoryIds.includes(selectedCategory);
+        !selectedIds || store.categoryIds.some(id => selectedIds.has(id));
 
       if (!matchesCategory) {
         return false;
@@ -40,9 +42,10 @@ export default function StoresScreen() {
 
       const categoryNames = store.categoryIds
         .map(
-          (categoryId) =>
-            categories.find((category) => category.id === categoryId)?.name ??
-            "",
+          (categoryId) => {
+            const category = categoryNodes.get(categoryId);
+            return category ? categoryPath(category, categoryNodes) : "";
+          },
         )
         .join(" ");
 
@@ -57,7 +60,7 @@ export default function StoresScreen() {
 
       return searchableText.includes(query);
     });
-  }, [searchText, selectedCategory, categories, stores]);
+  }, [searchText, selectedIds, categoryNodes, stores]);
 
   const featuredStores = useMemo(
     () => filteredStores.filter((store) => store.featured === true),
@@ -197,7 +200,7 @@ export default function StoresScreen() {
             {categories.map((category) => (
               <CategoryChip
                 key={category.id}
-                label={category.name}
+                label={categoryPath(category, categoryNodes)}
                 icon={category.icon}
                 active={selectedCategory === category.id}
                 onPress={() => setSelectedCategory(category.id)}

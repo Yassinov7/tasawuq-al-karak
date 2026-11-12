@@ -29,5 +29,5 @@ export async function getAdminDriverDetails(id: string) {
   const { data: tasks, error: taskError } = await client.from("delivery_tasks").select("id,customer_order_id,status,created_at,accepted_at,picked_up_at,delivered_at").eq("driver_id", driver.user_id).order("created_at", { ascending: false }).range(0, 9);
   if (taskError && __DEV__) console.warn("[admin-drivers] delivery history unavailable.");
   const rows = (tasks ?? []) as { id: string; customer_order_id: string; status: string; created_at: string; delivered_at: string | null }[];
-  return { driver: driver as { id: string; user_id: string; full_name: string; contact_phone: string; vehicle_type: string; contract_duration_months: number; available_hours: { schedule?: string }; is_available: boolean; submitted_at: string }, tasks: rows, completed: rows.filter((x) => x.status === "delivered").length, current: rows.filter((x) => ["accepted", "picked_up"].includes(x.status)).length };
+  return { driver: driver as { id: string; user_id: string; full_name: string; contact_phone: string; vehicle_type: string; contract_duration_months: number | null; available_hours: { schedule?: string }; is_available: boolean; submitted_at: string }, tasks: rows, completed: rows.filter((x) => x.status === "delivered").length, current: rows.filter((x) => ["accepted", "picked_up"].includes(x.status)).length };
 }

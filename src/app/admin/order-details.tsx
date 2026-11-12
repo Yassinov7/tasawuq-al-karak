@@ -1,7 +1,11 @@
+import { LoadingSkeleton, RefreshStatus } from "@/components/ui/LoadingState";
+import { useOrderRealtime } from "@/hooks/useOrderRealtime";
+import { useReadScope } from "@/hooks/useReadScope";
+import { LiveStatus } from "@/components/ui/LiveStatus";
 import { formatSyp } from "@/lib/money";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocalSearchParams } from "expo-router";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { AppButton } from "@/components/ui/AppButton";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
@@ -15,6 +19,10 @@ const formatDate = (value: string | null) => value ? new Date(value).toLocaleStr
 const formatAmount = (value: number, currency: string) => formatSyp(Number(value), currency);
 
 export default function AdminOrderDetailsScreen() {
+  const {orderId}=useLocalSearchParams<{orderId?:string}>();
+  return <AdminOrderDetails key={orderId??"none"}/>;
+}
+function AdminOrderDetails() {
   const { orderId } = useLocalSearchParams<{ orderId?: string }>();
   const { colors } = useTheme();
   const cached = orderId ? getCachedAdminOrder(orderId)?.data ?? null : null;
@@ -23,22 +31,25 @@ export default function AdminOrderDetailsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
+  const reads=useReadScope(orderId??"none");
   const refresh = useCallback(async (manual = false) => {
     if (!orderId) { setError("معرّف الطلب غير صالح."); setLoading(false); return; }
+    const epoch=reads.begin();
     const existing = getCachedAdminOrder(orderId)?.data ?? null;
     if (existing) setData(existing);
     if (!manual && isCachedAdminOrderFresh(orderId)) { setLoading(false); return; }
     if (existing) setRefreshing(true); else setLoading(true);
-    setError("");
-    try { setData(await getAdminOrderDetail(orderId, manual)); }
-    catch { setError("تعذّر تحميل تفاصيل الطلب. احتفظنا بالبيانات السابقة إن كانت متاحة."); }
-    finally { setLoading(false); setRefreshing(false); }
-  }, [orderId]);
+    try { const next=await getAdminOrderDetail(orderId, manual);if(reads.current(epoch)){setData(next);setError("");} }
+    catch { if(reads.current(epoch))setError("تعذّر تحميل تفاصيل الطلب. احتفظنا بالبيانات السابقة إن كانت متاحة."); }
+    finally { if(reads.current(epoch)){setLoading(false); setRefreshing(false);} }
+  }, [orderId,reads]);
 
   useEffect(() => { const timer = setTimeout(() => void refresh(), 0); return () => clearTimeout(timer); }, [refresh]);
-  if (loading && !data) return <View style={[styles.center, { backgroundColor: colors.background }]}><ActivityIndicator color={colors.primary} /></View>;
+  const live=useOrderRealtime({channelName:`admin-order:${orderId}`,enabled:!!orderId,subscriptions:orderId?[{table:"customer_orders",filter:`id=eq.${orderId}`},{table:"store_orders",filter:`customer_order_id=eq.${orderId}`},{table:"delivery_tasks",filter:`customer_order_id=eq.${orderId}`}]:[],onChange:()=>refresh(true)});
+  if (loading && !data) return <View style={{flex:1,backgroundColor:colors.background,padding:Spacing.four}}><LiveStatus state={live}/><LoadingSkeleton label="جارٍ تحميل تفاصيل الطلب"/></View>;
   return <View style={[styles.screen, { backgroundColor: colors.background }]}><ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh(true)} tintColor={colors.primary} colors={[colors.primary]} />}>
-    {refreshing ? <Text style={[styles.refreshText, { color: colors.textSecondary }]}>يتم تحديث التفاصيل في الخلفية…</Text> : null}
+    <LiveStatus state={live}/>
+    <RefreshStatus busy={refreshing}/>
     {error ? <View style={[styles.error, { backgroundColor: colors.surfaceSecondary }]}><Text style={[styles.meta, { color: colors.error }]}>{error}</Text><AppButton title="إعادة المحاولة" variant="outline" onPress={() => void refresh(true)} /></View> : null}
     {!data && !loading ? <EmptyState onRetry={() => void refresh(true)} /> : null}
     {data ? <OrderContent data={data} /> : null}

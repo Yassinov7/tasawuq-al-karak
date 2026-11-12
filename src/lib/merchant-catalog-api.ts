@@ -1,3 +1,4 @@
+import { readCategoryLabels } from "@/lib/catalog-categories";
 import { supabase } from '@/lib/supabase';
 import type { Tables } from '@/types/database';
 import { setMerchantProductAvailability } from '@/lib/merchant-store';
@@ -22,22 +23,24 @@ export type CatalogOfferItem = Pick<Tables<'store_offer_products'>, 'id' | 'prod
 };
 export type CatalogOffer = Pick<Tables<'store_offers'>, 'id' | 'store_id' | 'title' | 'offer_type' | 'discount_method' | 'discount_value' | 'bundle_price' | 'is_active' | 'starts_at' | 'ends_at' | 'created_at'> & { kind: 'offers'; items: CatalogOfferItem[] };
 
-async function productPage(storeId: string, scope: CatalogScope, cursor: CatalogCursor | null): Promise<CatalogProduct[]> {
-  let query = supabase.from('products').select('id,store_id,title,price,selling_unit,category_id,is_available,created_at,product_categories(name,is_active),product_media(id,storage_path,display_order)')
+async function productPage(storeId: string, scope: CatalogScope, cursor: CatalogCursor | null, limit: number): Promise<CatalogProduct[]> {
+  let query = supabase.from('products').select('id,store_id,title,price,selling_unit,category_id,is_available,created_at,product_media(id,storage_path,display_order)')
     .eq('store_id', storeId).eq('product_media.media_type', 'image')
     .order('created_at', { ascending: false }).order('id', { ascending: false })
     .order('display_order', { referencedTable: 'product_media', ascending: true }).order('id', { referencedTable: 'product_media', ascending: true })
-    .limit(1, { referencedTable: 'product_media' }).limit(catalogPageSize);
+    .limit(1, { referencedTable: 'product_media' }).limit(limit);
   if (scope.query) query = query.ilike('title', `%${escapedSearch(scope.query)}%`);
   if (scope.filter !== 'all') query = query.eq('is_available', scope.filter === 'available');
   if (cursor) query = query.or(`created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`);
   const result = await query;
   if (result.error) throw result.error;
-  return (result.data ?? []).map(({ product_categories, product_media, ...row }) => ({ ...row, kind: 'products', category: product_categories, image: product_media[0]?.storage_path ?? null }));
+  const rows = result.data ?? [];
+  const labels = await readCategoryLabels('product', rows.map(row => row.category_id));
+  return rows.map(({ product_media, ...row }) => ({ ...row, kind: 'products', category: labels.get(row.category_id) ?? null, image: product_media[0]?.storage_path ?? null }));
 }
-async function offerPage(storeId: string, scope: CatalogScope, cursor: CatalogCursor | null, at: string): Promise<CatalogOffer[]> {
+async function offerPage(storeId: string, scope: CatalogScope, cursor: CatalogCursor | null, at: string, limit: number): Promise<CatalogOffer[]> {
   let query = supabase.from('store_offers').select('id,store_id,title,offer_type,discount_method,discount_value,bundle_price,is_active,starts_at,ends_at,created_at')
-    .eq('store_id', storeId).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(catalogPageSize);
+    .eq('store_id', storeId).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(limit);
   if (scope.query) query = query.ilike('title', `%${escapedSearch(scope.query)}%`);
   if (scope.filter === 'paused') query = query.eq('is_active', false);
   if (scope.filter === 'expired') query = query.eq('is_active', true).lte('ends_at', at);
@@ -74,7 +77,20 @@ async function offerPage(storeId: string, scope: CatalogScope, cursor: CatalogCu
 }
 export const catalogApi = {
   store: readCatalogStore,
-  page: (kind: CatalogKind, storeId: string, scope: CatalogScope, cursor: CatalogCursor | null, at: string): Promise<CatalogRow[]> => kind === 'products' ? productPage(storeId, scope, cursor) : offerPage(storeId, scope, cursor, at),
+  async nextOfferBoundary(storeId: string, search: string, at: string) {
+    const nearest = async (column: 'starts_at' | 'ends_at') => {
+      let query = supabase.from('store_offers').select('starts_at,ends_at')
+        .eq('store_id', storeId).eq('is_active', true).gt(column, at).order(column).limit(1);
+      if (search) query = query.ilike('title', `%${escapedSearch(search)}%`);
+      const { data, error } = await query;
+      if (error) throw error;
+      const value = data?.[0]?.[column];
+      return value ? Date.parse(value) : Infinity;
+    };
+    const boundary = Math.min(...await Promise.all([nearest('starts_at'), nearest('ends_at')]));
+    return Number.isFinite(boundary) ? boundary : null;
+  },
+  page: (kind: CatalogKind, storeId: string, scope: CatalogScope, cursor: CatalogCursor | null, at: string, limit = catalogPageSize): Promise<CatalogRow[]> => kind === 'products' ? productPage(storeId, scope, cursor, limit) : offerPage(storeId, scope, cursor, at, limit),
   availability: setMerchantProductAvailability,
   async remove(id: string) { const result = await supabase.rpc('delete_store_offer', { target_offer: id }); if (result.error) throw result.error; },
   async exists(id: string, storeId: string) { const result = await supabase.from('store_offers').select('id').eq('id', id).eq('store_id', storeId).maybeSingle(); if (result.error) throw result.error; return Boolean(result.data); },

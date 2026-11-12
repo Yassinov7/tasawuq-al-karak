@@ -1,6 +1,9 @@
+import { LiveStatus } from "@/components/ui/LiveStatus";
+import { useReadScope } from "@/hooks/useReadScope";
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { useAppDialog } from "@/context/AppDialogContext";
 
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppButton } from "@/components/ui/AppButton";
@@ -15,22 +18,24 @@ import {
   useNotifications,
 } from "@/context/NotificationContext";
 import { useTheme } from "@/context/ThemeContext";
-import { isAccountRole, type AccountRole } from "@/lib/account-routing";
-import { resolveNotificationDestination } from "@/lib/notification-routing";
+import { openOwnedNotification } from "@/lib/notification-opening";
 import { supabase } from "@/lib/supabase";
 
-export default function NotificationsScreen() {
+export default function NotificationsScreen(){const {user}=useAuth();return <NotificationsOwner key={user?.id??"guest"}/>;}
+function NotificationsOwner() {
   const router = useRouter();
+  const { alert } = useAppDialog();
   const { colors } = useTheme();
   const { itemCount } = useCart();
-  const { user } = useAuth();
+  const { user,loading:authLoading } = useAuth();
 
   const {
     notifications,
     unreadCount,
     syncError,
+    liveStatus,
+    pushMessage,pushBusy,enablePush,
     refresh,
-    markAsRead,
     markAllAsRead,
     removeNotification,
     clearNotifications,
@@ -44,6 +49,7 @@ export default function NotificationsScreen() {
   const [markingAll, setMarkingAll] = useState(false);
   const [returning, setReturning] = useState(false);
   const openingNotificationIdRef = useRef<string | null>(null);
+  const reads=useReadScope(user?.id??"guest");
 
   const handleBack = async () => {
     if (router.canGoBack()) {
@@ -51,6 +57,7 @@ export default function NotificationsScreen() {
       return;
     }
     if (returning) return;
+    const token=reads.begin();
 
     setReturning(true);
     try {
@@ -58,6 +65,7 @@ export default function NotificationsScreen() {
         ? await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle()
         : { data: null, error: null };
       if (error) throw error;
+      if(!reads.current(token))return;
 
       switch (profile?.role) {
         case "merchant":
@@ -76,76 +84,27 @@ export default function NotificationsScreen() {
           router.replace("/");
       }
     } catch {
-      router.replace("/");
+      if(reads.current(token))router.replace("/");
     } finally {
-      setReturning(false);
+      if(reads.current(token))setReturning(false);
     }
   };
 
   const handleNotificationPress = async (notification: AppNotification) => {
     if (openingNotificationIdRef.current) return;
     if (!user) {
-      Alert.alert("انتهت جلسة الدخول", "سجّل الدخول لفتح الإشعار.");
+      void alert("انتهت جلسة الدخول", "سجّل الدخول لفتح الإشعار.");
       return;
     }
 
     openingNotificationIdRef.current = notification.id;
+    const token=reads.begin();
     try {
-      const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (error) throw error;
-      if (!profile || !isAccountRole(profile.role)) {
-        throw new Error("تعذر التحقق من صلاحيات الحساب.");
-      }
-
-      const destination = resolveNotificationDestination(
-        profile.role as AccountRole,
-        notification.data,
-      );
-      await markAsRead(notification.id);
-
-      switch (destination.type) {
-        case "none":
-          return;
-        case "customer-order":
-          router.push({ pathname: "/order-details", params: { id: destination.orderId } });
-          return;
-        case "product":
-          router.push({ pathname: "/product-details", params: { id: destination.productId } });
-          return;
-        case "store":
-          router.push({ pathname: "/store-details", params: { id: destination.storeId } });
-          return;
-        case "offers":
-          router.push("/home/offers");
-          return;
-        case "merchant-orders":
-          router.push("/merchant/orders");
-          return;
-        case "merchant-home":
-          router.push("/merchant");
-          return;
-        case "merchant-finance":
-          router.push("/merchant/finance");
-          return;
-        case "driver-orders":
-          router.push("/driver/orders");
-          return;
-        case "driver-home":
-          router.push("/driver");
-          return;
-        case "admin-home":
-          router.push("/admin");
-          return;
-        case "customer-home":
-          router.push("/home");
-          return;
-      }
+      const href=await openOwnedNotification(user.id,notification.id,()=>reads.current(token));
+      if(!reads.current(token))return;
+      router.push(href);void refresh().catch(()=>undefined);
     } catch (cause) {
-      Alert.alert("تعذر فتح الإشعار", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
+      if(reads.current(token))void alert("تعذر فتح الإشعار", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
     } finally {
       setTimeout(() => {
         if (openingNotificationIdRef.current === notification.id) {
@@ -181,7 +140,8 @@ export default function NotificationsScreen() {
       setModal(null);
       setSelectedNotificationId(null);
     } catch (cause) {
-      Alert.alert("تعذر حذف الإشعار", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
+      setModal(null);
+      void alert("تعذر حذف الإشعار", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
     } finally {
       setModalBusy(false);
     }
@@ -199,12 +159,14 @@ export default function NotificationsScreen() {
     try {
       await markAllAsRead();
     } catch (cause) {
-      Alert.alert("تعذر تحديث الإشعارات", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
+      void alert("تعذر تحديث الإشعارات", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
     } finally {
       setMarkingAll(false);
     }
   };
 
+  if(authLoading)return <View style={{flex:1,justifyContent:"center"}}><ActivityIndicator color={colors.primary}/></View>;
+  if(!user)return <View style={[styles.container,{backgroundColor:colors.background,padding:Spacing.five,gap:Spacing.four}]}><Text style={{fontFamily:Fonts.regular,color:colors.text,textAlign:"right"}}>سجّل الدخول لعرض إشعارات حسابك.</Text><AppButton title="تسجيل الدخول" onPress={()=>router.replace("/login")}/></View>;
   return (
     <View
       style={[
@@ -233,6 +195,9 @@ export default function NotificationsScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View>
+            <LiveStatus state={liveStatus}/>
+            {pushMessage?<Text style={{color:colors.textSecondary,fontFamily:Fonts.regular,textAlign:"right",marginBottom:8}}>{pushMessage}</Text>:null}
+            <AppButton title="تفعيل تنبيهات هذا الجهاز" variant="outline" loading={pushBusy} onPress={()=>void enablePush()}/>
             {syncError ? (
               <View style={{ gap: Spacing.two, marginBottom: Spacing.three }}>
                 <Text accessibilityRole="alert" style={{ color: colors.error, fontFamily: Fonts.regular, fontSize: FontSizes.sm, textAlign: "right" }}>

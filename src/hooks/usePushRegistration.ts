@@ -1,17 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
-import { pushUnavailableReason, registerPushDevice } from "@/lib/push-device";
+import { pushUnavailableReason, registerPushDevice, type PushRegistrationState } from "@/lib/push-device";
 export function usePushRegistration(owner?:string) {
- const [pushMessage,setMessage]=useState("");
- const [pushReady,setReady]=useState(false),[pushBusy,setBusy]=useState(false);
+ const unavailable=pushUnavailableReason();
+ const [result,setResult]=useState<{ status: PushRegistrationState; message: string }>({status:"checking",message:"جارٍ التحقق من إذن التنبيهات…"});
+ const [pushBusy,setBusy]=useState(false);
  const alive=useRef(true),epoch=useRef(0),lock=useRef(false);
  const register=useCallback(async(ask:boolean)=>{
-  if(!owner||lock.current)return;
+  if(!owner||unavailable||lock.current)return;
   const token=++epoch.current;lock.current=true;setBusy(true);
-  try{const result=await registerPushDevice(owner,ask,()=>alive.current&&token===epoch.current);if(alive.current&&token===epoch.current){setMessage(result.message);setReady(result.ready);}}
-  catch{if(alive.current&&token===epoch.current){setReady(false);setMessage("تعذر تفعيل تنبيهات هذا الجهاز. تحقق من الاتصال وحاول لاحقًا؛ تبقى الإشعارات داخل التطبيق متاحة.");}}
+  try {
+   const next=await registerPushDevice(owner,ask,()=>alive.current&&token===epoch.current);
+   if(alive.current&&token===epoch.current)setResult(next);
+  } catch {
+   if(alive.current&&token===epoch.current)setResult({status:"permission-check-failed",message:"تعذر التحقق من إذن تنبيهات الجهاز. أعد المحاولة."});
+  }
   finally{lock.current=false;if(alive.current)setBusy(false);}
- },[owner]);
+ },[owner,unavailable]);
  useEffect(()=>{
   let active=true;
   alive.current=true;
@@ -21,9 +26,11 @@ export function usePushRegistration(owner?:string) {
   if(owner&&!pushUnavailableReason())void import("expo-notifications").then(n=>{
    if(!active)return;
    const subscription=n.addPushTokenListener(()=>void register(false));stopToken=()=>subscription.remove();
-  }).catch(()=>{if(active)setMessage("تحتاج تنبيهات الجهاز نسخة هاتف مبنية بالحزمة الجديدة.");});
+  }).catch(()=>undefined); // Explicit registration reports native-module failures.
   const invalidate=()=>{alive.current=false;epoch.current++;};
   return()=>{active=false;invalidate();clearTimeout(timer);listener.remove();stopToken?.();};
  },[owner,register]);
- return {pushMessage,pushReady,pushBusy,enablePush:useCallback(()=>register(true),[register])};
+ const enablePush=useCallback(()=>register(true),[register]);
+ const retryPush=useCallback(()=>register(false),[register]);
+ return {pushStatus:unavailable?"unsupported" as const:result.status,pushMessage:unavailable??result.message,pushBusy,enablePush,retryPush};
 }

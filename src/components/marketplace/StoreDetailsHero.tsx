@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import type { ReactNode } from "react";
 
 import { ShoppingCardImage } from "@/components/marketplace/ShoppingCardImage";
 import { RatingSummary } from "@/components/marketplace/RatingStars";
@@ -19,9 +20,10 @@ type Props = {
   video?: PublishedStoreVideo | null;
   owner: string | null;
   onReviewsPress: () => void;
+  followAction?: ReactNode;
 };
 
-export function StoreDetailsHero({ store, category, categoryIcon, logo, acceptsOrders, video, owner, onReviewsPress }: Props) {
+export function StoreDetailsHero({ store, category, categoryIcon, logo, acceptsOrders, video, owner, onReviewsPress, followAction }: Props) {
   const { colors } = useTheme();
   const { storeRatings } = useCustomerCatalog();
   const rating = storeRatings.get(store.id);
@@ -40,6 +42,7 @@ export function StoreDetailsHero({ store, category, categoryIcon, logo, acceptsO
           {acceptsOrders !== null ? <Text style={[styles.status, { color: acceptsOrders ? colors.primary : colors.textSecondary }]}>
             {acceptsOrders ? "يستقبل الطلبات" : "لا يستقبل طلبات حاليًا"}
           </Text> : null}
+          {followAction}
         </View>
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel="فتح تقييمات ومراجعات المتجر"

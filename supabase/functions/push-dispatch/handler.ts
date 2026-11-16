@@ -24,8 +24,8 @@ export function createPushDispatcher(settings:Settings, request:typeof fetch=fet
    const deliveries:Delivery[]=await rpc("claim_push_deliveries",{batch_limit:10});
    // Bounded concurrency keeps the worker within its time limit; DB leases isolate overlapping ticks.
    for(let offset=0;offset<deliveries.length;offset+=5){const outcomes=await Promise.allSettled(deliveries.slice(offset,offset+5).map(async item=>{
-    const allowed=await rpc("authorize_push_delivery",{delivery_value:item.id,lease_value:item.lease});
-    if(allowed!==true){await rpc("finish_push_delivery",{delivery_value:item.id,lease_value:item.lease,result_kind:"dead",ticket_value:null,error_value:"ReadOrDeviceInactive"});completed++;return;}
+    const message=await rpc("read_push_delivery_message",{delivery_value:item.id,lease_value:item.lease});
+    if(!message){await rpc("finish_push_delivery",{delivery_value:item.id,lease_value:item.lease,result_kind:"dead",ticket_value:null,error_value:"NoLongerEligible"});completed++;return;}
     let kind:Outcome="retry",ticket:string|null=null,error:string|null=null;
     try{
      let result:Result|undefined;
@@ -33,7 +33,7 @@ export function createPushDispatcher(settings:Settings, request:typeof fetch=fet
       const reply=await expo("getReceipts",{ids:[item.ticket]});result=reply.data?.[item.ticket];
       if(result?.status==="ok")kind="sent";
      }else{
-      const reply=await expo("send",{to:item.token,title:"تسوق",body:"لديك تحديث جديد. افتح التطبيق لمراجعته.",data:{notificationId:item.notification_id},sound:"default",channelId:"operations",collapseId:item.notification_id,tag:item.notification_id,ttl:86400});
+      const reply=await expo("send",{to:item.token,title:message.title,body:message.body,data:{notificationId:item.notification_id},sound:"default",channelId:"operations",collapseId:item.notification_id,tag:item.notification_id,ttl:message.ttl??86400});
       result=Array.isArray(reply.data)?reply.data[0]:reply.data;
       if(result?.status==="ok"&&typeof result.id==="string"){kind="ticket";ticket=result.id;}
      }

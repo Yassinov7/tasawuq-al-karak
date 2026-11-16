@@ -44,17 +44,18 @@ async function main(){
  const {createPushDispatcher}=load('supabase/functions/push-dispatch/handler.ts');
  const finish=[],sent=[];let claims=0;
  const deliveries=[{id:'one',notification_id:'n1',lease:'l1',token:'secret-token',ticket:null},{id:'two',notification_id:'n2',lease:'l2',token:'secret-token',ticket:'receipt'},{id:'three',notification_id:'n3',lease:'l3',token:'secret-token',ticket:null},{id:'four',notification_id:'n4',lease:'l4',token:'secret-token',ticket:'missing'},{id:'five',notification_id:'n5',lease:'l5',token:'old-account-token',ticket:null}];
- const fake=async(url,options)=>{const b=JSON.parse(options.body);if(url.endsWith('reconcile_push_deliveries'))return new Response(null,{status:204});if(url.endsWith('authorize_push_delivery'))return Response.json(b.delivery_value!=='five');if(url.endsWith('claim_push_deliveries')){claims++;return Response.json(deliveries);}if(url.endsWith('finish_push_delivery')){finish.push(b);return new Response(null,{status:204});}if(url.endsWith('/getReceipts'))return Response.json({data:b.ids[0]==='receipt'?{receipt:{status:'ok'}}:{}});sent.push(b);return Response.json({data:b.data.notificationId==='n3'?{status:'error',details:{error:'DeviceNotRegistered'}}:{status:'ok',id:'ticket1'}});};
+ const fake=async(url,options)=>{const b=JSON.parse(options.body);if(url.endsWith('reconcile_push_deliveries'))return new Response(null,{status:204});if(url.endsWith('read_push_delivery_message'))return Response.json(b.delivery_value==='five'?null:{title:'مهمة توصيل متاحة',body:'افتح توصيلاتك لمراجعة المهمة.',ttl:120});if(url.endsWith('claim_push_deliveries')){claims++;return Response.json(deliveries);}if(url.endsWith('finish_push_delivery')){finish.push(b);return new Response(null,{status:204});}if(url.endsWith('/getReceipts'))return Response.json({data:b.ids[0]==='receipt'?{receipt:{status:'ok'}}:{}});sent.push(b);return Response.json({data:b.data.notificationId==='n3'?{status:'error',details:{error:'DeviceNotRegistered'}}:{status:'ok',id:'ticket1'}});};
  const handler=createPushDispatcher({url:'https://example.invalid',serviceKey:'server-only',dispatchSecret:'dispatch'},fake);
  assert.equal((await handler(new Request('https://worker.invalid',{method:'POST'}))).status,401);assert.equal(claims,0);
  const result=await handler(new Request('https://worker.invalid',{method:'POST',headers:{Authorization:'Bearer dispatch'}}));assert.equal(result.status,200);
  const outcome=id=>finish.find(x=>x.delivery_value===id).result_kind;
  assert.equal(outcome('one'),'ticket');assert.equal(outcome('two'),'sent');assert.equal(outcome('three'),'device_gone');assert.equal(outcome('four'),'retry');assert.equal(outcome('five'),'dead');
  assert.equal(sent.length,2,'receipts are polled, not resent');assert.equal(Object.keys(sent[0].data).join(','),'notificationId');assert.equal(sent[0].collapseId,'n1');assert(!JSON.stringify(sent[0]).includes('amount'));
+ assert.equal(sent[0].title,'مهمة توصيل متاحة');assert.equal(sent[0].ttl,120);
  const start=finish.length;
  const offline=createPushDispatcher({url:'https://example.invalid',serviceKey:'server-only',dispatchSecret:'dispatch'},async(url,options)=>{if(url.endsWith('/send'))throw Error('private-token-transport-failure');return fake(url,options);});
  assert.equal((await offline(new Request('https://worker.invalid',{method:'POST',headers:{Authorization:'Bearer dispatch'}}))).status,200);
  const retries=finish.slice(start).filter(v=>v.delivery_value==='one'||v.delivery_value==='three');assert(retries.every(v=>v.result_kind==='retry'&&v.error_value==='TransportUnavailable'));assert(!JSON.stringify(finish).includes('private-token-transport-failure'));
- console.log('PASS worker authorization, generic payload, tickets/receipts, unknown receipt retry, stale-device suppression, transport failure and sanitized errors');
+ console.log('PASS worker authorization, event copy, TTL, tickets/receipts, unknown receipt retry, stale-device suppression, transport failure and sanitized errors');
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});

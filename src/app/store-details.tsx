@@ -8,6 +8,7 @@ import { CategoryChip } from "@/components/marketplace/CategoryChip";
 import { OfferCard } from "@/components/marketplace/OfferCard";
 import { ProductCard } from "@/components/marketplace/ProductCard";
 import { StoreDetailsHero } from "@/components/marketplace/StoreDetailsHero";
+import { StoreOfferFollow } from "@/components/notifications/StoreOfferNotificationControls";
 import { CustomerMarketHeader } from "@/components/navigation/CustomerMarketHeader";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppEmptyState } from "@/components/ui/AppEmptyState";
@@ -149,6 +150,7 @@ function StoreDetails({ id, owner, enabled }: { id?: string; owner: string | nul
         ListHeaderComponent={<View style={styles.stack}>
           <StoreDetailsHero store={store} category={category?.name} categoryIcon={category?.icon}
             logo={logo} acceptsOrders={identity?.acceptsOrders ?? null} video={identity?.video} owner={owner}
+            followAction={owner ? <StoreOfferFollow key={store.id} owner={owner} storeId={store.id} /> : null}
             onReviewsPress={() => router.push({ pathname: "/store-reviews", params: { id: store.id } })} />
           {error || identity?.failed ? <View style={styles.notice}>
             <Text accessibilityLiveRegion="polite" style={[styles.meta, { color: colors.error }]}>تعذر تحديث بعض معلومات المتجر.</Text>

@@ -22,6 +22,7 @@ export type NotificationData = {
   invoiceId?: string;
   reference?: string;
   url?: string;
+  event?: string;
 };
 export type AppNotification = {
   id: string;
@@ -33,12 +34,12 @@ export type AppNotification = {
   createdAt: string;
 };
 
-type NotificationContextValue = {
+type NotificationContextValue = ReturnType<typeof usePushRegistration> & {
   notifications: AppNotification[];
+  initialLoading: boolean;
   unreadCount: number;
   syncError: string | null;
   liveStatus: LiveState;
-  pushMessage:string;pushReady:boolean;pushBusy:boolean;enablePush:()=>Promise<void>;
   refresh: () => Promise<void>;
   markAsRead: (notificationId: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
@@ -61,7 +62,7 @@ const NotificationContext = createContext<NotificationContextValue | null>(null)
 export function parseNotificationData(value: Json | null): NotificationData | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const data: NotificationData = {};
-  for (const key of ["orderId", "storeOrderId", "deliveryTaskId", "productId", "storeId", "offerId", "route", "url", "invoiceId", "reference", "applicationId", "applicationRole"] as const) {
+  for (const key of ["orderId", "storeOrderId", "deliveryTaskId", "productId", "storeId", "offerId", "route", "url", "invoiceId", "reference", "applicationId", "applicationRole", "event"] as const) {
     const candidate = value[key];
     if (typeof candidate === "string") data[key] = candidate;
   }
@@ -77,11 +78,13 @@ function OwnedNotifications({children,owner}:{children:ReactNode;owner?:string})
  const [notifications,setNotifications]=useState<AppNotification[]>([]);
  const [unreadCount,setUnreadCount]=useState(0);
  const [syncError,setSyncError]=useState<string|null>(null);
+ const [initialLoading,setInitialLoading]=useState(Boolean(owner));
  const alive=useRef(true),generation=useRef(0);
  useEffect(()=>{alive.current=true;const invalidate=()=>{alive.current=false;generation.current++;};return invalidate;},[]);
  const refresh=useCallback(async()=>{
   if(!owner)return;
   const token=++generation.current;
+  try {
   const [list,count]=await Promise.all([
    supabase.from("notifications").select("id,type,title,body,data,read_at,created_at").eq("user_id",owner).order("created_at",{ascending:false}).limit(100),
    supabase.from("notifications").select("id",{count:"exact",head:true}).eq("user_id",owner).is("read_at",null),
@@ -91,6 +94,12 @@ function OwnedNotifications({children,owner}:{children:ReactNode;owner?:string})
   if(error){if(["PGRST301","PGRST302","PGRST303","42501"].includes(error.code??"")){setNotifications([]);setUnreadCount(0);}setSyncError("تعذر تحديث الإشعارات؛ المعروض آخر بيانات متاحة.");throw error;}
   setNotifications(((list.data??[]) as NotificationRow[]).map(row=>({id:row.id,type:row.type,title:row.title,body:row.body,data:parseNotificationData(row.data),read:!!row.read_at,createdAt:row.created_at})));
   setUnreadCount(count.count??0);setSyncError(null);
+  } catch (error) {
+   if(alive.current&&token===generation.current)setSyncError("تعذر تحديث الإشعارات؛ المعروض آخر بيانات متاحة.");
+   throw error;
+  } finally {
+   if(alive.current&&token===generation.current)setInitialLoading(false);
+  }
  },[owner]);
  useEffect(()=>{const timer=setTimeout(()=>void refresh().catch(()=>undefined),0);return()=>clearTimeout(timer);},[refresh]);
  const liveStatus=useLiveUpdates({channelName:`notifications:${owner??"guest"}`,enabled:!!owner,subscriptions:owner?[{table:"notifications",filter:`user_id=eq.${owner}`}]:[],onChange:refresh});
@@ -115,7 +124,7 @@ function OwnedNotifications({children,owner}:{children:ReactNode;owner?:string})
  const markAllAsRead=useCallback(()=>mutate("readAll"),[mutate]);
  const removeNotification=useCallback((id:string)=>mutate("remove",id),[mutate]);
  const clearNotifications=useCallback(()=>mutate("clear"),[mutate]);
- const value=useMemo(()=>({notifications,unreadCount,syncError,liveStatus,...push,refresh,markAsRead,markAllAsRead,removeNotification,clearNotifications}),[notifications,unreadCount,syncError,liveStatus,push,refresh,markAsRead,markAllAsRead,removeNotification,clearNotifications]);
+ const value=useMemo(()=>({notifications,initialLoading,unreadCount,syncError,liveStatus,...push,refresh,markAsRead,markAllAsRead,removeNotification,clearNotifications}),[notifications,initialLoading,unreadCount,syncError,liveStatus,push,refresh,markAsRead,markAllAsRead,removeNotification,clearNotifications]);
  return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
 }
 export function useNotifications(){const context=useContext(NotificationContext);if(!context)throw Error("useNotifications must be used inside NotificationProvider");return context;}

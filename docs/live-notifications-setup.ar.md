@@ -79,9 +79,9 @@
 ## 2. Android — إعداد FCM وبناء APK
 
 1. افتح Firebase لمشروع التطبيق وأضف تطبيق Android بنفس اسم الحزمة الحالي `com.yassinov77.tasawuqalkarak`. فعّل Cloud Messaging API V1 للمشروع.
-2. نزّل `google-services.json` وضعه محليًا في `credentials/android/google-services.json`، ثم أضف إلى `expo.android` في app.json الخاصية `googleServicesFile` بهذا المسار. المجلد مستثنى من Git. عند استخدام بناء سحابي تأكد أن الملف يصل إلى مهمة البناء عبر إعداد الملفات/الأسرار الخاص بك؛ لا تدفعه إلى المستودع.
+2. ضع ملف Firebase الخاص بتطبيق Android في جذر المشروع باسم `google-services.json`. يشير إليه `expo.android.googleServicesFile` في `app.json`. يتجاهل Git الملف، وتضمّه `.easignore` وحده من إعدادات Firebase عند الرفع. فحص أرشيف EAS المحلي لملف `preview` أكد وجود النسخة المطابقة واستبعاد مجلد الاعتمادات والملفات الخاصة.
 3. أنشئ مفتاح حساب خدمة Firebase المصرح له بإرسال FCM V1. ارفعه في بيانات اعتماد Android على EAS عبر `npx eas-cli@latest credentials -p android` واختيار مفتاح FCM V1. **هذا المفتاح مختلف عن google-services.json، ولا يضمّن في التطبيق أو المحادثة.** اتبع [تعليمات Expo لـFCM V1](https://docs.expo.dev/push-notifications/fcm-credentials/).
-4. ابنِ نسخة جديدة عبر `npx eas-cli@latest build --platform android --profile preview` وثبّت APK على هاتف فعلي. preview موجود ويخرج APK؛ لا يحتاج إضافة expo-dev-client. إضافة الحزمة وحدها أو تحديث JavaScript لا يضيف المكون الأصلي إلى نسخة قديمة.
+4. بعد موافقة المالك، ابنِ نسخة جديدة عبر `eas build --platform android --profile preview` وثبّت APK على هاتف فعلي. فحص EAS للقراءة أكد ارتباط مفتاح FCM V1 بمشروع Firebase المطابق للحزمة ووجود توقيع Android افتراضي. تحقق من تسجيل الجهاز قبل مرحلة نشر مرسل Supabase.
 5. افتح الإشعارات واضغط «تفعيل تنبيهات الجهاز»، ثم اسمح بالإذن. عبارة «الجهاز مسجل» لا تعني اكتمال مفاتيح الإرسال أو وصول اختبار فعلي.
 
 ## 3. iPhone — إعداد APNs لاحقًا على جهاز فعلي

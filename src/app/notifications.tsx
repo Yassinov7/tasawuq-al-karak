@@ -9,12 +9,14 @@ import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { AppModal } from "@/components/ui/AppModal";
-import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
+import { AppEmptyState } from "@/components/ui/AppEmptyState";
+import { LoadingSkeleton } from "@/components/ui/LoadingState";
+import { DeviceNotificationStatus } from "@/components/notifications/DeviceNotificationStatus";
+import { ControlSizes, Fonts, MaxContentWidth, Radius, RtlText, Spacing, Typography } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import {
   AppNotification,
-  NotificationType,
   useNotifications,
 } from "@/context/NotificationContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -34,8 +36,9 @@ function NotificationsOwner() {
     unreadCount,
     syncError,
     liveStatus,
-    pushMessage,pushBusy,enablePush,
+    initialLoading,
     refresh,
+    markAsRead,
     markAllAsRead,
     removeNotification,
     clearNotifications,
@@ -47,6 +50,10 @@ function NotificationsOwner() {
   >(null);
   const [modalBusy, setModalBusy] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
+  const [markingId, setMarkingId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const markLock = useRef(false);
+  const refreshLock = useRef(false);
   const [returning, setReturning] = useState(false);
   const openingNotificationIdRef = useRef<string | null>(null);
   const reads=useReadScope(user?.id??"guest");
@@ -153,577 +160,189 @@ function NotificationsOwner() {
     setSelectedNotificationId(null);
   };
 
-  const handleMarkAllAsRead = async () => {
-    if (markingAll) return;
-    setMarkingAll(true);
+  const handleMarkAsRead = async (id?: string) => {
+    if (markLock.current) return;
+    markLock.current = true;
+    if (id) setMarkingId(id);
+    else setMarkingAll(true);
     try {
-      await markAllAsRead();
-    } catch (cause) {
-      void alert("تعذر تحديث الإشعارات", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
+      if (id) await markAsRead(id);
+      else await markAllAsRead();
+    } catch {
+      void alert("تعذر تعليم الإشعارات كمقروءة", "تحقق من الاتصال وحاول مرة أخرى.");
     } finally {
+      markLock.current = false;
+      setMarkingId(null);
       setMarkingAll(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    if (refreshLock.current) return;
+    refreshLock.current = true;
+    setRefreshing(true);
+    try {
+      await refresh();
+    } catch {
+      // The provider preserves the last list and exposes its error.
+    } finally {
+      refreshLock.current = false;
+      setRefreshing(false);
     }
   };
 
   if(authLoading)return <View style={{flex:1,justifyContent:"center"}}><ActivityIndicator color={colors.primary}/></View>;
   if(!user)return <View style={[styles.container,{backgroundColor:colors.background,padding:Spacing.five,gap:Spacing.four}]}><Text style={{fontFamily:Fonts.regular,color:colors.text,textAlign:"right"}}>سجّل الدخول لعرض إشعارات حسابك.</Text><AppButton title="تسجيل الدخول" onPress={()=>router.replace("/login")}/></View>;
+  const marking = markingAll || markingId !== null;
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: colors.background,
-        },
-      ]}
-    >
-      <AppHeader
-        title="الإشعارات"
-        showBack
-        onBack={() => void handleBack()}
-        showNotifications={false}
-        cartCount={itemCount}
-        mode="shared"
-      />
-
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <AppHeader title="الإشعارات" showBack onBack={() => void handleBack()} showNotifications={false}
+        cartCount={itemCount} mode="shared" />
       <FlatList
         data={notifications}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={[
-          styles.content,
-          notifications.length === 0 && styles.emptyList,
-        ]}
+        keyExtractor={item => item.id}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={() => void handleRefresh()}
         ListHeaderComponent={
-          <View>
-            <LiveStatus state={liveStatus}/>
-            {pushMessage?<Text style={{color:colors.textSecondary,fontFamily:Fonts.regular,textAlign:"right",marginBottom:8}}>{pushMessage}</Text>:null}
-            <AppButton title="تفعيل تنبيهات هذا الجهاز" variant="outline" loading={pushBusy} onPress={()=>void enablePush()}/>
+          <View style={styles.header}>
+            <DeviceNotificationStatus />
+            <LiveStatus compact hideTimestamp state={liveStatus} />
             {syncError ? (
-              <View style={{ gap: Spacing.two, marginBottom: Spacing.three }}>
-                <Text accessibilityRole="alert" style={{ color: colors.error, fontFamily: Fonts.regular, fontSize: FontSizes.sm, textAlign: "right" }}>
-                  {syncError}
-                </Text>
-                <AppButton title="إعادة تحميل الإشعارات" variant="outline" onPress={() => void refresh().catch(() => undefined)} />
+              <View style={[styles.error, { backgroundColor: colors.errorSurface }]}>
+                <Text accessibilityRole="alert" style={[styles.caption, { color: colors.errorForeground }]}>{syncError}</Text>
+                <AppButton compact fullWidth={false} title="إعادة المحاولة" variant="outline"
+                  loading={refreshing} onPress={() => void handleRefresh()} />
               </View>
             ) : null}
-            {notifications.length > 0 ? (
-            <View style={styles.headerActions}>
-              <View>
-                <Text
-                  style={[
-                    styles.countTitle,
-                    {
-                      color: colors.text,
-                    },
-                  ]}
-                >
-                  الإشعارات
-                </Text>
-
-                <Text
-                  style={[
-                    styles.countText,
-                    {
-                      color: colors.textSecondary,
-                    },
-                  ]}
-                >
-                  {unreadCount > 0
-                    ? `${unreadCount} إشعارات غير مقروءة`
-                    : "لا توجد إشعارات غير مقروءة"}
-                </Text>
+            {notifications.length || unreadCount ? (
+              <View style={styles.toolbar}>
+                <Text style={[styles.count, { color: colors.text }]}>غير المقروءة · {unreadCount.toLocaleString("ar-SY")}</Text>
+                <View style={styles.actions}>
+                  {unreadCount > 0 ? <NotificationAction label="قراءة الكل" icon="checkmark-done-outline"
+                    busy={markingAll} disabled={marking} onPress={() => void handleMarkAsRead()} /> : null}
+                  {notifications.length > 0 ? <NotificationAction label="حذف الكل" icon="trash-outline"
+                    danger onPress={handleClearAll} /> : null}
+                </View>
               </View>
-
-              <View style={styles.headerButtons}>
-                {unreadCount > 0 ? (
-                  <Pressable
-                    onPress={() => void handleMarkAllAsRead()}
-                    disabled={markingAll}
-                    style={({ pressed }) => [
-                      styles.smallAction,
-                      pressed && styles.pressed,
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel="تحديد الكل كمقروء"
-                  >
-                    {markingAll ? <AppIcon name="hourglass-outline" size={17} color={colors.primary} /> : <AppIcon name="checkmark-done-outline" size={17} color={colors.primary} />}
-
-                    <Text
-                      style={[
-                        styles.smallActionText,
-                        {
-                          color: colors.primary,
-                        },
-                      ]}
-                    >
-                      قراءة الكل
-                    </Text>
-                  </Pressable>
-                ) : null}
-
-                <Pressable
-                  onPress={handleClearAll}
-                  style={({ pressed }) => [
-                    styles.smallAction,
-                    pressed && styles.pressed,
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel="حذف جميع الإشعارات"
-                >
-                  <AppIcon
-                    name="trash-outline"
-                    size={17}
-                    color={colors.error}
-                  />
-
-                  <Text
-                    style={[
-                      styles.smallActionText,
-                      {
-                        color: colors.error,
-                      },
-                    ]}
-                  >
-                    حذف الكل
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
             ) : null}
           </View>
         }
         renderItem={({ item }) => (
-          <NotificationCard
-            notification={item}
-            onPress={() => handleNotificationPress(item)}
-            onDelete={() => handleDelete(item)}
-          />
+          <NotificationCard notification={item} onPress={() => void handleNotificationPress(item)}
+            onMark={() => void handleMarkAsRead(item.id)} onDelete={() => handleDelete(item)}
+            marking={marking} markingThis={markingId === item.id} />
         )}
-        ListEmptyComponent={
-          <View style={styles.emptyCard}>
-            <View
-              style={[
-                styles.emptyIcon,
-                {
-                  backgroundColor: colors.primaryLight,
-                },
-              ]}
-            >
-              <AppIcon
-                name="notifications-off-outline"
-                size={38}
-                color={colors.primary}
-              />
-            </View>
-
-            <Text
-              style={[
-                styles.emptyTitle,
-                {
-                  color: colors.text,
-                },
-              ]}
-            >
-              لا توجد إشعارات
-            </Text>
-
-            <Text
-              style={[
-                styles.emptyText,
-                {
-                  color: colors.textSecondary,
-                },
-              ]}
-            >
-              عندما يصلك تحديث عن طلباتك أو عروض جديدة، ستظهر هنا.
-            </Text>
-          </View>
-        }
+        ListEmptyComponent={initialLoading
+          ? <LoadingSkeleton cards={2} label="جارٍ قراءة الإشعارات" />
+          : syncError ? null
+            : <AppEmptyState icon="notifications-off-outline" title="لا توجد إشعارات" description="ستظهر هنا تحديثات حسابك عند وصولها." />}
       />
-
       <AppModal
         visible={modal !== null}
         title={modal === "clear" ? "حذف جميع الإشعارات" : "حذف الإشعار"}
-        message={
-          modal === "clear"
-            ? "هل تريد حذف جميع الإشعارات؟"
-            : "هل تريد حذف هذا الإشعار؟"
-        }
+        message={modal === "clear" ? "هل تريد حذف جميع الإشعارات؟" : "هل تريد حذف هذا الإشعار؟"}
         icon="trash-outline"
         confirmText={modal === "clear" ? "حذف الكل" : "حذف"}
-        cancelText="إلغاء"
-        destructive
-        busy={modalBusy}
-        onConfirm={() => void handleModalConfirm()}
-        onCancel={handleModalCancel}
+        cancelText="إلغاء" destructive busy={modalBusy}
+        onConfirm={() => void handleModalConfirm()} onCancel={handleModalCancel}
       />
     </View>
   );
 }
 
-type NotificationCardProps = {
-  notification: AppNotification;
-  onPress: () => void;
-  onDelete: () => void;
-};
+type Icon = React.ComponentProps<typeof AppIcon>["name"];
 
-function NotificationCard({
-  notification,
-  onPress,
-  onDelete,
-}: NotificationCardProps) {
+function NotificationAction({ label, icon, onPress, danger = false, busy = false, disabled = false }: {
+  label: string; icon: Icon; onPress: () => void; danger?: boolean; busy?: boolean; disabled?: boolean;
+}) {
   const { colors } = useTheme();
+  const color = disabled && !busy ? colors.disabledForeground : danger ? colors.errorForeground : colors.primary;
+  return <Pressable accessibilityRole="button" accessibilityLabel={label}
+    accessibilityState={{ disabled: disabled || busy, busy }} onPress={onPress} disabled={disabled || busy}
+    style={({ pressed }) => [styles.action, pressed && { backgroundColor: colors.surfacePressed }]}>
+    {busy ? <ActivityIndicator size="small" color={color} /> : <AppIcon name={icon} size={17} color={color} />}
+    <Text style={[styles.caption, { color }]}>{label}</Text>
+  </Pressable>;
+}
 
-  const icon = getNotificationIcon(notification.type);
+function NotificationCard({ notification, onPress, onMark, onDelete, marking, markingThis }: {
+  notification: AppNotification; onPress: () => void; onMark: () => void; onDelete: () => void; marking: boolean; markingThis: boolean;
+}) {
+  const { colors } = useTheme();
+  const event = notification.data?.event ?? "";
+  const icon = getNotificationIcon(notification, event);
+  const isOffer = notification.type === "offer" || notification.type === "promotion";
+  const isException = /cancelled|rejected|exception|removed/.test(event);
+  const iconColor = isException ? colors.warningForeground : isOffer ? colors.warningForeground : colors.infoForeground;
+  const iconSurface = isException || isOffer ? colors.warningSurface : colors.infoSurface;
+  const time = formatNotificationDate(notification.createdAt);
 
-  const color = getNotificationColor(notification.type, colors);
-
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.notificationCard,
-        {
-          borderColor: colors.border,
-          backgroundColor: colors.surface,
-        },
-        !notification.read && {
-          borderColor: colors.primaryLight,
-          backgroundColor: colors.primaryLight,
-        },
-        pressed && styles.pressed,
-      ]}
-      accessibilityRole="button"
-      accessibilityLabel={notification.title}
-    >
-      <View
-        style={[
-          styles.notificationIcon,
-          {
-            backgroundColor: color.background,
-          },
-        ]}
-      >
-        <AppIcon name={icon} size={22} color={color.foreground} />
+  return <View style={[styles.card, {
+    backgroundColor: notification.read ? colors.surface : colors.surfaceSelected,
+    borderColor: colors.borderSubtle,
+  }]}>
+    <Pressable accessibilityRole="button" accessibilityHint="يفتح الوجهة المرتبطة بالإشعار"
+      onPress={onPress} style={({ pressed }) => [styles.cardMain, pressed && { backgroundColor: colors.surfacePressed }]}>
+      <View style={[styles.icon, { backgroundColor: iconSurface }]} importantForAccessibility="no-hide-descendants">
+        <AppIcon name={icon} size={19} color={iconColor} />
       </View>
-
-      <View style={styles.notificationContent}>
-        <View style={styles.notificationTop}>
-          <Text
-            style={[
-              styles.notificationTitle,
-              {
-                color: colors.text,
-              },
-              !notification.read && styles.unreadTitle,
-            ]}
-            numberOfLines={2}
-          >
-            {notification.title}
-          </Text>
-
-          {!notification.read ? (
-            <View
-              style={[
-                styles.unreadDot,
-                {
-                  backgroundColor: colors.primary,
-                },
-              ]}
-            />
-          ) : null}
-        </View>
-
-        <Text
-          style={[
-            styles.notificationBody,
-            {
-              color: colors.textSecondary,
-            },
-          ]}
-        >
-          {notification.body}
-        </Text>
-
-        <View style={styles.notificationFooter}>
-          <Text
-            style={[
-              styles.notificationTime,
-              {
-                color: colors.textMuted,
-              },
-            ]}
-          >
-            {formatNotificationDate(notification.createdAt)}
-          </Text>
-
-          <Pressable
-            onPress={(event) => {
-              event.stopPropagation();
-              onDelete();
-            }}
-            hitSlop={8}
-            style={({ pressed }) => [
-              styles.deleteButton,
-              pressed && styles.pressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="حذف الإشعار"
-          >
-            <AppIcon name="trash-outline" size={17} color={colors.error} />
-          </Pressable>
+      <View style={styles.cardContent}>
+        <Text style={[styles.title, { color: colors.text }]}>{notification.title}</Text>
+        {notification.body ? <Text style={[styles.body, { color: colors.textSecondary }]}>{notification.body}</Text> : null}
+        <View style={styles.meta}>
+          {!notification.read ? <Text style={[styles.caption, { color: colors.primary }]}>غير مقروء</Text> : null}
+          {time ? <Text style={[styles.caption, { color: colors.textMuted }]}>{time}</Text> : null}
         </View>
       </View>
     </Pressable>
-  );
+    <View style={[styles.cardActions, { borderColor: colors.borderSubtle }]}>
+      {!notification.read ? <NotificationAction label="تعليم كمقروء" icon="checkmark-outline"
+        busy={markingThis} disabled={marking} onPress={onMark} /> : null}
+      <NotificationAction label="حذف" icon="trash-outline" onPress={onDelete} danger />
+    </View>
+  </View>;
 }
 
-function getNotificationIcon(
-  type: NotificationType,
-): React.ComponentProps<typeof AppIcon>["name"] {
-  switch (type) {
-    case "order":
-      return "receipt-outline";
-
-    case "offer":
-      return "pricetag-outline";
-
-    case "promotion":
-      return "megaphone-outline";
-
-    case "system":
-      return "information-circle-outline";
-  }
-}
-
-function getNotificationColor(
-  type: NotificationType,
-  colors: ReturnType<typeof useTheme>["colors"],
-) {
-  switch (type) {
-    case "order":
-      return {
-        background: colors.primaryLight,
-        foreground: colors.primary,
-      };
-
-    case "offer":
-      return {
-        background: colors.accentLight,
-        foreground: colors.accent,
-      };
-
-    case "promotion":
-      return {
-        background: colors.primaryLight,
-        foreground: colors.primary,
-      };
-
-    case "system":
-      return {
-        background: colors.surfaceSecondary,
-        foreground: colors.textSecondary,
-      };
-  }
+function getNotificationIcon(notification: AppNotification, event: string): Icon {
+  if (notification.type === "offer") return "pricetag-outline";
+  if (notification.type === "promotion") return "megaphone-outline";
+  if (/cancelled|rejected|exception|removed/.test(event)) return "alert-circle-outline";
+  if (notification.data?.invoiceId) return "document-text-outline";
+  if (event.includes("review") || event.startsWith("application-")) return "clipboard-outline";
+  if (event.startsWith("task-") || event.startsWith("driver-") || event === "merchant-pickup" || notification.data?.deliveryTaskId) return "bicycle-outline";
+  return notification.type === "order" ? "receipt-outline" : "information-circle-outline";
 }
 
 function formatNotificationDate(value: string) {
   const date = new Date(value);
-  const now = Date.now();
-  const difference = Math.max(0, now - date.getTime());
-
-  const minutes = Math.floor(difference / (1000 * 60));
-
-  if (minutes < 1) {
-    return "الآن";
-  }
-
-  if (minutes < 60) {
-    return `منذ ${minutes} دقيقة`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-
-  if (hours < 24) {
-    return `منذ ${hours} ساعة`;
-  }
-
-  const days = Math.floor(hours / 24);
-
-  if (days === 1) {
-    return "أمس";
-  }
-
-  if (days < 7) {
-    return `منذ ${days} أيام`;
-  }
-
-  return date.toLocaleDateString("ar-SY");
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString("ar-SY", {
+    month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
+  });
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-
+  container: { flex: 1 },
   content: {
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.ten,
+    width: "100%", maxWidth: MaxContentWidth, alignSelf: "center",
+    paddingHorizontal: Spacing.four, paddingTop: Spacing.two, paddingBottom: Spacing.ten,
   },
-
-  emptyList: {
-    flexGrow: 1,
-  },
-
-  headerActions: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: Spacing.four,
-  },
-
-  countTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.lg,
-    textAlign: "right",
-  },
-
-  countText: {
-    marginTop: 2,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.xs,
-    textAlign: "right",
-  },
-
-  headerButtons: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: Spacing.one,
-  },
-
-  smallAction: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 4,
-    minHeight: 34,
-    paddingHorizontal: Spacing.two,
-    borderRadius: Radius.full,
-  },
-
-  smallActionText: {
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.xs,
-  },
-
-  notificationCard: {
-    flexDirection: "row-reverse",
-    alignItems: "flex-start",
-    gap: Spacing.three,
-    marginBottom: Spacing.three,
-    padding: Spacing.four,
-    borderWidth: 1,
-    borderRadius: Radius.xl,
-  },
-
-  notificationIcon: {
-    width: 48,
-    height: 48,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.full,
-  },
-
-  notificationContent: {
-    flex: 1,
-    minWidth: 0,
-  },
-
-  notificationTop: {
-    flexDirection: "row-reverse",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: Spacing.two,
-  },
-
-  notificationTitle: {
-    flex: 1,
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.md,
-    lineHeight: 23,
-    textAlign: "right",
-  },
-
-  unreadTitle: {
-    fontFamily: Fonts.bold,
-  },
-
-  unreadDot: {
-    width: 8,
-    height: 8,
-    marginTop: 7,
-    borderRadius: Radius.full,
-  },
-
-  notificationBody: {
-    marginTop: Spacing.one,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    lineHeight: 22,
-    textAlign: "right",
-  },
-
-  notificationFooter: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: Spacing.three,
-  },
-
-  notificationTime: {
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.xs,
-  },
-
-  deleteButton: {
-    width: 32,
-    height: 32,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.full,
-  },
-
-  emptyCard: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: Spacing.six,
-  },
-
-  emptyIcon: {
-    width: 100,
-    height: 100,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.full,
-  },
-
-  emptyTitle: {
-    marginTop: Spacing.five,
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.xl,
-  },
-
-  emptyText: {
-    maxWidth: 320,
-    marginTop: Spacing.two,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    lineHeight: 23,
-    textAlign: "center",
-  },
-
-  pressed: {
-    opacity: 0.72,
-  },
+  header: { gap: Spacing.one, paddingBottom: Spacing.two },
+  error: { borderRadius: Radius.md, padding: Spacing.two, gap: Spacing.one, alignItems: "flex-end" },
+  toolbar: { flexDirection: "row-reverse", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", columnGap: Spacing.two },
+  count: { ...Typography.bodyStrong, ...RtlText, flexShrink: 1 },
+  actions: { flexDirection: "row-reverse", flexWrap: "wrap", maxWidth: "100%" },
+  action: { minWidth: ControlSizes.touch, minHeight: ControlSizes.touch, maxWidth: "100%", paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.one, flexDirection: "row-reverse", alignItems: "center", gap: Spacing.one, borderRadius: Radius.md },
+  card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: Radius.md, marginBottom: Spacing.two, overflow: "hidden" },
+  cardMain: { flexDirection: "row-reverse", alignItems: "flex-start", gap: Spacing.two, padding: Spacing.three, minHeight: ControlSizes.touch },
+  icon: { width: 34, height: 34, borderRadius: Radius.md, alignItems: "center", justifyContent: "center" },
+  cardContent: { flex: 1, minWidth: 0, gap: Spacing.one },
+  title: { ...Typography.bodyStrong, ...RtlText },
+  body: { ...Typography.body, ...RtlText },
+  meta: { flexDirection: "row-reverse", alignItems: "center", flexWrap: "wrap", gap: Spacing.two },
+  caption: { ...Typography.caption, ...RtlText, flexShrink: 1 },
+  cardActions: { flexDirection: "row-reverse", flexWrap: "wrap", paddingHorizontal: Spacing.two, borderTopWidth: StyleSheet.hairlineWidth },
 });

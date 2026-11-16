@@ -23,6 +23,7 @@ export function notificationHref(d:NotificationDestination):Href|undefined{
  case "product":return{pathname:"/product-details",params:{id:d.productId}};
  case "store":return{pathname:"/store-details",params:{id:d.storeId}};
  case "offers":return"/home/offers";
+ case "offer":return{pathname:"/offer-details",params:{id:d.offerId}};
  case "customer-home":return"/home";
  case "none":return undefined;
  }
@@ -48,6 +49,7 @@ export async function openOwnedNotification(owner:string,id:string,current:()=>b
  case "driver-home":if(d.taskId)target=await supabase.from("delivery_tasks").select("id").eq("id",d.taskId).eq("status","available").maybeSingle();break;
  case "product":target=await supabase.from("products").select("id").eq("id",d.productId).maybeSingle();break;
  case "store":target=await supabase.from("stores").select("id").eq("id",d.storeId).maybeSingle();break;
+ case "offer":target=await supabase.rpc("read_customer_active_offers").eq("id",d.offerId).maybeSingle();break;
  }
  await identity();if(target?.error)throw new NotificationOpenError("network");if(target&&!target.data)throw new NotificationOpenError("unavailable");
  const marked=await supabase.from("notifications").update({read_at:new Date().toISOString()}).eq("id",id).eq("user_id",owner);

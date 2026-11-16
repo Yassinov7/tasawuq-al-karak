@@ -12,11 +12,11 @@ const mocks={'react':react,'react/jsx-runtime':{jsx:(type,props)=>({type,props})
 const exportsValue={};vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/context/NotificationContext.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports:exportsValue,require:n=>{assert(n in mocks,n);return mocks[n];},setTimeout:()=>0,clearTimeout:()=>{},Date,Promise,Error});
 const render=()=>{cursor=0;const wrapper=exportsValue.NotificationProvider({children:'child'});return wrapper.type(wrapper.props).props.value;};
 const tick=async()=>{for(let i=0;i<8;i++)await Promise.resolve();};
-const answer=(start,name,count)=>{requests[start].resolve({data:[{id:name,type:'system',title:name,body:'',data:{route:5,invoiceId:'invoice'},read_at:null,created_at:'2026-01-01'}],error:null});requests[start+1].resolve({count,error:null});};
+const answer=(start,name,count)=>{requests[start].resolve({data:[{id:name,type:'system',title:name,body:'',data:{route:5,invoiceId:'invoice',event:'invoice-INV'},read_at:null,created_at:'2026-01-01'}],error:null});requests[start+1].resolve({count,error:null});};
 async function main(){
- let value=render();cleanup=effects.map(fn=>fn()).filter(Boolean);effects=[];
+ let value=render();assert.equal(value.initialLoading,true);cleanup=effects.map(fn=>fn()).filter(Boolean);effects=[];
  const old=value.refresh();await tick();const fresh=value.refresh();await tick();
- answer(2,'fresh',151);await fresh;value=render();assert.equal(value.notifications[0].id,'fresh');assert.equal(value.unreadCount,151,'count is independent of capped list');assert.equal(value.notifications[0].data.route,undefined,'invalid payload fields removed');
+ answer(2,'fresh',151);await fresh;value=render();assert.equal(value.initialLoading,false);assert.equal(value.notifications[0].id,'fresh');assert.equal(value.unreadCount,151,'count is independent of capped list');assert.equal(value.notifications[0].data.route,undefined,'invalid payload fields removed');assert.equal(value.notifications[0].data.event,'invoice-INV');
  answer(0,'stale',1);await old;value=render();assert.equal(value.notifications[0].id,'fresh');assert.equal(value.unreadCount,151);
  const late=value.refresh();await tick();cleanup.forEach(fn=>fn());const before=updates;
  owner='second';cells=[];effects=[];value=render();effects.forEach(fn=>fn());assert.equal(value.notifications.length,0);assert.equal(value.unreadCount,0);

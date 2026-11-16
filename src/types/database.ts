@@ -2183,6 +2183,18 @@ export type Database = {
         Args: Record<never, never>
         Returns: Database["public"]["Tables"]["store_offers"]["Row"][]
       }
+      read_store_notification_preferences: {
+        Args: { expected_user: string }
+        Returns: { enabled: boolean; stores: { id: string; name: string }[] }
+      }
+      set_store_notification_follow: {
+        Args: { target_store: string; following: boolean; expected_user: string }
+        Returns: undefined
+      }
+      set_store_offer_notifications: {
+        Args: { input_enabled: boolean; expected_user: string }
+        Returns: undefined
+      }
       read_customer_next_offer_transition: {
         Args: Record<never, never>
         Returns: string | null

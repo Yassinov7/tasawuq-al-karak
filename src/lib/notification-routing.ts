@@ -11,6 +11,7 @@ export type NotificationDestination =
   | { type: "product"; productId: string }
   | { type: "store"; storeId: string }
   | { type: "offers" }
+  | { type: "offer"; offerId: string }
   | { type: "merchant-orders"; storeOrderId?:string }
   | { type: "merchant-home" }
   | { type: "merchant-finance" }
@@ -74,6 +75,7 @@ export function resolveNotificationDestination(
   const orderId = data?.orderId ?? getOrderIdFromRoute(data);
   if (validId(orderId)) return { type: "customer-order", orderId:orderId! };
   if (validId(data?.productId)) return { type: "product", productId: data!.productId! };
+  if (route === "/offer-details" && validId(data?.offerId)) return { type: "offer", offerId: data!.offerId! };
   if (validId(data?.storeId)) return { type: "store", storeId: data!.storeId! };
   if (data?.offerId || route === "/home/offers") return { type: "offers" };
   if (route === "/home") return { type: "customer-home" };

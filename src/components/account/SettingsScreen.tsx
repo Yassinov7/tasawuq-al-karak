@@ -10,6 +10,7 @@ import {
 import {usePersonalAccount} from "@/hooks/usePersonalAccount";
 import {accountHome} from "@/lib/personal-account-model";
 import { AppHeader } from "@/components/navigation/AppHeader";
+import { StoreOfferNotificationSettings } from "@/components/notifications/StoreOfferNotificationControls";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { SyriaFlag } from "@/components/ui/SyriaFlag";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
@@ -422,6 +423,9 @@ export default function SettingsScreen({ embedded = false, preferencesOnly: appe
           </View> : null}
         </View>
 
+        {!preferencesOnly && account.data?.role === "customer" && account.owner ? (
+          <StoreOfferNotificationSettings key={account.owner} owner={account.owner} />
+        ) : null}
         {!preferencesOnly ? <>
         <Text
           style={[

@@ -238,8 +238,8 @@
 - التفاصيل الموجودة/الناقصة: settings/personal-info/security والطلبات والعناوين والقانونية؛ لا /account مشترك فعلي.
 - المكونات (وصول محافظ): `src/components/account/AccountMenuItem.tsx`، `src/components/account/AccountProfileHeader.tsx`، `src/components/account/AccountSection.tsx`، `src/components/account/AccountShell.tsx`، `src/components/account/SharedAccountParts.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/AppModal.tsx`، `src/components/ui/LoadingState.tsx`.
 - النصوص والحالات: أسماء الوجهات وبيانات الدور والعودة.
-- الثيم الليلي: يستخدم رموز الثيم ومكونات الحساب المشتركة؛ ينتظر التحقق البصري على الهاتف في الوضعين.
-- الأولوية: P1: الاستخدام اليومي. الحالة: **مكتملة برمجيًا — بانتظار اختبار الهاتف وقبول المالك**؛ أُعيد تنظيم الملف الشخصي والمجموعات المدمجة دون تغيير روابط العميل أو وظائف الأدوار الأخرى.
+- الثيم الليلي: يستخدم رموز الثيم ومكونات الحساب المشتركة.
+- الأولوية: P1: الاستخدام اليومي. الحالة: **مغلقة بقبول المالك النهائي على الهاتف**.
 
 ## التاجر — 11 صفحة
 
@@ -651,11 +651,11 @@
 - الوظيفة: قراءة إشعارات الحساب وفتح المرجع المسموح.
 - الوصول: جرس الترويسة والحساب وتفاعل Push. إشارات المصدر: `src/app/(customer)/home/account.tsx`، `src/app/driver/account.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`، `src/components/navigation/AppHeader.tsx`، `src/lib/safe-back.ts`.
 - التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
-- التفاصيل الموجودة/الناقصة: تنقل آمن إلى الطلب/المهمة/الفاتورة؛ لا صفحة إعدادات Push جديدة لازمة.
+- التفاصيل الموجودة/الناقصة: تنقل آمن إلى الطلب والمهمة والفاتورة والعرض. حالة إذن الهاتف والتسجيل في `DeviceNotificationStatus` داخل القائمة، وإعدادات العميل تربط إليها.
 - المكونات (وصول محافظ): `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/AppModal.tsx`، `src/components/ui/LiveStatus.tsx`، `src/components/ui/LoadingState.tsx`.
 - النصوص والحالات: غير المقروء إجمالي مستقل؛ لا بيانات حساسة في Push؛ UX-05 ما زال ينتظر الإعداد والأجهزة.
 - الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
-- الأولوية: P1: الاستخدام اليومي. الحالة: **لم تبدأ** في مسار RUI؛ لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md.
+- الأولوية: P1: الاستخدام اليومي. الحالة: **منفذة محليًا — مفتوحة لاختبار الهاتف والقبول**.
 
 ### RUI-SHR-02 — تفاصيل الفاتورة المالية
 

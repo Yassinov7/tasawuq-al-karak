@@ -1,8 +1,7 @@
-import { LiveStatus } from "@/components/ui/LiveStatus";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useReadScope } from "@/hooks/useReadScope";
-import { useRouter } from "expo-router";
-import { useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, AppState, Pressable, SectionList, StyleSheet, Text, View } from "react-native";
 import { useAppDialog } from "@/context/AppDialogContext";
 
 import { AppHeader } from "@/components/navigation/AppHeader";
@@ -21,6 +20,7 @@ import {
 } from "@/context/NotificationContext";
 import { useTheme } from "@/context/ThemeContext";
 import { openOwnedNotification } from "@/lib/notification-opening";
+import { groupNotifications, nextNotificationGroupChange } from "@/lib/notification-inbox";
 import { supabase } from "@/lib/supabase";
 
 export default function NotificationsScreen(){const {user}=useAuth();return <NotificationsOwner key={user?.id??"guest"}/>;}
@@ -35,8 +35,8 @@ function NotificationsOwner() {
     notifications,
     unreadCount,
     syncError,
-    liveStatus,
     initialLoading,
+    loadingMore, pageError, loadMore,
     refresh,
     markAsRead,
     markAllAsRead,
@@ -57,6 +57,22 @@ function NotificationsOwner() {
   const [returning, setReturning] = useState(false);
   const openingNotificationIdRef = useRef<string | null>(null);
   const reads=useReadScope(user?.id??"guest");
+  const [now, setNow] = useState(Date.now);
+  const sections = useMemo(() => groupNotifications(notifications, now), [notifications, now]);
+  useFocusEffect(useCallback(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const update = () => {
+      clearTimeout(timer);
+      const current = Date.now();
+      setNow(current);
+      if (AppState.currentState === "active") {
+        timer = setTimeout(update, Math.max(50, nextNotificationGroupChange(notifications, current) - current));
+      }
+    };
+    const subscription = AppState.addEventListener("change", update);
+    update();
+    return () => { clearTimeout(timer); subscription.remove(); };
+  }, [notifications]));
 
   const handleBack = async () => {
     if (router.canGoBack()) {
@@ -198,17 +214,19 @@ function NotificationsOwner() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppHeader title="الإشعارات" showBack onBack={() => void handleBack()} showNotifications={false}
         cartCount={itemCount} mode="shared" />
-      <FlatList
-        data={notifications}
+      <SectionList
+        sections={sections}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshing={refreshing}
         onRefresh={() => void handleRefresh()}
+        stickySectionHeadersEnabled={false}
+        onEndReached={() => void loadMore()}
+        onEndReachedThreshold={0.35}
         ListHeaderComponent={
           <View style={styles.header}>
             <DeviceNotificationStatus />
-            <LiveStatus compact hideTimestamp state={liveStatus} />
             {syncError ? (
               <View style={[styles.error, { backgroundColor: colors.errorSurface }]}>
                 <Text accessibilityRole="alert" style={[styles.caption, { color: colors.errorForeground }]}>{syncError}</Text>
@@ -229,6 +247,15 @@ function NotificationsOwner() {
             ) : null}
           </View>
         }
+        renderSectionHeader={({ section }) => (
+          <Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.textSecondary }]}>{section.title}</Text>
+        )}
+        ListFooterComponent={loadingMore
+          ? <ActivityIndicator style={styles.pageFooter} color={colors.primary} accessibilityLabel="جارٍ تحميل إشعارات أقدم" />
+          : pageError ? <View style={styles.pageFooter}>
+            <Text style={[styles.caption, { color: colors.errorForeground }]}>تعذر تحميل الإشعارات الأقدم.</Text>
+            <AppButton compact fullWidth={false} variant="outline" title="إعادة المحاولة" onPress={() => void loadMore(true)} />
+          </View> : null}
         renderItem={({ item }) => (
           <NotificationCard notification={item} onPress={() => void handleNotificationPress(item)}
             onMark={() => void handleMarkAsRead(item.id)} onDelete={() => handleDelete(item)}
@@ -330,6 +357,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four, paddingTop: Spacing.two, paddingBottom: Spacing.ten,
   },
   header: { gap: Spacing.one, paddingBottom: Spacing.two },
+  sectionTitle: { ...Typography.bodyStrong, ...RtlText, marginTop: Spacing.two, marginBottom: Spacing.two },
+  pageFooter: { alignItems: "center", gap: Spacing.one, paddingVertical: Spacing.two },
   error: { borderRadius: Radius.md, padding: Spacing.two, gap: Spacing.one, alignItems: "flex-end" },
   toolbar: { flexDirection: "row-reverse", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", columnGap: Spacing.two },
   count: { ...Typography.bodyStrong, ...RtlText, flexShrink: 1 },

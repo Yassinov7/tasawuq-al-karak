@@ -61,6 +61,7 @@
         "expo-notifications",
         {
           "defaultChannel": "operations",
+          "icon": "./assets/images/branding/taswoq-notification-android.png",
           "color": "#2F6B3C"
         }
       ]

@@ -35,7 +35,7 @@ function AccountInvoice({ owner, id }: { owner: string; id: string }) {
   }, [owner, retry]);
 
   if (account === "/merchant") return <MerchantInvoiceScreen key={id} owner={owner} id={id} />;
-  if (account) return <InvoiceScreen />;
+  if (account) return <InvoiceScreen customer={account === "/home"} />;
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <AppHeader title="تفاصيل الفاتورة" showBack showNotifications={false} />

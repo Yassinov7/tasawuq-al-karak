@@ -19,6 +19,7 @@ import {
   getCachedPublicCatalog,
   getPublicCatalog,
   invalidatePublicCatalog,
+  readNextOfferTransition,
   readCatalogCategoryChoices,
   type PublicCatalog,
 } from "@/lib/public-catalog";
@@ -32,10 +33,13 @@ type CatalogState = {
   storeRatings: Map<string, RatingSummary>;
   productRatings: Map<string, RatingSummary>;
   loading: boolean;
+  refreshing: boolean;
   error: string | null;
   categoryRead: "loading" | "ready" | "error";
   offerRead: "loading" | "ready" | "error";
   refresh: () => Promise<void>;
+  revalidate: () => Promise<void>;
+  refreshCategories: () => Promise<void>;
   resetForAccessChange: () => void;
   refreshProductAvailability: (productId: string) => Promise<void>;
 };
@@ -121,9 +125,10 @@ export function toCatalogState(catalog: PublicCatalog): Pick<
     if (items) items.push(item);
     else itemsByOffer.set(item.offer_id, [item]);
   }
-  const now = Date.now();
   const offers: CustomerOffer[] = catalog.offers.flatMap((offer) => {
-    if (!offer.is_active || Date.parse(offer.starts_at) > now || (offer.ends_at && Date.parse(offer.ends_at) <= now)) return [];
+    // Customer eligibility is decided by read_customer_active_offers using the
+    // database clock. Do not repeat it with a potentially skewed device clock.
+    if (!offer.is_active) return [];
     const offerItems = itemsByOffer.get(offer.id) ?? [];
     const items = offerItems
       .flatMap((item) => {
@@ -157,7 +162,7 @@ export function CustomerCatalogProvider({ children }: PropsWithChildren) {
   const enabled = !authLoading;
   const [snapshot, setSnapshot] = useState<{ scope: string; rows: CatalogRows } | null>(null);
   const [ratingSnapshot, setRatingSnapshot] = useState<{ scope: string; rows: typeof emptyRatings } | null>(null);
-  const [status, setStatus] = useState({ scope: "", loading: true, error: null as string | null });
+  const [status, setStatus] = useState({ scope: "", loading: true, refreshing: false, error: null as string | null });
   const [sectionStatus, setSectionStatus] = useState<{
     scope: string; categoryRead: CatalogState["categoryRead"]; offerRead: CatalogState["offerRead"];
   }>();
@@ -166,6 +171,7 @@ export function CustomerCatalogProvider({ children }: PropsWithChildren) {
   const catalogState = snapshot?.scope === scope ? snapshot.rows : emptyCatalog;
   const ratings = ratingSnapshot?.scope === scope ? ratingSnapshot.rows : emptyRatings;
   const loading = status.scope !== scope || status.loading;
+  const refreshing = status.scope === scope && status.refreshing;
   const error = status.scope === scope ? status.error : null;
   const setCatalogState = useCallback((update: (rows: CatalogRows) => CatalogRows) => {
     setSnapshot(previous => ({ scope, rows: update(previous?.scope === scope ? previous.rows : emptyCatalog) }));
@@ -173,6 +179,10 @@ export function CustomerCatalogProvider({ children }: PropsWithChildren) {
   const refreshSequence = useRef(0);
   const categorySequence = useRef(0);
   const categoryApplied = useRef(0);
+  const transitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const transitionReload = useRef<() => void>(() => undefined);
+  const catalogReadRef = useRef<{ scope: string; promise: Promise<void> } | null>(null);
+  const lastValidatedRef = useRef<{ scope: string; at: number } | null>(null);
 
   const readCatalog = useCallback(async (reuseCache: boolean) => {
     if (!enabled) return;
@@ -182,13 +192,15 @@ export function CustomerCatalogProvider({ children }: PropsWithChildren) {
       const next = toCatalogState(catalog);
       setCatalogState(previous => categoryApplied.current === categoryVersion ? next : { ...next, categories: previous.categories, storeCategories: previous.storeCategories });
     };
-    setStatus({ scope, loading: true, error: null });
+    setStatus(previous => ({ scope, loading: previous.scope !== scope || previous.loading, refreshing: previous.scope === scope && !previous.loading, error: null }));
 
     try {
       const cached = reuseCache ? await getCachedPublicCatalog(owner) : undefined;
       if (request !== refreshSequence.current) return;
       if (cached) {
-        apply(cached);
+        // Offers are time-sensitive. Keep the rest of the cached catalog, but
+        // wait for the server-clock RPC before publishing offer eligibility.
+        apply({ ...cached, offers: [], offerItems: [] });
       }
 
       const setSection = (section: "categoryRead" | "offerRead", ready: boolean) => {
@@ -223,7 +235,15 @@ export function CustomerCatalogProvider({ children }: PropsWithChildren) {
       });
       if (request !== refreshSequence.current) return;
       apply(catalog);
+      if (transitionTimer.current) clearTimeout(transitionTimer.current);
+      transitionTimer.current = null;
+      void readNextOfferTransition().then((transition) => {
+        if (request !== refreshSequence.current || transition === null) return;
+        const delay = Math.max(1_000, transition - Date.now() + 1_000);
+        transitionTimer.current = setTimeout(() => transitionReload.current(), Math.min(delay, 2_147_000_000));
+      }).catch(() => undefined);
       setSectionStatus({ scope, categoryRead: "ready", offerRead: "ready" });
+      lastValidatedRef.current = { scope, at: Date.now() };
       void getRatingSummaries().then((result) => {
         if (request === refreshSequence.current) setRatingSnapshot({ scope, rows: { storeRatings: result.stores, productRatings: result.products } });
       }).catch(() => {
@@ -236,22 +256,47 @@ export function CustomerCatalogProvider({ children }: PropsWithChildren) {
         categoryRead: previous?.scope === scope && previous.categoryRead !== "loading" ? previous.categoryRead : "error",
         offerRead: previous?.scope === scope && previous.offerRead !== "loading" ? previous.offerRead : "error",
       }));
-      setStatus({ scope, loading: false, error: cause instanceof Error
+      setStatus({ scope, loading: false, refreshing: false, error: cause instanceof Error
         ? cause.message : "تعذر تحميل بيانات المتاجر والمنتجات." });
     } finally {
-      if (request === refreshSequence.current) setStatus(previous => ({ ...previous, loading: false }));
+      if (request === refreshSequence.current) setStatus(previous => ({ ...previous, loading: false, refreshing: false }));
     }
   }, [enabled, owner, scope, setCatalogState]);
 
-  const refresh = useCallback(() => readCatalog(true), [readCatalog]);
+  const runCatalogRead = useCallback((force: boolean) => {
+    if (!enabled) return Promise.resolve();
+    if (!force && lastValidatedRef.current?.scope === scope && Date.now() - lastValidatedRef.current.at < 60_000) return Promise.resolve();
+    if (catalogReadRef.current?.scope === scope) return catalogReadRef.current.promise;
+    const promise = (async () => {
+      await readCatalog(true);
+    })().finally(() => {
+      if (catalogReadRef.current?.promise === promise) catalogReadRef.current = null;
+    });
+    catalogReadRef.current = { scope, promise };
+    return promise;
+  }, [enabled, readCatalog, scope]);
+  useEffect(() => {
+    transitionReload.current = () => { void runCatalogRead(true); };
+  }, [runCatalogRead]);
+
+  useEffect(() => () => {
+    if (transitionTimer.current) clearTimeout(transitionTimer.current);
+  }, []);
+
+  const refresh = useCallback(() => runCatalogRead(true), [runCatalogRead]);
+  const revalidate = useCallback(() => runCatalogRead(false), [runCatalogRead]);
   const resetForAccessChange = useCallback(() => {
     categorySequence.current += 1;
+    if (transitionTimer.current) clearTimeout(transitionTimer.current);
+    transitionTimer.current = null;
     setSnapshot(null);
     setRatingSnapshot(null);
     setSectionStatus(undefined);
+    catalogReadRef.current = null;
+    lastValidatedRef.current = null;
     void invalidatePublicCatalog(owner);
-    void readCatalog(false);
-  }, [owner, readCatalog]);
+    void runCatalogRead(true);
+  }, [owner, runCatalogRead]);
 
   const refreshProductAvailability = useCallback(async (productId: string) => {
     refreshSequence.current += 1;
@@ -265,9 +310,9 @@ export function CustomerCatalogProvider({ children }: PropsWithChildren) {
   }, [refresh, setCatalogState]);
 
   useEffect(() => {
-    const timer = setTimeout(() => void refresh(), 0);
+    const timer = setTimeout(() => void runCatalogRead(false), 0);
     return () => { clearTimeout(timer); refreshSequence.current += 1; categorySequence.current += 1; };
-  }, [refresh]);
+  }, [runCatalogRead]);
 
   const refreshCategories = useCallback(async () => {
     const request = ++categorySequence.current;
@@ -275,15 +320,18 @@ export function CustomerCatalogProvider({ children }: PropsWithChildren) {
     if (request !== categorySequence.current) return;
     categoryApplied.current += 1;
     setCatalogState(previous => ({ ...previous, ...toCategoryState(choices) }));
+    setSectionStatus(previous => ({
+      scope, offerRead: previous?.scope === scope ? previous.offerRead : "loading", categoryRead: "ready",
+    }));
     await invalidatePublicCatalog();
-  }, [setCatalogState]);
+  }, [scope, setCatalogState]);
 
   useLiveUpdates({ channelName: `marketplace-categories:${scope}`, enabled,
     subscriptions: [{ table: "catalog_category_revision" }], onChange: refreshCategories });
 
   const value = useMemo(
-    () => ({ ...catalogState, ...ratings, loading, error, categoryRead, offerRead, refresh, resetForAccessChange, refreshProductAvailability }),
-    [catalogState, ratings, loading, error, categoryRead, offerRead, refresh, resetForAccessChange, refreshProductAvailability],
+    () => ({ ...catalogState, ...ratings, loading, refreshing, error, categoryRead, offerRead, refresh, revalidate, refreshCategories, resetForAccessChange, refreshProductAvailability }),
+    [catalogState, ratings, loading, refreshing, error, categoryRead, offerRead, refresh, revalidate, refreshCategories, resetForAccessChange, refreshProductAvailability],
   );
 
   return (

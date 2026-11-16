@@ -1,6 +1,6 @@
 import { Pressable, Text, View } from "react-native";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { Spacing } from "@/constants/theme";
+import { RtlText, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 
 export function RatingStars({ rating, onChange, size = 18 }: { rating: number; onChange?: (rating: number) => void; size?: number }) {
@@ -16,6 +16,6 @@ export function RatingStars({ rating, onChange, size = 18 }: { rating: number; o
 
 export function RatingSummary({ averageRating, ratingCount }: { averageRating: number | null; ratingCount: number }) {
   const { colors } = useTheme();
-  if (averageRating === null || ratingCount === 0) return <Text style={{ color: colors.textMuted, textAlign: "right" }}>لا توجد تقييمات بعد</Text>;
-  return <View style={{ flexDirection: "row-reverse", alignItems: "center", gap: Spacing.two }}><RatingStars rating={Math.round(averageRating)} /><Text style={{ color: colors.text, fontVariant: ["tabular-nums"] }}>{averageRating.toFixed(1)} · {ratingCount} تقييم</Text></View>;
+  if (averageRating === null || ratingCount === 0) return <Text style={{ color: colors.textMuted, ...RtlText }}>لا توجد تقييمات بعد</Text>;
+  return <View style={{ flexDirection: "row-reverse", alignItems: "center", gap: Spacing.two }}><RatingStars rating={Math.round(averageRating)} /><Text style={{ color: colors.text, ...RtlText, fontVariant: ["tabular-nums"] }}>{averageRating.toFixed(1)} · {ratingCount} تقييم</Text></View>;
 }

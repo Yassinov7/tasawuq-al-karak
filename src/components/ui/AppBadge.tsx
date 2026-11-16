@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 
 import { AppIcon } from "@/components/ui/AppIcon";
-import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
+import { FontSizes, Fonts, Radius, RtlText, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 
 type AppBadgeProps = {
@@ -74,5 +74,6 @@ const styles = StyleSheet.create({
   text: {
     fontFamily: Fonts.medium,
     fontSize: FontSizes.xs,
+    ...RtlText,
   },
 });

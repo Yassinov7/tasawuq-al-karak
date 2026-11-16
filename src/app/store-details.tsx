@@ -1,955 +1,226 @@
-import { categoryFilterIds, categoryPath } from "@/lib/category-tree";
-import { Href, useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+  FlatList, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View,
 } from "react-native";
 
 import { CategoryChip } from "@/components/marketplace/CategoryChip";
 import { OfferCard } from "@/components/marketplace/OfferCard";
 import { ProductCard } from "@/components/marketplace/ProductCard";
 import { StoreDetailsHero } from "@/components/marketplace/StoreDetailsHero";
-import { RatingsSection } from "@/components/marketplace/RatingsSection";
-import { AppHeader } from "@/components/navigation/AppHeader";
+import { CustomerMarketHeader } from "@/components/navigation/CustomerMarketHeader";
+import { AppButton } from "@/components/ui/AppButton";
+import { AppEmptyState } from "@/components/ui/AppEmptyState";
 import { AppIcon } from "@/components/ui/AppIcon";
-import type { Product } from "@/types/catalog";
-import { CustomerCatalogStatus } from "@/components/marketplace/CustomerCatalogStatus";
-import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
+import { ControlSizes, FontSizes, Fonts, Radius, RtlText, Spacing } from "@/constants/theme";
+import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { useTheme } from "@/context/ThemeContext";
+import { useCustomerStoreLogos } from "@/hooks/useCustomerStoreLogos";
+import { useDriverTaskRefresh } from "@/hooks/useDriverTaskRefresh";
+import { categoryAncestors, categoryFilterIds, categoryPath } from "@/lib/category-tree";
+import { matchesAllCustomerSearchTerms, normalizeCustomerSearchText } from "@/lib/customer-search";
+import { readCustomerStoreIdentity } from "@/lib/customer-store-details";
+import type { Product } from "@/types/catalog";
+
+const webRtl = Platform.OS === "web" ? { dir: "rtl" as const } : {};
+const PRODUCT_PAGE_SIZE = 12;
 
 export default function StoreDetailsScreen() {
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { user, loading } = useAuth();
+  const owner = user?.id ?? null;
+  const storeId = typeof id === "string" ? id : undefined;
+  const scope = JSON.stringify([storeId, owner, user?.role, user?.app_metadata.role, user?.app_metadata.roles, loading]);
+  return <StoreDetails key={scope} id={storeId} owner={owner} enabled={!loading} />;
+}
+
+function StoreDetails({ id, owner, enabled }: { id?: string; owner: string | null; enabled: boolean }) {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{
-    id?: string;
-  }>();
-
   const { colors } = useTheme();
+  const { width, fontScale } = useWindowDimensions();
   const { itemCount, selectedOfferIds } = useCart();
-  const {
-    categories,
-    error,
-    loading,
-    offers,
-    products,
-    stores,
-    storeCategories: allStoreCategories,
-  } =
-    useCustomerCatalog();
-
+  const { categories, error, loading, offers, products, stores, storeCategories, refresh } = useCustomerCatalog();
+  const store = enabled ? stores.find(item => item.id === id) : undefined;
+  const category = storeCategories.find(item => store?.categoryIds.includes(item.id));
   const [searchText, setSearchText] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  const selectedIds = useMemo(() => selectedCategory === "all" ? null : categoryFilterIds(categories, selectedCategory), [categories, selectedCategory]);
-  const categoryNodes = useMemo(() => new Map(categories.map(category => [category.id, category])), [categories]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [visibleProductCount, setVisibleProductCount] = useState(PRODUCT_PAGE_SIZE);
+  const [refreshing, setRefreshing] = useState(false);
+  const [identity, setIdentity] = useState<Awaited<ReturnType<typeof readCustomerStoreIdentity>>>();
+  const identityAt = useRef(0);
+  const catalogAt = useRef(0);
+  const refreshLock = useRef(false);
+  const storeId = store?.id;
 
-  const store = useMemo(() => stores.find((item) => item.id === id), [id, stores]);
-
-  const storeProducts = useMemo(
-    () => products.filter((product) => product.storeId === store?.id),
-    [products, store?.id],
-  );
-
-  const storeCategories = useMemo(() => {
-    const categoryIds = new Set(
-      storeProducts.map((product) => product.categoryId),
-    );
-
-    const parents = new Set(categories.filter(category => categoryIds.has(category.id)).map(category => category.parentId));
-    return categories.filter(category => categoryIds.has(category.id) || parents.has(category.id));
-  }, [categories, storeProducts]);
-
-  const filteredProducts = useMemo(() => {
-    const query = searchText.trim().toLocaleLowerCase("ar");
-
-    return storeProducts.filter((product) => {
-      const matchesCategory =
-        !selectedIds || selectedIds.has(product.categoryId);
-
-      if (!matchesCategory) {
-        return false;
+  const loadIdentity = useCallback(async (signal: AbortSignal) => {
+    if (!storeId) return;
+    try {
+      const next = await readCustomerStoreIdentity(storeId, owner, signal);
+      if (!signal.aborted) {
+        setIdentity(next);
+        identityAt.current = Date.now();
       }
+    } catch {
+      if (!signal.aborted) setIdentity({ acceptsOrders: null, video: null, failed: true });
+    }
+  }, [owner, storeId]);
+  const identityNeedsRefresh = useCallback(() => Date.now() - identityAt.current > 60_000, []);
+  const refreshIdentity = useDriverTaskRefresh(loadIdentity, Boolean(storeId), identityNeedsRefresh);
+  const { logos, refresh: refreshLogos } = useCustomerStoreLogos(storeId ? [storeId] : [], true);
+  const logo = storeId ? logos.get(storeId) : undefined;
 
-      if (!query) {
-        return true;
-      }
+  useEffect(() => {
+    if (enabled && !loading && !error) catalogAt.current = Date.now();
+  }, [enabled, error, loading, stores]);
+  const catalogNeedsRefresh = useCallback(() => catalogAt.current > 0 && Date.now() - catalogAt.current > 180_000, []);
+  const refreshCatalog = useCallback(async () => { await refresh(); }, [refresh]);
+  useDriverTaskRefresh(refreshCatalog, enabled, catalogNeedsRefresh);
 
-      const productName = product.name.toLocaleLowerCase("ar");
-
-      const description = product.description.toLocaleLowerCase("ar");
-
-      return productName.includes(query) || description.includes(query);
-    });
-  }, [searchText, selectedIds, storeProducts]);
-
-  const popularProducts = useMemo(() => filteredProducts.slice(0, 6), [filteredProducts]);
-
-  const offerProducts = useMemo(
-    () =>
-      offers
-        .filter(
-          (offer) =>
-            offer.store_id === store?.id &&
-            offer.items.some(
-              (item) =>
-                !selectedIds || selectedIds.has(item.product.categoryId),
-            ),
-        )
-        .slice(0, 6),
-    [offers, selectedIds, store?.id],
-  );
-
-  const primaryCategory = useMemo(
-    () =>
-      store
-        ? allStoreCategories.find((category) => store.categoryIds.includes(category.id))
-        : undefined,
-    [store, allStoreCategories],
-  );
-
-  const handleProductPress = (productId: string) => {
-    router.push({
-      pathname: "/product-details",
-      params: {
-        id: productId,
-      },
-    } as Href);
+  const reload = async () => {
+    if (refreshLock.current) return;
+    refreshLock.current = true;
+    setRefreshing(true);
+    try { await Promise.allSettled([refresh(), refreshIdentity("manual"), refreshLogos("manual")]); }
+    finally { refreshLock.current = false; setRefreshing(false); }
   };
 
-  const resetFilters = () => {
-    setSearchText("");
-    setSelectedCategory("all");
+  const catalog = useMemo(() => {
+    const localProducts = products.filter(product => product.storeId === storeId);
+    const nodes = new Map(categories.map(item => [item.id, item]));
+    const used = new Set(localProducts.flatMap(product => {
+      const item = nodes.get(product.categoryId);
+      return item ? categoryAncestors(item, nodes).map(node => node.id) : [];
+    }));
+    const selectedIds = selectedCategory ? categoryFilterIds(categories, selectedCategory) : null;
+    const terms = normalizeCustomerSearchText(searchText).split(" ").filter(Boolean);
+    return {
+      hasProducts: localProducts.length > 0,
+      categoryOptions: categories.filter(item => used.has(item.id)).map(item => ({ id: item.id, label: categoryPath(item, nodes), icon: item.icon })),
+      filtered: localProducts.filter(product => (!selectedIds || selectedIds.has(product.categoryId)) &&
+        matchesAllCustomerSearchTerms([product.name, product.description, product.unit].join(" "), terms)),
+    };
+  }, [categories, products, searchText, selectedCategory, storeId]);
+
+  const storeOffers = useMemo(() => offers.filter(offer => offer.store_id === storeId), [offers, storeId]);
+  const activeOffers = storeOffers; // Eligibility is centralized in CustomerCatalogContext.
+
+  const columns = width < 320 || fontScale > 1.25 ? 1 : 2;
+  const cardWidth = Math.floor((Math.min(width, 760) - 2 * Spacing.four - (columns - 1) * Spacing.two) / columns);
+  const visibleProducts = useMemo(
+    () => catalog.filtered.slice(0, visibleProductCount),
+    [catalog.filtered, visibleProductCount],
+  );
+  const hasMoreProducts = visibleProducts.length < catalog.filtered.length;
+  const rows = useMemo(() => {
+    const grouped: Product[][] = [];
+    for (let start = 0; start < visibleProducts.length; start += columns) grouped.push(visibleProducts.slice(start, start + columns));
+    return grouped;
+  }, [visibleProducts, columns]);
+  const loadMoreProducts = useCallback(() => {
+    if (hasMoreProducts) setVisibleProductCount(count => Math.min(count + PRODUCT_PAGE_SIZE, catalog.filtered.length));
+  }, [catalog.filtered.length, hasMoreProducts]);
+  const goBack = () => {
+    Keyboard.dismiss();
+    if (router.canGoBack()) router.back();
+    else router.replace("/stores");
   };
+  const open = (pathname: "/product-details" | "/offer-details", detailId: string) => {
+    Keyboard.dismiss();
+    router.push({ pathname, params: { id: detailId } });
+  };
+  const headline = (title: string) => <Text accessibilityRole="header" style={[styles.heading, { color: colors.text }]}>{title}</Text>;
 
-  if (loading || error) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <AppHeader title="المتجر" showBack cartCount={itemCount} />
-        <CustomerCatalogStatus />
-      </View>
-    );
-  }
-
-  if (!store) {
-    return (
-      <View
-        style={[
-          styles.container,
-          {
-            backgroundColor: colors.background,
-          },
-        ]}
-      >
-        <AppHeader title="المتجر" showBack cartCount={itemCount} />
-
-        <View style={styles.notFound}>
-          <View
-            style={[
-              styles.notFoundIcon,
-              {
-                backgroundColor: colors.primaryLight,
-              },
-            ]}
-          >
-            <AppIcon
-              name="storefront-outline"
-              size={42}
-              color={colors.primary}
-            />
-          </View>
-
-          <Text
-            style={[
-              styles.notFoundTitle,
-              {
-                color: colors.text,
-              },
-            ]}
-          >
-            المتجر غير موجود
-          </Text>
-
-          <Text
-            style={[
-              styles.notFoundText,
-              {
-                color: colors.textSecondary,
-              },
-            ]}
-          >
-            يبدو أن هذا المتجر لم يعد متاحاً.
-          </Text>
-
-          <Pressable
-            onPress={() => router.push("/stores")}
-            style={({ pressed }) => [
-              styles.backButton,
-              {
-                backgroundColor: colors.primary,
-              },
-              pressed && styles.pressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="العودة إلى المتاجر"
-          >
-            <Text
-              style={[
-                styles.backButtonText,
-                {
-                  color: colors.surface,
-                },
-              ]}
-            >
-              العودة إلى المتاجر
-            </Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
-
-  const showHighlights = !searchText.trim() && selectedCategory === "all";
-
-  return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: colors.background,
-        },
-      ]}
-    >
-      <AppHeader title={store.name} showBack cartCount={itemCount} mode="shared" />
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.content}
-      >
-        <StoreDetailsHero store={store} categoryIcon={primaryCategory?.icon} />
-
-        <View
-          style={[
-            styles.statsCard,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-            },
-          ]}
-        >
-          <StoreStat
-            icon="cube-outline"
-            label="المنتجات"
-            value={String(storeProducts.length)}
-            iconColor={colors.primary}
-          />
-        </View>
-
-        <View
-          style={[
-            styles.searchContainer,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-            },
-          ]}
-        >
-          <AppIcon name="search-outline" size={19} color={colors.textMuted} />
-
-          <TextInput
-            value={searchText}
-            onChangeText={setSearchText}
-            placeholder="ابحث داخل المتجر..."
-            placeholderTextColor={colors.textMuted}
-            style={[
-              styles.searchInput,
-              {
-                color: colors.text,
-              },
-            ]}
-            textAlign="right"
-            returnKeyType="search"
-            accessibilityLabel="البحث داخل المتجر"
-          />
-        </View>
-
-        {storeCategories.length > 0 ? (
-          <View style={styles.categorySection}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.categoryList}
-            >
-              <CategoryChip
-                label="الكل"
-                icon="grid-outline"
-                active={selectedCategory === "all"}
-                onPress={() => setSelectedCategory("all")}
-              />
-
-              {storeCategories.map((category) => (
-                <CategoryChip
-                  key={category.id}
-                  label={categoryPath(category, categoryNodes)}
-                  icon={category.icon}
-                  active={selectedCategory === category.id}
-                  onPress={() => setSelectedCategory(category.id)}
-                />
-              ))}
-            </ScrollView>
-          </View>
-        ) : null}
-
-        {showHighlights && popularProducts.length > 0 ? (
-          <ProductSection
-            title="منتجات من المتجر"
-            subtitle="تشكيلة من منتجات المتجر"
-            icon="grid-outline"
-            products={popularProducts}
-            onProductPress={handleProductPress}
-          />
-        ) : null}
-
-        {showHighlights && offerProducts.length > 0 ? (
-          <OfferSection
-            offers={offerProducts}
-            selectedOfferIds={selectedOfferIds}
-            onOfferPress={(offerId) =>
-              router.push({
-                pathname: "/offer-details",
-                params: { id: offerId },
-              })
-            }
-          />
-        ) : null}
-
-        <View style={styles.allProductsSection}>
-          <View style={styles.sectionHeader}>
-            <View>
-              <Text
-                style={[
-                  styles.sectionTitle,
-                  {
-                    color: colors.text,
-                  },
-                ]}
-              >
-                {searchText.trim()
-                  ? "نتائج البحث"
-                  : selectedCategory === "all"
-                    ? "كل المنتجات"
-                    : "منتجات التصنيف"}
-              </Text>
-
-              <Text
-                style={[
-                  styles.sectionSubtitle,
-                  {
-                    color: colors.textMuted,
-                  },
-                ]}
-              >
-                {filteredProducts.length} منتج
-              </Text>
-            </View>
-
-            <View
-              style={[
-                styles.sectionIcon,
-                {
-                  backgroundColor: colors.primaryLight,
-                },
-              ]}
-            >
-              <AppIcon name="grid-outline" size={20} color={colors.primary} />
-            </View>
-          </View>
-
-          {filteredProducts.length > 0 ? (
-            <View style={styles.productGrid}>
-              {filteredProducts.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  compact
-                  showStore={false}
-                  showOffer
-                  onPress={() => handleProductPress(product.id)}
-                />
-              ))}
-            </View>
-          ) : (
-            <View
-              style={[
-                styles.emptyProducts,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.emptyIcon,
-                  {
-                    backgroundColor: colors.primaryLight,
-                  },
-                ]}
-              >
-                <AppIcon
-                  name="search-outline"
-                  size={34}
-                  color={colors.primary}
-                />
+  return <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <CustomerMarketHeader title="المتجر" screenTitle={store?.name} showBack onBack={goBack} cartCount={itemCount} mode="shared" />
+    {!store ? <View style={[styles.content, styles.stack]}>
+      {!enabled || loading ? <Text accessibilityLiveRegion="polite" style={[styles.meta, { color: colors.textSecondary }]}>جارٍ تحميل المتجر…</Text>
+        : error ? <>
+          <Text style={[styles.meta, { color: colors.error }]}>تعذر تحميل المتجر.</Text>
+          <AppButton compact title="إعادة المحاولة" variant="outline" onPress={() => void reload()} />
+        </> : <AppEmptyState icon="storefront-outline" title="المتجر غير متاح" buttonText="رجوع" onButtonPress={goBack} />}
+    </View> : (
+      <FlatList style={styles.container} contentContainerStyle={[styles.content, styles.list]}
+        data={rows} keyExtractor={row => row[0].id} keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}
+        refreshing={refreshing} onRefresh={() => void reload()}
+        onEndReached={loadMoreProducts} onEndReachedThreshold={0.35}
+        ListHeaderComponent={<View style={styles.stack}>
+          <StoreDetailsHero store={store} category={category?.name} categoryIcon={category?.icon}
+            logo={logo} acceptsOrders={identity?.acceptsOrders ?? null} video={identity?.video} owner={owner}
+            onReviewsPress={() => router.push({ pathname: "/store-reviews", params: { id: store.id } })} />
+          {error || identity?.failed ? <View style={styles.notice}>
+            <Text accessibilityLiveRegion="polite" style={[styles.meta, { color: colors.error }]}>تعذر تحديث بعض معلومات المتجر.</Text>
+            <AppButton compact title="إعادة المحاولة" variant="outline" fullWidth={false} onPress={() => void reload()} />
+          </View> : null}
+          {activeOffers.length ? <View style={styles.group}>
+            {headline("عروض المتجر")}
+            <FlatList {...webRtl} horizontal data={activeOffers} keyExtractor={offer => offer.id}
+              showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}
+              renderItem={({ item }) => <OfferCard offer={item} cardWidth={Math.min(222, cardWidth * columns)}
+                added={selectedOfferIds.includes(item.id)} onPress={() => open("/offer-details", item.id)} />} />
+          </View> : null}
+          <View style={styles.group}>
+            {headline("المنتجات")}
+            {catalog.hasProducts ? <>
+              <View style={[styles.search, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <AppIcon name="search-outline" size={20} color={colors.primary} />
+                <TextInput value={searchText} onChangeText={value => { setSearchText(value); setVisibleProductCount(PRODUCT_PAGE_SIZE); }} placeholder="ابحث في منتجات المتجر"
+                  accessibilityLabel="ابحث في منتجات المتجر" placeholderTextColor={colors.textMuted}
+                  returnKeyType="search" onSubmitEditing={Keyboard.dismiss} style={[styles.input, { color: colors.text }]} />
+                {searchText ? <Pressable accessibilityRole="button" accessibilityLabel="مسح بحث المنتجات"
+                  style={styles.clear} onPress={() => { setSearchText(""); setVisibleProductCount(PRODUCT_PAGE_SIZE); }}>
+                  <AppIcon name="close-circle" size={20} color={colors.textMuted} />
+                </Pressable> : null}
               </View>
-
-              <Text
-                style={[
-                  styles.emptyTitle,
-                  {
-                    color: colors.text,
-                  },
-                ]}
-              >
-                لا توجد منتجات
-              </Text>
-
-              <Text
-                style={[
-                  styles.emptyText,
-                  {
-                    color: colors.textSecondary,
-                  },
-                ]}
-              >
-                لم نجد منتجات مطابقة للبحث أو التصنيف المحدد.
-              </Text>
-
-              <Pressable
-                onPress={resetFilters}
-                style={({ pressed }) => [
-                  styles.resetButton,
-                  {
-                    backgroundColor: colors.primary,
-                  },
-                  pressed && styles.pressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="عرض جميع المنتجات"
-              >
-                <Text
-                  style={[
-                    styles.resetButtonText,
-                    {
-                      color: colors.surface,
-                    },
-                  ]}
-                >
-                  عرض جميع المنتجات
-                </Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
-        <RatingsSection kind="store" storeId={store.id} showSummary={false} />
-      </ScrollView>
-    </View>
-  );
-}
-
-type StoreStatProps = {
-  icon: React.ComponentProps<typeof AppIcon>["name"];
-  label: string;
-  value: string;
-  iconColor?: string;
-};
-
-function StoreStat({ icon, label, value, iconColor }: StoreStatProps) {
-  const { colors } = useTheme();
-
-  return (
-    <View style={styles.stat}>
-      <AppIcon name={icon} size={18} color={iconColor ?? colors.primary} />
-
-      <Text
-        style={[
-          styles.statValue,
-          {
-            color: colors.text,
-          },
-        ]}
-      >
-        {value}
-      </Text>
-
-      <Text
-        style={[
-          styles.statLabel,
-          {
-            color: colors.textMuted,
-          },
-        ]}
-      >
-        {label}
-      </Text>
-    </View>
-  );
-}
-
-type ProductSectionProps = {
-  title: string;
-  subtitle: string;
-  icon: React.ComponentProps<typeof AppIcon>["name"];
-  products: Product[];
-  onProductPress: (productId: string) => void;
-};
-
-function ProductSection({
-  title,
-  subtitle,
-  icon,
-  products: sectionProducts,
-  onProductPress,
-}: ProductSectionProps) {
-  const { colors } = useTheme();
-
-  return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <View>
-          <Text
-            style={[
-              styles.sectionTitle,
-              {
-                color: colors.text,
-              },
-            ]}
-          >
-            {title}
-          </Text>
-
-          <Text
-            style={[
-              styles.sectionSubtitle,
-              {
-                color: colors.textMuted,
-              },
-            ]}
-          >
-            {subtitle}
-          </Text>
-        </View>
-
-        <View
-          style={[
-            styles.sectionIcon,
-            {
-              backgroundColor: colors.primaryLight,
-            },
-          ]}
-        >
-          <AppIcon name={icon} size={19} color={colors.primary} />
-        </View>
-      </View>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.horizontalList}
-      >
-        {sectionProducts.map((product) => (
-          <ProductCard
-            key={product.id}
-            product={product}
-            showStore={false}
-            showOffer
-            onPress={() => onProductPress(product.id)}
-          />
-        ))}
-      </ScrollView>
-    </View>
-  );
-}
-
-function OfferSection({
-  offers,
-  selectedOfferIds,
-  onOfferPress,
-}: {
-  offers: ReturnType<typeof useCustomerCatalog>["offers"];
-  selectedOfferIds: string[];
-  onOfferPress: (offerId: string) => void;
-}) {
-  const { colors } = useTheme();
-
-  return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <View>
-          <Text
-            style={[
-              styles.sectionTitle,
-              {
-                color: colors.text,
-              },
-            ]}
-          >
-            عروض المتجر
-          </Text>
-
-          <Text
-            style={[
-              styles.sectionSubtitle,
-              {
-                color: colors.textMuted,
-              },
-            ]}
-          >
-            منتجات مميزة بأسعار العرض
-          </Text>
-        </View>
-
-        <View
-          style={[
-            styles.sectionIcon,
-            {
-              backgroundColor: colors.accentLight,
-            },
-          ]}
-        >
-          <AppIcon name="pricetags-outline" size={19} color={colors.accent} />
-        </View>
-      </View>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.horizontalList}
-      >
-        {offers.map((offer) => (
-          <OfferCard
-            key={offer.id}
-            offer={offer}
-            added={selectedOfferIds.includes(offer.id)}
-            onPress={() => onOfferPress(offer.id)}
-          />
-        ))}
-      </ScrollView>
-    </View>
-  );
+              {catalog.categoryOptions.length > 1 ? <ScrollView {...webRtl} horizontal showsHorizontalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled" contentContainerStyle={styles.rail}>
+                <CategoryChip label="كل المنتجات" active={selectedCategory === null}
+                  onPress={() => { setSelectedCategory(null); setVisibleProductCount(PRODUCT_PAGE_SIZE); }} />
+                {catalog.categoryOptions.map(item => (
+                  <CategoryChip key={item.id} label={item.label} icon={item.icon} active={item.id === selectedCategory}
+                    onPress={() => { Keyboard.dismiss(); setVisibleProductCount(PRODUCT_PAGE_SIZE);
+                      setSelectedCategory(current => current === item.id ? null : item.id); }} />
+                ))}
+              </ScrollView> : null}
+            </> : null}
+          </View>
+        </View>}
+        renderItem={({ item }) => <View style={styles.cards}>
+          {item.map(product => <ProductCard key={product.id} product={product} cardWidth={cardWidth}
+            compact showStore={false} showOffer onPress={() => open("/product-details", product.id)} />)}
+        </View>}
+        ListEmptyComponent={loading ? <Text style={[styles.meta, { color: colors.textSecondary }]}>جارٍ تحميل المنتجات…</Text>
+          : error && !catalog.hasProducts ? null : <AppEmptyState icon="cube-outline"
+            title={catalog.hasProducts ? "لم نجد منتجات مطابقة" : "لا توجد منتجات متاحة حاليًا"}
+            buttonText={catalog.hasProducts ? "إزالة الفلاتر" : undefined}
+            onButtonPress={() => { setSearchText(""); setSelectedCategory(null); setVisibleProductCount(PRODUCT_PAGE_SIZE); }} />}
+        ListFooterComponent={hasMoreProducts ? <View style={styles.footer}>
+          <AppButton compact title="عرض المزيد من المنتجات" variant="outline" fullWidth={false} onPress={loadMoreProducts} />
+        </View> : visibleProducts.length ? <Text accessibilityLiveRegion="polite"
+          style={[styles.end, { color: colors.textMuted }]}>تم عرض جميع المنتجات المطابقة</Text> : null}
+      />
+    )}
+  </View>;
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-
-  content: {
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.ten,
-  },
-
-  storeHero: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: Spacing.four,
-    padding: Spacing.four,
-    borderWidth: 1,
-    borderRadius: Radius.xl,
-  },
-
-  storeHeroIcon: {
-    width: 92,
-    height: 92,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.xl,
-  },
-
-  storeHeroInfo: {
-    flex: 1,
-    alignItems: "flex-end",
-  },
-
-  storeTitleRow: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: Spacing.two,
-  },
-
-  storeName: {
-    flexShrink: 1,
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.xl,
-    textAlign: "right",
-  },
-
-  featuredBadge: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 3,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: 4,
-    borderRadius: Radius.full,
-  },
-
-  featuredText: {
-    fontFamily: Fonts.bold,
-    fontSize: 9,
-  },
-
-  storeDescription: {
-    marginTop: Spacing.two,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    lineHeight: 21,
-    textAlign: "right",
-  },
-
-  locationRow: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: Spacing.one,
-    marginTop: Spacing.two,
-  },
-
-  locationText: {
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.xs,
-  },
-
-  statsCard: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-around",
-    marginTop: Spacing.three,
-    paddingVertical: Spacing.three,
-    borderWidth: 1,
-    borderRadius: Radius.xl,
-  },
-
-  stat: {
-    minWidth: 75,
-    alignItems: "center",
-    gap: 2,
-  },
-
-  statValue: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.sm,
-  },
-
-  statLabel: {
-    fontFamily: Fonts.regular,
-    fontSize: 9,
-  },
-
-  statDivider: {
-    width: 1,
-    height: 38,
-  },
-
-  deliveryCard: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: Spacing.three,
-    marginTop: Spacing.three,
-    padding: Spacing.three,
-    borderRadius: Radius.lg,
-  },
-
-  deliveryIcon: {
-    width: 42,
-    height: 42,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.md,
-  },
-
-  deliveryInfo: {
-    flex: 1,
-    alignItems: "flex-end",
-  },
-
-  deliveryTitle: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.sm,
-  },
-
-  deliveryText: {
-    marginTop: 2,
-    fontFamily: Fonts.regular,
-    fontSize: 10,
-  },
-
-  searchContainer: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    minHeight: 50,
-    marginTop: Spacing.four,
-    paddingHorizontal: Spacing.three,
-    borderWidth: 1,
-    borderRadius: Radius.lg,
-  },
-
-  searchInput: {
-    flex: 1,
-    minHeight: 48,
-    marginStart: Spacing.two,
-    paddingVertical: 0,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-  },
-
-  categorySection: {
-    marginTop: Spacing.three,
-  },
-
-  categoryList: {
-    flexDirection: "row-reverse",
-    gap: Spacing.two,
-    paddingBottom: Spacing.one,
-  },
-
-  section: {
-    marginTop: Spacing.six,
-  },
-
-  allProductsSection: {
-    marginTop: Spacing.six,
-  },
-
-  sectionHeader: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: Spacing.three,
-  },
-
-  sectionTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.lg,
-    textAlign: "right",
-  },
-
-  sectionSubtitle: {
-    marginTop: 2,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.xs,
-    textAlign: "right",
-  },
-
-  sectionIcon: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.full,
-  },
-
-  horizontalList: {
-    flexDirection: "row-reverse",
-    gap: Spacing.three,
-    paddingBottom: Spacing.one,
-  },
-
-  productGrid: {
-    flexDirection: "row-reverse",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    rowGap: Spacing.three,
-  },
-
-  emptyProducts: {
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 230,
-    padding: Spacing.five,
-    borderWidth: 1,
-    borderRadius: Radius.xl,
-  },
-
-  emptyIcon: {
-    width: 70,
-    height: 70,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.full,
-  },
-
-  emptyTitle: {
-    marginTop: Spacing.four,
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.md,
-  },
-
-  emptyText: {
-    maxWidth: 280,
-    marginTop: Spacing.two,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    lineHeight: 22,
-    textAlign: "center",
-  },
-
-  resetButton: {
-    marginTop: Spacing.four,
-    paddingHorizontal: Spacing.five,
-    paddingVertical: Spacing.three,
-    borderRadius: Radius.full,
-  },
-
-  resetButtonText: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.sm,
-  },
-
-  notFound: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: Spacing.six,
-  },
-
-  notFoundIcon: {
-    width: 88,
-    height: 88,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.full,
-  },
-
-  notFoundTitle: {
-    marginTop: Spacing.four,
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.xl,
-  },
-
-  notFoundText: {
-    marginTop: Spacing.one,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    textAlign: "center",
-  },
-
-  backButton: {
-    marginTop: Spacing.five,
-    paddingHorizontal: Spacing.five,
-    paddingVertical: Spacing.three,
-    borderRadius: Radius.full,
-  },
-
-  backButtonText: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.sm,
-  },
-
-  pressed: {
-    opacity: 0.72,
-  },
+  container: { flex: 1 },
+  content: { width: "100%", maxWidth: 760, alignSelf: "center", paddingHorizontal: Spacing.four, direction: "rtl" },
+  list: { paddingVertical: Spacing.two, paddingBottom: Spacing.six },
+  stack: { gap: Spacing.four, paddingBottom: Spacing.two },
+  group: { gap: Spacing.two },
+  heading: { fontFamily: Fonts.bold, fontSize: FontSizes.md, ...RtlText },
+  rail: { flexDirection: "row", gap: Spacing.two },
+  search: { flexDirection: "row", alignItems: "center", minHeight: ControlSizes.input,
+    borderWidth: 1, borderRadius: Radius.lg, paddingHorizontal: Spacing.two, gap: Spacing.two },
+  input: { flex: 1, minWidth: 0, minHeight: ControlSizes.input, ...RtlText,
+    fontFamily: Fonts.medium, fontSize: FontSizes.sm },
+  clear: { minWidth: ControlSizes.touch, minHeight: ControlSizes.touch, alignItems: "center", justifyContent: "center" },
+  cards: { flexDirection: "row", alignItems: "stretch", gap: Spacing.two, paddingBottom: Spacing.two },
+  notice: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: Spacing.two },
+  meta: { fontFamily: Fonts.medium, fontSize: FontSizes.sm, ...RtlText },
+  footer: { alignItems: "center", paddingTop: Spacing.two },
+  end: { paddingTop: Spacing.two, fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "center", writingDirection: "rtl" },
 });

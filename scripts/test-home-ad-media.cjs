@@ -42,14 +42,18 @@ const { pickHomeAdMedia } = load("src/lib/home-ad-picker.ts", mocks);
 const { uploadHomeAd } = load("src/lib/customer-home-ads.ts", mocks);
 
 async function testThumbnail() {
-  let timer, allowLoad, delayedLoad, failDecode, closeCount = 0;
+  platform.OS = "android";
+  let timer, allowLoad, delayedLoad, failDecode, statusListener, closeCount = 0;
   const frames = [];
   const frame = { release() { frames.push("release"); } };
   const player = {
     replaceAsync: () => delayedLoad ? new Promise(resolve => { allowLoad = resolve; }) : Promise.resolve(),
-    async generateThumbnailsAsync([seconds]) {
+    status: "loading",
+    duration: 2,
+    addListener(_event, fn) { statusListener = fn; return { remove() { statusListener = undefined; } }; },
+    async generateThumbnailsAsync([seconds], options) {
       frames.push(seconds);
-      if (failDecode || seconds > 0) throw Error("decode failure");
+      if (failDecode || options) throw Object.assign(Error("decode failure file:///data/private.mp4"), { code: "E_DECODE" });
       return [frame];
     },
     release() { closeCount++; },
@@ -71,20 +75,33 @@ async function testThumbnail() {
   vm.runInNewContext(ts.transpileModule(fs.readFileSync("src/lib/home-ad-thumbnail.ts", "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText, {
-    exports, require: name => native[name],
+    exports, require: name => native[name], AbortController,
     setTimeout(fn) { timer = fn; return 1; }, clearTimeout() {},
   });
-  assert.equal(await exports.createHomeAdThumbnail("video", 2000), "poster");
-  assert.deepEqual(frames.splice(0), [0.4, 0, "release"]);
+  const waiting = exports.createHomeAdThumbnail("file:///data/video.mp4", 2000);
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(frames.length, 0, "replaceAsync must not trigger decoding before readyToPlay");
+  player.status = "readyToPlay";
+  statusListener({ status: "readyToPlay" });
+  assert.equal(await waiting, "poster");
+  assert.equal(statusListener, undefined);
+  assert.deepEqual(frames.splice(0), [0.4, 0, 0, "release"]);
   assert.equal(closeCount, 1);
   failDecode = true;
-  await assert.rejects(exports.createHomeAdThumbnail("video", 2000), /تعذر قراءة إطار/);
+  await assert.rejects(exports.createHomeAdThumbnail("file:///data/video.mp4", 2000), error => {
+    assert.match(error.message, /اختر صورة غلاف/);
+    assert.match(error.detail, /generateThumbnailsAsync.*E_DECODE decode failure/);
+    assert.doesNotMatch(error.detail, /private.mp4/);
+    return true;
+  });
+  assert.equal(await exports.saveHomeAdCover("selected-photo"), "poster");
   assert.equal(closeCount, 2);
-  assert.deepEqual(frames.splice(0), [0.4, 0]);
+  assert.deepEqual(frames.splice(0), [0.4, 0, 0]);
   delayedLoad = true;
   const pending = exports.createHomeAdThumbnail("video");
   timer();
-  await assert.rejects(pending, /انتهت مهلة استخراج/);
+  await assert.rejects(pending, /انتهت مهلة استخراج الغلاف/);
   assert.equal(closeCount, 2, "cannot release while native replaceAsync is pending");
   allowLoad();
   await new Promise(resolve => setImmediate(resolve));

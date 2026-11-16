@@ -127,6 +127,14 @@ export const Fonts = {
   bold: FontFamily.bold,
 } as const;
 
+// Android Fabric resolves an explicit `right` as the opposite alignment for
+// an RTL paragraph. Keep the RTL base direction and let native bidi alignment
+// handle Arabic, numbers, and mixed text consistently.
+export const RtlText = {
+  textAlign: "auto",
+  writingDirection: "rtl",
+} as const;
+
 export const FontSizes = {
   xs: 12,
   sm: 14,

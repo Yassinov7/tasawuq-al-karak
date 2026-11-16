@@ -1,48 +1,22 @@
 import { userErrorMessage } from "@/lib/user-error-message";
 import { LoadingSkeleton } from "@/components/ui/LoadingState";
 import { useReadScope } from "@/hooks/useReadScope";
-import { LiveStatus } from "@/components/ui/LiveStatus";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { AppModal } from "@/components/ui/AppModal";
-import { CustomerOrderTimeline, DeliveryTracking, StoreStatusHistory } from "@/components/orders/OrderTracking";
+import { DeliveryTracking, OrderSuborderTracking } from "@/components/orders/OrderTracking";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { cancelCustomerOrder, formatCurrency, getCustomerOrder, type CustomerOrderView } from "@/lib/customer-orders";
 import { useOrderRealtime } from "@/hooks/useOrderRealtime";
-import { groupOrderItems } from "@/lib/order-item-groups";
-
-type StoreOrderStatus = NonNullable<CustomerOrderView["stores"][number]["storeOrder"]["status"]>;
-
-const statusIcons: Record<
-  StoreOrderStatus,
-  React.ComponentProps<typeof AppIcon>["name"]
-> = {
-  awaiting_review: "time-outline",
-  preparing: "time-outline",
-  ready_for_pickup: "checkmark-circle-outline",
-  handed_to_driver: "bicycle-outline",
-  delivered: "checkmark-done-outline",
-  rejected: "close-circle-outline",
-  cancelled: "close-circle-outline",
-};
-
-const statusLabels: Record<StoreOrderStatus, string> = {
-  awaiting_review: "بانتظار مراجعة المتجر",
-  preparing: "قيد التجهيز",
-  ready_for_pickup: "جاهز للاستلام",
-  handed_to_driver: "سُلّم إلى السائق",
-  delivered: "تم التسليم",
-  rejected: "مرفوض",
-  cancelled: "ملغى",
-};
+import { useCustomerStoreLogos } from "@/hooks/useCustomerStoreLogos";
 
 const customerStatusLabels: Record<CustomerOrderView["status"], string> = {
   submitted: "تم استلام الطلب",
@@ -64,6 +38,19 @@ const customerStatusIcons: Record<CustomerOrderView["status"], React.ComponentPr
   cancelled: "close-circle-outline",
 };
 
+function customerStatusTone(status: CustomerOrderView["status"], colors: ReturnType<typeof useTheme>["colors"]) {
+  if (status === "cancelled" || status === "partially_cancelled") {
+    return { foreground: colors.error, background: `${colors.error}18` };
+  }
+  if (status === "submitted" || status === "in_progress" || status === "out_for_delivery") {
+    return { foreground: colors.accent, background: colors.accentLight };
+  }
+  return { foreground: colors.primary, background: colors.primaryLight };
+}
+
+type OrderDetailsSnapshot = { order: CustomerOrderView; selectedStoreOrderId: string | null; scrollOffset: number };
+const orderDetailsSnapshots = new Map<string, OrderDetailsSnapshot>();
+
 export default function OrderDetailsScreen() {
   const {user}=useAuth();
   const {id}=useLocalSearchParams<{id?:string}>();
@@ -80,12 +67,28 @@ function OrderDetailsContent() {
   const { user } = useAuth();
 
   const orderId = typeof params.id === "string" ? params.id : "";
-  const [order, setOrder] = useState<CustomerOrderView | null>(null);
-  const [loading, setLoading] = useState(true);
+  const snapshotKey = `${user?.id ?? "guest"}:${orderId}`;
+  const initialSnapshot = orderDetailsSnapshots.get(snapshotKey);
+  const [order, setOrder] = useState<CustomerOrderView | null>(initialSnapshot?.order ?? null);
+  const [loading, setLoading] = useState(!initialSnapshot);
   const [error, setError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedStoreOrderId, setSelectedStoreOrderId] = useState<string | null | undefined>(initialSnapshot ? initialSnapshot.selectedStoreOrderId : undefined);
+  const orderStatusTone = order ? customerStatusTone(order.status, colors) : null;
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollOffsetRef = useRef(initialSnapshot?.scrollOffset ?? 0);
+  const restoredScrollRef = useRef(false);
+
+  const storeIds = useMemo(() => order?.stores.map(({ storeOrder }) => storeOrder.store_id) ?? [], [order]);
+  const { logos } = useCustomerStoreLogos(storeIds, true, true);
+  const effectiveSelectedStoreOrderId = useMemo(() => {
+    const first = order?.stores[0]?.storeOrder.id ?? null;
+    if (selectedStoreOrderId === undefined) return first;
+    if (selectedStoreOrderId && !order?.stores.some(({ storeOrder }) => storeOrder.id === selectedStoreOrderId)) return first;
+    return selectedStoreOrderId;
+  }, [order, selectedStoreOrderId]);
 
   const reads=useReadScope(`${user?.id}:${orderId}`);
   const refresh = useCallback(async () => {
@@ -116,6 +119,11 @@ function OrderDetailsContent() {
     return () => clearTimeout(timer);
   }, [refresh]);
 
+  useEffect(() => {
+    if (!order) return;
+    orderDetailsSnapshots.set(snapshotKey, { order, selectedStoreOrderId: effectiveSelectedStoreOrderId, scrollOffset: scrollOffsetRef.current });
+  }, [effectiveSelectedStoreOrderId, order, snapshotKey]);
+
   const realtimeSubscriptions = useMemo(
     () => orderId ? [
       { table: "customer_orders" as const, filter: `id=eq.${orderId}` },
@@ -127,7 +135,7 @@ function OrderDetailsContent() {
   const refreshFromRealtime = useCallback(() => {
     return refresh();
   }, [refresh]);
-  const live = useOrderRealtime({
+  useOrderRealtime({
     channelName: `customer-order:${orderId}`,
     enabled: Boolean(user && orderId),
     subscriptions: realtimeSubscriptions,
@@ -143,7 +151,7 @@ function OrderDetailsContent() {
     ),
   );
   const shouldShowDeliveryStatus = Boolean(
-    order?.deliveryTask && !["out_for_delivery", "delivered"].includes(order.status),
+    order?.deliveryTask,
   );
 
   const handleCancelOrder = async () => {
@@ -162,36 +170,10 @@ function OrderDetailsContent() {
     }
   };
 
-  const getStatusColors = (status: StoreOrderStatus) => {
-    switch (status) {
-      case "preparing":
-      case "awaiting_review":
-        return {
-          color: colors.accent,
-          background: colors.accentLight,
-        };
-
-      case "ready_for_pickup":
-      case "handed_to_driver":
-      case "delivered":
-        return {
-          color: colors.primary,
-          background: colors.primaryLight,
-        };
-      case "rejected":
-      case "cancelled":
-        return {
-          color: colors.error,
-          background: colors.error + "18",
-        };
-    }
-  };
-
   if ((loading || refreshing) && !order) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <AppHeader title="تفاصيل الطلب" showBack cartCount={itemCount} mode="customer" />
-        <LiveStatus state={live}/>
         <LoadingSkeleton label="جارٍ تحميل تفاصيل الطلب"/>
       </View>
     );
@@ -222,10 +204,21 @@ function OrderDetailsContent() {
     >
       <AppHeader title="تفاصيل الطلب" showBack cartCount={itemCount} mode="customer" />
 
-      <LiveStatus state={live}/>
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
+        scrollEventThrottle={120}
+        onScroll={(event) => {
+          scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+          const snapshot = orderDetailsSnapshots.get(snapshotKey);
+          if (snapshot) snapshot.scrollOffset = scrollOffsetRef.current;
+        }}
+        onContentSizeChange={() => {
+          if (restoredScrollRef.current || scrollOffsetRef.current <= 0) return;
+          restoredScrollRef.current = true;
+          scrollRef.current?.scrollTo({ y: scrollOffsetRef.current, animated: false });
+        }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handlePullRefresh()} tintColor={colors.primary} />}
       >
         <View style={[styles.orderHero, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -279,189 +272,41 @@ function OrderDetailsContent() {
           </View>
         </View>
         <View style={styles.heroFooter}>
-        <View style={[styles.orderHeroStatus, { backgroundColor: colors.primaryLight }]}>
-          <AppIcon name={customerStatusIcons[order.status]} size={17} color={colors.primary} />
-          <Text style={[styles.orderHeroStatusText, { color: colors.primary }]}>{customerStatusLabels[order.status]}</Text>
-        </View>
-        <View style={styles.heroActions}>
-          <Pressable disabled={loading} onPress={() => {setRefreshing(true);void refresh();}} style={({ pressed }) => [styles.iconAction, { backgroundColor: colors.surfaceSecondary }, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel="تحديث حالة الطلب">
-            <AppIcon name="refresh-outline" size={18} color={colors.textSecondary} />
-          </Pressable>
-          <Pressable onPress={() => router.push({ pathname: "/invoice", params: { id: order.id } })} style={({ pressed }) => [styles.iconAction, { backgroundColor: colors.surfaceSecondary }, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel="عرض فاتورة الطلب">
-            <AppIcon name="document-text-outline" size={18} color={colors.textSecondary} />
-          </Pressable>
-          {canCancel ? (
-            <Pressable
-              disabled={cancelling}
-              onPress={() => setCancelModalVisible(true)}
-              style={({ pressed }) => [
-                styles.iconAction,
-                { backgroundColor: `${colors.error}12` },
-                pressed && styles.pressed,
-                cancelling && { opacity: 0.6 },
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="إلغاء الطلب"
-            >
-              <AppIcon name="close-circle-outline" size={18} color={colors.error} />
-            </Pressable>
-          ) : null}
-        </View>
-        </View>
-        </View>
-
-        <View style={[styles.statusSummary, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>متابعة الحالة</Text>
-          <Text style={[styles.statusSummaryText, { color: colors.textSecondary }]}>{["cancelled", "partially_cancelled"].includes(order.status) ? "تظهر حالة الإلغاء منفصلة، وتبقى تحديثات كل متجر في القسم التالي." : "يعتمد المسار على حالة الطلب وسجل تحديثات المتاجر المتاحين."}</Text>
-          <CustomerOrderTimeline order={order} />
-          {shouldShowDeliveryStatus ? <DeliveryTracking task={order.deliveryTask} /> : null}
-        </View>
-
-        <View style={styles.section}>
-          <Text
-            style={[
-              styles.sectionTitle,
-              {
-                color: colors.text,
-              },
-            ]}
-          >
-            المتاجر والمنتجات
-          </Text>
-
-          <View style={styles.stores}>
-            {order.stores.map((store) => {
-              const { storeOrder, storeName, items } = store;
-              const statusColors = getStatusColors(storeOrder.status);
-              const itemGroups = groupOrderItems(items);
-
-              return (
-                <View
-                  key={storeOrder.id}
-                  style={[
-                    styles.storeCard,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                >
-                  <View style={styles.storeHeader}>
-                    <View
-                      style={[
-                        styles.storeIcon,
-                        {
-                          backgroundColor: colors.primaryLight,
-                        },
-                      ]}
-                    >
-                      <AppIcon
-                        name="storefront-outline"
-                        size={23}
-                        color={colors.primary}
-                      />
-                    </View>
-
-                    <View style={styles.storeInfo}>
-                      <Text
-                        style={[
-                          styles.storeName,
-                          {
-                            color: colors.text,
-                          },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {storeName}
-                      </Text>
-
-                      <View
-                        style={[
-                          styles.storeStatus,
-                          {
-                            backgroundColor: statusColors.background,
-                          },
-                        ]}
-                      >
-                        <AppIcon
-                          name={statusIcons[storeOrder.status]}
-                          size={13}
-                          color={statusColors.color}
-                        />
-
-                        <Text
-                          style={[
-                            styles.storeStatusText,
-                            {
-                              color: statusColors.color,
-                            },
-                          ]}
-                        >
-                          {statusLabels[storeOrder.status]}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  <View style={styles.items}>
-                    {itemGroups.map((group) => (
-                      <View
-                        key={group.id}
-                        style={[styles.item, { borderTopColor: colors.border }]}
-                      >
-                        <View style={{ flex: 1, gap: Spacing.one }}>
-                          <Text
-                            style={[
-                              styles.quantityText,
-                              {
-                                color: colors.text,
-                              },
-                            ]}
-                            numberOfLines={2}
-                          >
-                            {group.offerTitle ?? group.items[0].product_title_snapshot}
-                          </Text>
-                          {group.offerDescription ? (
-                            <Text style={{ color: colors.accent, fontFamily: Fonts.medium, fontSize: FontSizes.xs, textAlign: "right" }}>
-                              {group.offerDescription}
-                            </Text>
-                          ) : (
-                            <Text style={{ color: colors.textMuted, fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "right" }}>
-                              {group.items[0].quantity} {group.items[0].selling_unit_snapshot}
-                            </Text>
-                          )}
-                          {group.offerTitle ? (
-                            <View style={{ gap: Spacing.one, marginTop: Spacing.one }}>
-                              {group.items.map((item) => (
-                                <Text
-                                  key={item.id}
-                                  style={{ color: colors.textSecondary, fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "right" }}
-                                >
-                                  {item.product_title_snapshot} · {item.quantity} {item.selling_unit_snapshot}
-                                </Text>
-                              ))}
-                            </View>
-                          ) : null}
-                        </View>
-
-                        <View style={styles.itemPriceColumn}>
-                          <Text style={[styles.itemPrice, { color: colors.textSecondary }]}>
-                            {formatCurrency(group.finalTotal, group.currency)}
-                          </Text>
-                          {group.originalTotal > group.finalTotal ? (
-                            <Text style={[styles.itemOriginalPrice, { color: colors.textMuted }]}>
-                              قبل العرض {formatCurrency(group.originalTotal, group.currency)}
-                            </Text>
-                          ) : null}
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                  <StoreStatusHistory store={store} />
-                </View>
-              );
-            })}
+          <View style={[styles.orderHeroStatus, { backgroundColor: orderStatusTone?.background }]}>
+            <AppIcon name={customerStatusIcons[order.status]} size={17} color={orderStatusTone?.foreground ?? colors.primary} />
+            <Text style={[styles.orderHeroStatusText, { color: orderStatusTone?.foreground ?? colors.primary }]}>{customerStatusLabels[order.status]}</Text>
           </View>
+          <Text style={[styles.heroScope, { color: colors.textMuted }]}>{order.stores.length} {order.stores.length === 1 ? "متجر" : "متاجر"}</Text>
+        </View>
+
+        {(order.delivery_zone_name_snapshot || order.delivery_address || order.recipient_name || order.contact_phone || shouldShowDeliveryStatus) ? (
+          <View style={[styles.heroDelivery, { borderTopColor: colors.border }]}>
+            <View style={styles.heroDeliveryHeading}>
+              <AppIcon name="location-outline" size={18} color={colors.primary} />
+              <Text style={[styles.heroDeliveryTitle, { color: colors.text }]}>معلومات التوصيل</Text>
+            </View>
+            {order.delivery_zone_name_snapshot ? <Text style={[styles.addressPrimary, { color: colors.text }]}>{order.delivery_zone_name_snapshot}</Text> : null}
+            {order.delivery_address ? <Text style={[styles.addressSecondary, { color: colors.textSecondary }]}>{order.delivery_address}</Text> : null}
+            {(order.recipient_name || order.contact_phone) ? <Text style={[styles.addressSecondary, { color: colors.textMuted }]}>{[order.recipient_name, order.contact_phone].filter(Boolean).join(" · ")}</Text> : null}
+            {shouldShowDeliveryStatus ? <DeliveryTracking task={order.deliveryTask} /> : null}
+          </View>
+        ) : null}
+
+        <View style={[styles.heroActions, { borderTopColor: colors.border }]}>
+          <AppButton title="الفاتورة" accessibilityLabel="عرض فاتورة الطلب" icon="receipt-outline" variant="outline" compact fullWidth={false} onPress={() => router.push({ pathname: "/invoice", params: { id: order.id } })} />
+          {canCancel ? <AppButton title="إلغاء الطلب" icon="close-circle-outline" variant="danger" compact fullWidth={false} disabled={cancelling} loading={cancelling} onPress={() => setCancelModalVisible(true)} /> : null}
+        </View>
+        </View>
+
+        <View style={styles.trackingBlock}>
+          <OrderSuborderTracking
+            stores={order.stores}
+            selectedId={effectiveSelectedStoreOrderId}
+            onSelect={setSelectedStoreOrderId}
+            logos={logos}
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); void refresh(); }}
+          />
         </View>
 
         <View
@@ -484,7 +329,7 @@ function OrderDetailsContent() {
             ملخص الطلب
           </Text>
 
-          {order.c3?.pricing ? <Text style={{ color: colors.textSecondary, textAlign: "right" }}>المبلغ المعتمد الأصلي: {formatCurrency(order.c3.pricing.original.approved_total, "SYP")}{order.c3.pricing.current.review_required ? " — توقف الإرسال لمراجعة اختلاف المبلغ؛ لم تُطبق زيادة." : " — المعروض أدناه هو المبلغ الجاري بعد تحديث أجزاء الطلب."}</Text> : null}
+          {order.c3?.pricing?.current.review_required ? <Text style={{ color: colors.error, fontFamily: Fonts.medium, fontSize: FontSizes.sm, textAlign: "right" }}>توجد مراجعة مطلوبة لاختلاف مبلغ الطلب؛ لم تُطبق زيادة غير مؤكدة.</Text> : null}
           {order.totals.map((total) => (
             <SummaryRow
               key={total.currency}
@@ -514,22 +359,6 @@ function OrderDetailsContent() {
               total
             />
           ))}
-        </View>
-
-        <View style={[styles.deliveryAddressCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={styles.deliveryAddressHeader}>
-            <View style={[styles.deliveryAddressIcon, { backgroundColor: colors.primaryLight }]}>
-              <AppIcon name="location-outline" size={19} color={colors.primary} />
-            </View>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>عنوان التوصيل</Text>
-          </View>
-          {(order.recipient_name || order.contact_phone) ? (
-            <Text style={[styles.addressPrimary, { color: colors.text }]}>
-              {[order.recipient_name, order.contact_phone].filter(Boolean).join(" · ")}
-            </Text>
-          ) : null}
-          {order.delivery_zone_name_snapshot ? <Text style={[styles.addressSecondary, { color: colors.textSecondary }]}>{order.delivery_zone_name_snapshot}</Text> : null}
-          {order.delivery_address ? <Text style={[styles.addressSecondary, { color: colors.textSecondary }]}>{order.delivery_address}</Text> : null}
         </View>
 
         {error ? (
@@ -605,24 +434,32 @@ const styles = StyleSheet.create({
   },
 
   content: {
+    width: "100%",
+    maxWidth: 760,
+    alignSelf: "center",
     paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.eight,
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.six,
   },
 
   orderHeader: {
     flexDirection: "row-reverse",
     justifyContent: "space-between",
     alignItems: "flex-start",
+    flexWrap: "wrap",
+    gap: Spacing.two,
   },
 
-  orderHero: { borderRadius: Radius.xl, borderWidth: 1, gap: Spacing.two, padding: Spacing.four },
+  orderHero: { borderRadius: Radius.lg, borderWidth: 1, gap: Spacing.two, padding: Spacing.three },
 
   orderHeroStatus: { alignSelf: "flex-end", alignItems: "center", borderRadius: Radius.full, flexDirection: "row-reverse", gap: Spacing.one, paddingHorizontal: Spacing.two, paddingVertical: Spacing.one },
   orderHeroStatusText: { fontFamily: Fonts.semiBold, fontSize: FontSizes.xs },
   heroFooter: { alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between" },
-  heroActions: { flexDirection: "row-reverse", gap: Spacing.one },
-  iconAction: { alignItems: "center", borderRadius: Radius.md, height: 36, justifyContent: "center", width: 36 },
+  heroScope: { fontFamily: Fonts.regular, fontSize: FontSizes.xs },
+  heroDelivery: { borderTopWidth: StyleSheet.hairlineWidth, gap: Spacing.one, paddingTop: Spacing.two },
+  heroDeliveryHeading: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.one },
+  heroDeliveryTitle: { fontFamily: Fonts.semiBold, fontSize: FontSizes.sm, textAlign: "right" },
+  heroActions: { alignItems: "center", borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row-reverse", flexWrap: "wrap", gap: Spacing.two, paddingTop: Spacing.two },
 
   orderNumber: {
     alignItems: "flex-end",
@@ -649,13 +486,7 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xs,
   },
 
-  statusSummary: { borderRadius: Radius.lg, borderWidth: 1, gap: Spacing.one, marginTop: Spacing.five, padding: Spacing.three },
-
-  statusSummaryText: {
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.xs,
-    textAlign: "right",
-  },
+  trackingBlock: { marginTop: Spacing.four },
 
   timelineCard: {
     marginTop: Spacing.five,
@@ -795,7 +626,7 @@ const styles = StyleSheet.create({
   itemPriceColumn: { alignItems: "flex-start", flexShrink: 0, marginStart: Spacing.three },
   itemOriginalPrice: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "left", textDecorationLine: "line-through" },
 
-  summaryCard: { borderRadius: Radius.xl, borderWidth: 1, marginTop: Spacing.five, padding: Spacing.four },
+  summaryCard: { borderRadius: Radius.lg, borderWidth: 1, marginTop: Spacing.four, padding: Spacing.three },
 
   summaryRow: {
     flexDirection: "row-reverse",
@@ -823,9 +654,6 @@ const styles = StyleSheet.create({
     marginTop: Spacing.three,
   },
 
-  deliveryAddressCard: { borderRadius: Radius.xl, borderWidth: 1, gap: Spacing.one, marginTop: Spacing.six, padding: Spacing.four },
-  deliveryAddressHeader: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.two, marginBottom: Spacing.one },
-  deliveryAddressIcon: { alignItems: "center", borderRadius: Radius.md, height: 36, justifyContent: "center", width: 36 },
   addressPrimary: { fontFamily: Fonts.semiBold, fontSize: FontSizes.sm, textAlign: "right" },
   addressSecondary: { fontFamily: Fonts.regular, fontSize: FontSizes.sm, lineHeight: 22, textAlign: "right" },
 

@@ -62,20 +62,20 @@ async function main(){
  const customerHooks=hooks();let customer='customer-A',liveOptions;const requests=[];
  const guard=load('src/lib/read-scope.ts').createReadScope();guard.open();
  const customerScreen=load('src/app/orders.tsx',{
-  react:customerHooks.react,'react/jsx-runtime':runtime,'react-native':{...native,ScrollView:'Scroll',RefreshControl:'Refresh'},'expo-router':{useRouter:()=>({})},
+  react:customerHooks.react,'react/jsx-runtime':runtime,'react-native':{...native,FlatList:'FlatList',ScrollView:'Scroll'},'expo-router':{useRouter:()=>({})},
   '@/context/ThemeContext':{useTheme:()=>({colors})},'@/constants/theme':{...theme,FontSizes:{},Fonts:{}},'@/context/AuthContext':{useAuth:()=>({user:{id:customer}})},'@/context/CartContext':{useCart:()=>({itemCount:0})},
   '@/hooks/useReadScope':{useReadScope:()=>guard},'@/hooks/useOrderRealtime':{useOrderRealtime:options=>{liveOptions=options;return 'disconnected';}},
-  '@/lib/user-error-message':load('src/lib/user-error-message.ts'),'@/lib/order-item-groups':{groupOrderItems:items=>items},'@/lib/customer-orders':{formatCurrency:()=> '220',getCustomerOrders:()=>new Promise((resolve,reject)=>requests.push({resolve,reject}))},
-  '@/components/ui/LoadingState':{LoadingSkeleton:'Skeleton'},'@/components/ui/LiveStatus':{LiveStatus:'Live'},'@/components/navigation/AppHeader':{AppHeader:'Header'},'@/components/ui/AppButton':{AppButton:'Button'},'@/components/ui/AppIcon':{AppIcon:'Icon'}
+  '@/lib/user-error-message':load('src/lib/user-error-message.ts'),'@/lib/order-item-groups':{groupOrderItems:items=>items},'@/lib/customer-orders':{formatCurrency:()=> '220',getCustomerOrdersPage:()=>new Promise((resolve,reject)=>requests.push({resolve,reject}))},
+  '@/components/ui/LoadingState':{LoadingSkeleton:'Skeleton',RefreshStatus:'RefreshStatus'},'@/components/ui/LiveStatus':{LiveStatus:'Live'},'@/components/navigation/AppHeader':{AppHeader:'Header'},'@/components/marketplace/CategoryChip':{CategoryChip:'CategoryChip'},'@/components/ui/AppButton':{AppButton:'Button'},'@/components/ui/AppEmptyState':{AppEmptyState:'Empty'},'@/components/ui/AppIcon':{AppIcon:'Icon'}
  }).default;
  const children=node=>!node||typeof node!=='object'?[]:[node,...(Array.isArray(node.props?.children)?node.props.children:[node.props?.children]).flatMap(children)];
  let wrapper=customerScreen();const originalKey=wrapper.props.key??wrapper.key;const content=wrapper.type;
- let customerTree=customerHooks.render(()=>content());customerHooks.effects();await advance(0);assert.equal(requests.length,1);
- const backgroundRead=liveOptions.onChange();requests[0].resolve([]);requests[1].resolve([]);await backgroundRead;customerTree=customerHooks.render(()=>content());assert(!children(customerTree).some(n=>n.type==='Skeleton'),'latest background read ends first-load state');
- const fresh=liveOptions.onChange();requests[2].resolve([{id:'order',c3:{references:{'ORD:order':'ORD-0000001'}},stores:[{storeName:'متجر',items:[]}],totals:[{total:220,currency:'SYP'}],created_at:'2026-11-10',status:'submitted'}]);await fresh;customerTree=customerHooks.render(()=>content());assert(JSON.stringify(customerTree).includes('ORD-0000001'));
- const failedRead=liveOptions.onChange();requests[3].reject({message:'offline SQL secret'});await failedRead;customerTree=customerHooks.render(()=>content());assert(JSON.stringify(customerTree).includes('ORD-0000001'),'failed refresh must retain same-account orders');assert(!JSON.stringify(customerTree).includes('SQL secret'));
+ let customerTree=customerHooks.render(()=>content());customerHooks.effects();await advance(900);assert.equal(requests.length,1);
+ const backgroundRead=liveOptions.onChange();assert.equal(requests.length,1,'concurrent focus/live reads share one request');requests[0].resolve([]);await backgroundRead;customerTree=customerHooks.render(()=>content());assert(!children(customerTree).some(n=>n.type==='Skeleton'),'shared first read ends first-load state');
+ const fresh=liveOptions.onChange();requests[1].resolve([{id:'order',c3:{references:{'ORD:order':'ORD-0000001'}},stores:[{storeName:'متجر',items:[]}],totals:[{total:220,currency:'SYP'}],created_at:'2026-11-10',status:'submitted'}]);await fresh;customerTree=customerHooks.render(()=>content());assert(JSON.stringify(customerTree).includes('ORD-0000001'));
+ const failedRead=liveOptions.onChange();requests[2].reject({message:'offline SQL secret'});await failedRead;customerTree=customerHooks.render(()=>content());assert(JSON.stringify(customerTree).includes('ORD-0000001'),'failed refresh must retain same-account orders');assert(!JSON.stringify(customerTree).includes('SQL secret'));
  customer='customer-B';wrapper=customerScreen();assert.notEqual(wrapper.props.key??wrapper.key,originalKey);customerHooks.stop();guard.close();
- console.log('PASS actual customer orders: superseded initial read finishes, same-owner rows survive read failure and account key isolates data');
+ console.log('PASS actual customer orders: concurrent reads dedupe, same-owner rows survive failure and account key isolates data');
  const user=load('src/lib/user-error-message.ts');assert.equal(user.userErrorMessage({message:'relation money_invoices does not exist'},'تعذر التحميل'),'تعذر التحميل');assert.equal(user.userErrorMessage({message:'المبلغ يتجاوز المتبقي على الفاتورة.'},'تعذر التحميل'),'المبلغ يتجاوز المتبقي على الفاتورة.');
  console.log('PASS technical errors hidden without changing useful financial/domain reasons');
 }

@@ -1,77 +1,75 @@
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { AppIcon } from "@/components/ui/AppIcon";
+import { ShoppingCardImage } from "@/components/marketplace/ShoppingCardImage";
 import { RatingSummary } from "@/components/marketplace/RatingStars";
+import { StorePromoVideo } from "@/components/marketplace/StorePromoVideo";
+import { AppIcon } from "@/components/ui/AppIcon";
 import type { IconName, Store } from "@/types/catalog";
-import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
+import { FontSizes, Fonts, Radius, RtlText, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
+import type { PublishedStoreVideo } from "@/lib/customer-store-details";
 
-type StoreDetailsHeroProps = {
+type Props = {
   store: Store;
+  category?: string;
   categoryIcon?: IconName;
+  logo?: { url: string; key: string };
+  acceptsOrders: boolean | null;
+  video?: PublishedStoreVideo | null;
+  owner: string | null;
+  onReviewsPress: () => void;
 };
 
-export function StoreDetailsHero({ store, categoryIcon }: StoreDetailsHeroProps) {
+export function StoreDetailsHero({ store, category, categoryIcon, logo, acceptsOrders, video, owner, onReviewsPress }: Props) {
   const { colors } = useTheme();
   const { storeRatings } = useCustomerCatalog();
   const rating = storeRatings.get(store.id);
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <View style={[styles.icon, { backgroundColor: colors.primaryLight }]}>
-        <AppIcon name={categoryIcon ?? "storefront-outline"} size={58} color={colors.primary} />
-      </View>
-
-      <View style={styles.info}>
-        <View style={styles.titleRow}>
-          <Text style={[styles.name, { color: colors.text }]} numberOfLines={2}>
-            {store.name}
-          </Text>
-          {store.featured ? (
-            <View style={[styles.featuredBadge, { backgroundColor: colors.accent }]}>
-              <AppIcon name="star" size={11} color={colors.surface} />
-              <Text style={[styles.featuredText, { color: colors.surface }]}>مميز</Text>
-            </View>
-          ) : null}
+      {video ? <StorePromoVideo key={video.id} asset={video} owner={owner} /> : null}
+      <View style={styles.identity}>
+        <View style={[styles.logo, { backgroundColor: colors.primaryLight }]}>
+          <ShoppingCardImage uri={logo?.url} cacheKey={logo?.key} restricted fit="contain"
+            icon={categoryIcon ?? "storefront-outline"} />
         </View>
-
-        {store.description ? <Text style={[styles.description, { color: colors.textSecondary }]}>{store.description}</Text> : null}
-
-        {rating ? <View style={styles.rating}><RatingSummary averageRating={rating.averageRating} ratingCount={rating.ratingCount} /></View> : null}
+        <View style={styles.info}>
+          <Text accessibilityRole="header" style={[styles.name, { color: colors.text }]}>{store.name}</Text>
+          {category ? <Text style={[styles.meta, { color: colors.textSecondary }]}>{category}</Text> : null}
+          {acceptsOrders !== null ? <Text style={[styles.status, { color: acceptsOrders ? colors.primary : colors.textSecondary }]}>
+            {acceptsOrders ? "يستقبل الطلبات" : "لا يستقبل طلبات حاليًا"}
+          </Text> : null}
+        </View>
       </View>
+      <Pressable accessibilityRole="button" accessibilityLabel="فتح تقييمات ومراجعات المتجر"
+        onPress={onReviewsPress} style={({ pressed }) => [styles.reviews, {
+          backgroundColor: colors.surfaceSecondary, borderColor: colors.border, opacity: pressed ? 0.72 : 1,
+        }]}>
+        <View style={styles.reviewInfo}>
+          <Text style={[styles.reviewTitle, { color: colors.primary }]}>التقييمات والمراجعات</Text>
+          {rating?.ratingCount ? <RatingSummary averageRating={rating.averageRating} ratingCount={rating.ratingCount} />
+            : <Text style={[styles.meta, { color: colors.textMuted }]}>لا توجد تقييمات بعد</Text>}
+        </View>
+        <AppIcon name="chevron-back-outline" size={18} color={colors.primary} />
+      </Pressable>
+      {store.description.trim() ? <Text numberOfLines={3} style={[styles.description, { color: colors.text }]}>{store.description}</Text> : null}
+      {store.location.trim() ? <Text numberOfLines={2} style={[styles.meta, { color: colors.textSecondary }]}>العنوان · {store.location}</Text> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    alignItems: "center",
-    borderRadius: Radius.xl,
-    borderWidth: 1,
-    flexDirection: "row-reverse",
-    gap: Spacing.three,
-    padding: Spacing.four,
-  },
-  icon: {
-    alignItems: "center",
-    borderRadius: Radius.lg,
-    height: 86,
-    justifyContent: "center",
-    width: 86,
-  },
-  info: { alignItems: "flex-end", flex: 1 },
-  titleRow: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.two },
-  name: { flexShrink: 1, fontFamily: Fonts.bold, fontSize: FontSizes.xl, textAlign: "right" },
-  featuredBadge: {
-    alignItems: "center",
-    borderRadius: Radius.full,
-    flexDirection: "row-reverse",
-    gap: 3,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: 4,
-  },
-  featuredText: { fontFamily: Fonts.bold, fontSize: 10 },
-  description: { fontFamily: Fonts.regular, fontSize: FontSizes.sm, lineHeight: 21, marginTop: Spacing.one, textAlign: "right" },
-  rating: { alignSelf: "flex-end", marginTop: Spacing.two },
+  card: { gap: Spacing.two, borderWidth: 1, borderRadius: Radius.lg, padding: Spacing.three },
+  identity: { flexDirection: "row-reverse", alignItems: "center", gap: Spacing.three },
+  logo: { width: 60, height: 60, borderRadius: Radius.lg, overflow: "hidden", alignItems: "center", justifyContent: "center" },
+  info: { flex: 1, minWidth: 0, alignItems: "stretch" },
+  name: { fontFamily: Fonts.bold, fontSize: FontSizes.lg, ...RtlText },
+  status: { fontFamily: Fonts.semiBold, fontSize: FontSizes.xs, ...RtlText },
+  reviews: { minHeight: 52, borderWidth: 1, borderRadius: Radius.md, padding: Spacing.two,
+    flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: Spacing.two },
+  reviewInfo: { flex: 1, minWidth: 0, alignItems: "flex-end", gap: Spacing.one },
+  reviewTitle: { fontFamily: Fonts.semiBold, fontSize: FontSizes.sm, ...RtlText },
+  description: { fontFamily: Fonts.regular, fontSize: FontSizes.sm, ...RtlText },
+  meta: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, ...RtlText },
 });

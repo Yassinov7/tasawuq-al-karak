@@ -2,7 +2,7 @@ import { KeyboardAwareScrollView } from "@/components/ui/KeyboardAwareScrollView
 import { quoteC3Cart, recoverC3Checkout, retryC3Checkout, type C3CheckoutResult } from "@/lib/c3-orders";
 import type { C3Quote } from "@/lib/c3-order-contract";
 import { formatSypNumber } from "@/lib/money";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -46,6 +46,9 @@ export default function CheckoutScreen() {
 
 function CheckoutContent() {
   const router = useRouter();
+  const routeParams = useLocalSearchParams<{ addressId?: string | string[] }>();
+  const returningAddressId = Array.isArray(routeParams.addressId) ? routeParams.addressId[0] : routeParams.addressId;
+  const [initialReturningAddressId] = useState(returningAddressId);
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { user } = useAuth();
@@ -58,12 +61,25 @@ function CheckoutContent() {
 
 
     loading: cartLoading,
+    refreshing: cartRefreshing,
     syncError,
     flush,
     retrySync,
+    revalidate: revalidateCart,
   } = useCart();
-  const { products, stores, offers, refresh: refreshCatalog, loading: catalogLoading, error: catalogError } = useCustomerCatalog();
-  useFocusEffect(useCallback(() => { void refreshCatalog(); }, [refreshCatalog]));
+  const {
+    products,
+    stores,
+    offers,
+    refresh: refreshCatalog,
+    revalidate: revalidateCatalog,
+    loading: catalogLoading,
+    refreshing: catalogRefreshing,
+    error: catalogError,
+  } = useCustomerCatalog();
+  useFocusEffect(useCallback(() => {
+    void Promise.all([revalidateCart(), revalidateCatalog()]);
+  }, [revalidateCart, revalidateCatalog]));
   const hasUnavailableItems = items.some((item) => !products.some((product) => product.id === item.productId && product.available))
     || selectedOfferIds.some((id) => !offers.some((offer) => offer.id === id && offer.items.every((item) => item.product.available)));
 
@@ -79,21 +95,28 @@ function CheckoutContent() {
   const [selectedZoneId, setSelectedZoneId] = useState("");
   const [showAddressChoices, setShowAddressChoices] = useState(false);
   const [showZoneChoices, setShowZoneChoices] = useState(false);
+  const [differentRecipient, setDifferentRecipient] = useState(false);
+  const [manualAddressMode, setManualAddressMode] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const selectedAddressIdRef = useRef<string | null>(null);
+  const differentRecipientRef = useRef(false);
   const hasReceivedInitialFocus = useRef(false);
 
   const selectedZone = deliveryZones.find((zone) => zone.id === selectedZoneId);
   const selectedAddress = savedAddresses.find((address) => address.id === selectedAddressId) ?? null;
+  const deliveryDetailsReady = Boolean(selectedAddress || manualAddressMode) &&
+    Boolean(recipientName.trim() && contactPhone.trim() && deliveryAddress.trim() && selectedZone);
   const [quote, setQuote] = useState<{ scope: string; value: C3Quote } | null>(null);
+  const [quoting, setQuoting] = useState(false);
   const [quoteError, setQuoteError] = useState("");
   const [quoteRetry, setQuoteRetry] = useState(0);
   const submissionLock = useRef<string | null>(null);
   const confirmedTotal = useRef<number | null>(null);
   const confirmedCart = useRef<string | null>(null);
   const ownerRef = useRef(user?.id);
+  const recoveryCheckedOwnerRef = useRef<string | null>(null);
   useLayoutEffect(() => { ownerRef.current = user?.id; return () => { ownerRef.current = undefined; }; }, [user?.id]);
   const [recoveryState, setRecoveryState] = useState<{ owner: string; result: C3CheckoutResult } | null>(null);
   const [recoveryError, setRecoveryError] = useState<{ owner: string; message: string } | null>(null);
@@ -105,6 +128,8 @@ function CheckoutContent() {
     let active = true;
     const owner = user?.id;
     if (!owner) return;
+    if (recoveryCheckedOwnerRef.current === owner && recoveryState?.owner === owner) return;
+    recoveryCheckedOwnerRef.current = owner;
     void (async () => {
       await Promise.resolve();
       if (!active) return;
@@ -115,11 +140,14 @@ function CheckoutContent() {
           setRecoveryState({ owner, result });
           if (result.kind === "recovered") void retrySync().catch(() => undefined);
         }
-      } catch (cause) { if (active) setRecoveryError({ owner, message: cause instanceof Error ? cause.message : "تعذر التحقق من المحاولة السابقة." }); }
+      } catch (cause) {
+        recoveryCheckedOwnerRef.current = null;
+        if (active) setRecoveryError({ owner, message: cause instanceof Error ? cause.message : "تعذر التحقق من المحاولة السابقة." });
+      }
       finally { if (active) setRecovering(false); }
     })();
     return () => { active = false; };
-  }, [user?.id, retrySync]));
+  }, [user?.id, retrySync, recoveryState?.owner]));
   async function checkPrevious(retry: boolean) {
     const owner = user?.id;
     if (!owner || submissionLock.current === owner) return;
@@ -132,45 +160,75 @@ function CheckoutContent() {
     } catch (cause) { if (ownerRef.current === owner) setRecoveryError({ owner, message: cause instanceof Error ? cause.message : "تعذر التحقق من المحاولة السابقة." }); }
     finally { if (submissionLock.current === owner) submissionLock.current = null; if (ownerRef.current === owner) setRecovering(false); }
   }
-  const quoteScope = JSON.stringify([user?.id, selectedZoneId, items, selectedOfferIds, quoteRetry]);
-  const validQuote = quote?.scope === quoteScope && !cartLoading && !syncError ? quote.value : null;
-  const total = validQuote?.total;
-  const deliveryFee = validQuote?.delivery_fee;
+  const catalogPricingSignature = JSON.stringify([
+    items.map((item) => {
+      const product = products.find((candidate) => candidate.id === item.productId);
+      return [item.productId, product?.price, product?.available];
+    }),
+    selectedOfferIds.map((id) => {
+      const offer = offers.find((candidate) => candidate.id === id);
+      return [id, offer?.updated_at, offer?.is_active, offer?.starts_at, offer?.ends_at];
+    }),
+  ]);
+  const quoteScope = JSON.stringify([user?.id, selectedZoneId, items, selectedOfferIds, catalogPricingSignature, quoteRetry]);
+  const validating = cartRefreshing || catalogRefreshing;
+  const scopedQuote = quote?.scope === quoteScope ? quote.value : null;
+  const validQuote = scopedQuote && !cartLoading && !validating && !quoting && !syncError ? scopedQuote : null;
+  const total = scopedQuote?.total;
+  const deliveryFee = scopedQuote?.delivery_fee;
   const confirmationTotal = total === undefined ? "بانتظار حساب الخادم" : formatCurrency(total, "SYP");
   useEffect(() => {
     let active = true;
-    if (!user || !selectedZoneId || cartLoading || syncError || itemCount === 0) return;
+    if (!user || !selectedZoneId || cartLoading || validating || syncError || itemCount === 0) return;
     void (async () => {
       await Promise.resolve();
       if (!active) return;
-      setQuote(null); setQuoteError("");
+      setQuoting(true); setQuoteError("");
       try {
         await flush();
         const value = await quoteC3Cart(selectedZoneId, user.id);
         if (active) setQuote({ scope: quoteScope, value });
       } catch { if (active) setQuoteError("تعذر حساب ملخص الطلب من الخادم. أعد المحاولة."); }
+      finally { if (active) setQuoting(false); }
     })();
     return () => { active = false; };
-  }, [quoteScope, user, selectedZoneId, cartLoading, syncError, itemCount, flush, quoteRetry]);
+  }, [quoteScope, user, selectedZoneId, cartLoading, validating, syncError, itemCount, flush, quoteRetry]);
   const cartPreviewItems = items.flatMap((item) => {
     const product = products.find((candidate) => candidate.id === item.productId);
     return product ? [{ product, quantity: item.quantity }] : [];
   });
-  const cartStoreNames = [...new Set(cartPreviewItems.map(({ product }) =>
-    stores.find((store) => store.id === product.storeId)?.name ?? "متجر",
-  ))];
+  const cartPreviewOffers = selectedOfferIds.flatMap((id) => {
+    const offer = offers.find((candidate) => candidate.id === id);
+    return offer ? [offer] : [];
+  });
+  const cartStoreIds = [...new Set([
+    ...cartPreviewItems.map(({ product }) => product.storeId),
+    ...cartPreviewOffers.map((offer) => offer.store_id),
+  ])];
+  const cartStoreNames = cartStoreIds.map((storeId) =>
+    stores.find((store) => store.id === storeId)?.name ?? "متجر",
+  );
 
   const clearSavedAddressSelection = useCallback(() => {
     selectedAddressIdRef.current = null;
     setSelectedAddressId(null);
   }, []);
 
-  const applySavedAddress = useCallback((address: CustomerAddress) => {
+  const setDifferentRecipientMode = useCallback((enabled: boolean) => {
+    differentRecipientRef.current = enabled;
+    setDifferentRecipient(enabled);
+  }, []);
+
+  const applySavedAddress = useCallback((address: CustomerAddress, preserveRecipient = false) => {
     selectedAddressIdRef.current = address.id;
     setSelectedAddressId(address.id);
-    setRecipientName(address.recipient_name);
-    setContactPhone(address.contact_phone);
+    if (!preserveRecipient || !differentRecipientRef.current) {
+      setRecipientName(address.recipient_name);
+      setContactPhone(address.contact_phone);
+      setDifferentRecipientMode(false);
+    }
     setDeliveryAddress(address.delivery_address);
+    setManualAddressMode(false);
     if (address.zone?.is_active) {
       setSelectedZoneId(address.delivery_zone_id);
       setError(null);
@@ -178,7 +236,7 @@ function CheckoutContent() {
       setSelectedZoneId("");
       setError("منطقة هذا العنوان لم تعد متاحة. اختر منطقة توصيل فعالة.");
     }
-  }, []);
+  }, [setDifferentRecipientMode]);
 
   const refreshSavedAddresses = useCallback(async (isActive: () => boolean) => {
     try {
@@ -186,12 +244,16 @@ function CheckoutContent() {
       if (!isActive()) return;
 
       setSavedAddresses(addresses);
-      const selectedId = selectedAddressIdRef.current;
-      if (!selectedId) return;
+      const selectedId = returningAddressId ?? selectedAddressIdRef.current;
+      if (!selectedId) {
+        const defaultAddress = addresses.find((address) => address.is_default && address.zone?.is_active);
+        if (defaultAddress) applySavedAddress(defaultAddress);
+        return;
+      }
 
       const selectedAddress = addresses.find((address) => address.id === selectedId);
       if (selectedAddress) {
-        applySavedAddress(selectedAddress);
+        applySavedAddress(selectedAddress, true);
         return;
       }
 
@@ -207,7 +269,7 @@ function CheckoutContent() {
         setError(cause instanceof Error ? cause.message : "تعذر تحديث العناوين المحفوظة.");
       }
     }
-  }, [applySavedAddress, clearSavedAddressSelection]);
+  }, [applySavedAddress, clearSavedAddressSelection, returningAddressId]);
 
   useEffect(() => {
     let alive = true;
@@ -227,7 +289,8 @@ function CheckoutContent() {
         if (!alive) return;
         setDeliveryZones(zones);
         setSavedAddresses(addresses);
-        const defaultAddress = addresses.find((address) => address.is_default);
+        const returnedAddress = initialReturningAddressId ? addresses.find(address => address.id === initialReturningAddressId) : undefined;
+        const defaultAddress = returnedAddress ?? addresses.find((address) => address.is_default);
         const defaultZoneIsActive = Boolean(defaultAddress?.zone?.is_active);
         const initialAddressId = defaultAddress && defaultZoneIsActive ? defaultAddress.id : null;
         selectedAddressIdRef.current = initialAddressId;
@@ -250,7 +313,7 @@ function CheckoutContent() {
     return () => {
       alive = false;
     };
-  }, [ownerId, initialAccountPhone]);
+  }, [ownerId, initialAccountPhone, initialReturningAddressId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -282,7 +345,7 @@ function CheckoutContent() {
       setError("السلة فارغة أو ما زالت قيد التحميل.");
       return;
     }
-    if (!recipientName.trim() || !contactPhone.trim() || !deliveryAddress.trim() || !selectedZone) {
+    if (!deliveryDetailsReady) {
       setError("أكمل بيانات المستلم وعنوان التوصيل واختر منطقة التوصيل.");
       return;
     }
@@ -362,7 +425,7 @@ function CheckoutContent() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
-        {(recovering || !recovery || recovery.kind !== "none" || recoveryMessage) ? <Section title="محاولة الطلب السابقة">
+        {(recovering || (recovery && recovery.kind !== "none") || recoveryMessage) ? <Section title="محاولة الطلب السابقة">
           {recovering ? <ActivityIndicator color={colors.primary} /> : null}
           {recovery?.kind === "recovered" ? <>
             <Text style={[styles.noticeText, { color: colors.text }]}>تم العثور على طلب سبق تأكيد إنشائه. لم تُؤكد سلتك الحالية ولم تُمسح؛ يمكنك مراجعة الطلب السابق أو تأكيد طلب جديد من السلة الحالية.</Text>
@@ -376,181 +439,139 @@ function CheckoutContent() {
           {recoveryMessage ? <Text accessibilityRole="alert" style={[styles.noticeText, { color: colors.error }]}>{recoveryMessage}</Text> : null}
           <AppButton title="التحقق من نتيجة المحاولة السابقة" variant="outline" disabled={recovering || submitting} onPress={() => void checkPrevious(false)} />
         </Section> : null}
-        <Section title="محتوى السلة">
-          <View style={[styles.cartPreview, { borderColor: colors.border }]}>
-            {cartPreviewItems.slice(0, 3).map(({ product, quantity }) => (
-              <View key={product.id} style={styles.previewItem}>
-                <View style={styles.previewItemInfo}>
-                  <Text numberOfLines={1} style={[styles.previewItemName, { color: colors.text }]}>{product.name}</Text>
-                  <Text style={[styles.previewItemMeta, { color: colors.textMuted }]}>
-                    {quantity}{product.unit ? ` ${product.unit}` : ""}
-                  </Text>
-                </View>
-                <Text numberOfLines={1} style={[styles.previewItemPrice, { color: colors.text }]}>
-                  {formatCurrency(product.price, "SYP")} للوحدة
-                </Text>
-              </View>
-            ))}
-            {cartPreviewItems.length > 3 ? <Text style={[styles.cartPreviewText, { color: colors.textMuted }]}>و{cartPreviewItems.length - 3} عناصر أخرى</Text> : null}
-            {cartStoreNames.length > 1 ? <Text style={[styles.cartPreviewText, { color: colors.textSecondary }]}>الطلب يشمل {cartStoreNames.length} متاجر، وتظهر تفاصيل كل متجر في تتبع الطلب.</Text> : null}
-            <Text style={[styles.cartPreviewText, { color: colors.textSecondary }]}>ستُراجع الأسعار والتوفر النهائيان عند إرسال الطلب.</Text>
+        <Section title="مراجعة الطلب">
+          <View style={[styles.orderOverview, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={styles.overviewStats}>
+              <OverviewStat icon="bag-handle-outline" value={`${itemCount}`} label="عنصر" />
+              <OverviewStat icon="storefront-outline" value={`${cartStoreNames.length}`} label="متجر" />
+              <OverviewStat icon="pricetag-outline" value={`${cartPreviewOffers.length}`} label="عرض" />
+            </View>
+            <View style={[styles.overviewFooter, { borderTopColor: colors.border }]}>
+              <Text style={[styles.cartPreviewText, { color: colors.textSecondary }]}>يتحقق الخادم من الأسعار قبل إنشاء الطلب.</Text>
+              <Pressable accessibilityRole="button" onPress={() => router.push("/cart")} style={styles.reviewCartAction}>
+                <AppIcon name="create-outline" size={17} color={colors.primary} />
+                <Text style={[styles.selectorActionText, { color: colors.primary }]}>عودة للسلة</Text>
+              </Pressable>
+            </View>
           </View>
         </Section>
 
         <Section title="عنوان التوصيل">
-          {loadingDetails ? <ActivityIndicator color={colors.primary} /> : null}
-          {selectedAddress ? (
-            <View style={[styles.selectedAddressCard, { backgroundColor: colors.surface, borderColor: colors.primary }]}>
-              <View style={styles.optionInfo}>
-                <Text style={[styles.optionTitle, { color: colors.text }]}>
-                  {selectedAddress.title}{selectedAddress.is_default ? " · افتراضي" : ""}
-                </Text>
-                <Text numberOfLines={1} style={[styles.optionText, { color: colors.textSecondary }]}>
-                  {selectedAddress.recipient_name} · {selectedAddress.contact_phone}
-                </Text>
-                <Text numberOfLines={2} style={[styles.optionText, { color: colors.textSecondary }]}>
-                  {selectedAddress.delivery_address}
-                </Text>
-              </View>
-              <AppIcon name="checkmark-circle" size={22} color={colors.primary} />
-            </View>
-          ) : (
-            <View style={[styles.addressEmpty, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
-              <Text style={[styles.addressEmptyText, { color: colors.textSecondary }]}>
-                {savedAddresses.length ? "لم يُحدد عنوان محفوظ لهذا الطلب." : "لا يوجد عنوان محفوظ بعد."}
-              </Text>
-            </View>
-          )}
-          {savedAddresses.length > 0 ? (
-            <Pressable
-              onPress={() => setShowAddressChoices((current) => !current)}
-              style={styles.selectorAction}
-              accessibilityRole="button"
-              accessibilityLabel={showAddressChoices ? "إخفاء العناوين المحفوظة" : "تغيير العنوان المحفوظ"}
-            >
-              <AppIcon name={showAddressChoices ? "chevron-up-outline" : "chevron-down-outline"} size={17} color={colors.primary} />
-              <Text style={[styles.selectorActionText, { color: colors.primary }]}>
-                {showAddressChoices ? "إخفاء العناوين" : "تغيير العنوان"}
-              </Text>
-            </Pressable>
-          ) : null}
-          {showAddressChoices ? (
-            <View style={styles.choiceList}>
-              {savedAddresses.map((address) => {
-                const selected = selectedAddressId === address.id;
-                return (
-                  <Pressable
-                    key={address.id}
-                    onPress={() => {
-                      selectSavedAddress(address);
-                      setShowAddressChoices(false);
-                    }}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected }}
-                    style={[
-                      styles.optionCard,
-                      {
-                        borderColor: selected ? colors.primary : colors.border,
-                        backgroundColor: colors.surface,
-                      },
-                    ]}
-                  >
-                    <View style={styles.optionInfo}>
-                      <Text style={[styles.optionTitle, { color: colors.text }]}>{address.title}</Text>
-                      <Text numberOfLines={1} style={[styles.optionText, { color: colors.textSecondary }]}>{address.delivery_address}</Text>
-                    </View>
-                    <AppIcon name={selected ? "checkmark-circle" : "ellipse-outline"} size={22} color={selected ? colors.primary : colors.textMuted} />
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : null}
-          <AppButton
-            title={savedAddresses.length ? "إدارة العناوين" : "إضافة عنوان"}
-            icon="location-outline"
-            variant="outline"
-            onPress={() => router.push("/addresses")}
-          />
-          <AppTextField
-            label="اسم المستلم"
-            value={recipientName}
-            onChangeText={(value) => {
-              clearSavedAddressSelection();
-              setRecipientName(value);
-            }}
-            autoCapitalize="words"
-            maxLength={120}
-          />
-          <AppTextField
-            label="رقم الهاتف"
-            value={contactPhone}
-            onChangeText={(value) => {
-              clearSavedAddressSelection();
-              setContactPhone(value);
-            }}
-            keyboardType="phone-pad"
-            maxLength={32}
-          />
-          <AppTextField
-            label="العنوان بالتفصيل"
-            value={deliveryAddress}
-            onChangeText={(value) => {
-              clearSavedAddressSelection();
-              setDeliveryAddress(value);
-            }}
-            placeholder="الحي، الشارع، أقرب علامة مميزة"
-            multiline
-            maxLength={1000}
-          />
-          {selectedZone ? (
-            <View style={[styles.selectedZoneCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <View style={[styles.optionIcon, { backgroundColor: colors.primaryLight }]}>
-                <AppIcon name="home-outline" size={21} color={colors.primary} />
-              </View>
-              <View style={styles.optionInfo}>
-                <Text style={[styles.optionTitle, { color: colors.text }]}>{selectedZone.name}</Text>
-                <Text style={[styles.optionText, { color: colors.textSecondary }]}>رسم المنطقة الأساسي: {formatCurrency(selectedZone.fixed_fee, "SYP")}؛ الرسم النهائي في الملخص</Text>
-              </View>
-              <AppIcon name="checkmark-circle" size={22} color={colors.primary} />
-            </View>
-          ) : (
-            <View style={[styles.addressEmpty, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
-              <Text style={[styles.addressEmptyText, { color: colors.textSecondary }]}>اختر منطقة التوصيل لإكمال الطلب.</Text>
-            </View>
-          )}
-          {deliveryZones.length > 0 ? (
-            <Pressable
-              onPress={() => setShowZoneChoices((current) => !current)}
-              style={styles.selectorAction}
-              accessibilityRole="button"
-              accessibilityLabel={showZoneChoices ? "إخفاء مناطق التوصيل" : "تغيير منطقة التوصيل"}
-            >
-              <AppIcon name={showZoneChoices ? "chevron-up-outline" : "chevron-down-outline"} size={17} color={colors.primary} />
-              <Text style={[styles.selectorActionText, { color: colors.primary }]}>{showZoneChoices ? "إخفاء المناطق" : "تغيير المنطقة"}</Text>
-            </Pressable>
-          ) : null}
-          {showZoneChoices ? (
-            <View style={styles.choiceList}>
-              {deliveryZones.map((zone) => (
-                <Pressable
-                  key={zone.id}
-                  onPress={() => {
-                    clearSavedAddressSelection();
-                    setSelectedZoneId(zone.id);
-                    setShowZoneChoices(false);
-                  }}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: selectedZoneId === zone.id }}
-                  style={[styles.optionCard, { borderColor: selectedZoneId === zone.id ? colors.primary : colors.border, backgroundColor: colors.surface }]}
-                >
-                  <View style={styles.optionInfo}>
-                    <Text style={[styles.optionTitle, { color: colors.text }]}>{zone.name}</Text>
-                    <Text style={[styles.optionText, { color: colors.textSecondary }]}>الرسم الأساسي: {formatCurrency(zone.fixed_fee, "SYP")}</Text>
+          <View style={[styles.addressPanel, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            {loadingDetails ? <ActivityIndicator color={colors.primary} /> : selectedAddress ? (
+              <>
+                <View style={styles.addressPanelHeader}>
+                  <View style={[styles.addressIcon, { backgroundColor: colors.primaryLight }]}>
+                    <AppIcon name="location-outline" size={20} color={colors.primary} />
                   </View>
-                  <AppIcon name={selectedZoneId === zone.id ? "checkmark-circle" : "ellipse-outline"} size={22} color={selectedZoneId === zone.id ? colors.primary : colors.textMuted} />
+                  <View style={styles.addressPanelInfo}>
+                    <View style={styles.addressTitleLine}>
+                      <Text numberOfLines={1} style={[styles.addressTitle, { color: colors.text }]}>{selectedAddress.title || "عنوان محفوظ"}</Text>
+                      <View style={[styles.selectedMark, { backgroundColor: colors.primaryLight }]}>
+                        <AppIcon name="checkmark-circle" size={14} color={colors.success} />
+                        <Text style={[styles.selectedMarkText, { color: colors.success }]}>إفتراضي </Text>
+                      </View>
+                    </View>
+                    <Text numberOfLines={1} style={[styles.addressZone, { color: colors.textSecondary }]}>{selectedAddress.zone?.name ?? selectedZone?.name ?? "منطقة التوصيل"}</Text>
+                    <Text numberOfLines={2} style={[styles.addressDetails, { color: colors.textSecondary }]}>{selectedAddress.delivery_address}</Text>
+                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => savedAddresses.length > 1 ? setShowAddressChoices((current) => !current) : router.push({ pathname: "/addresses", params: { returnTo: "/checkout" } })}
+                    style={styles.addressChangeAction}
+                  >
+                    <Text style={[styles.addressChangeText, { color: colors.primary }]}>تغيير العنوان</Text>
+                  </Pressable>
+                </View>
+
+                {showAddressChoices ? (
+                  <View style={[styles.addressChoices, { borderTopColor: colors.border }]}>
+                    {savedAddresses.map((address) => {
+                      const selected = selectedAddressId === address.id;
+                      return (
+                        <Pressable
+                          key={address.id}
+                          onPress={() => { selectSavedAddress(address); setShowAddressChoices(false); }}
+                          accessibilityRole="radio"
+                          accessibilityState={{ selected }}
+                          style={styles.addressChoiceRow}
+                        >
+                          <AppIcon name={selected ? "checkmark-circle" : "ellipse-outline"} size={20} color={selected ? colors.primary : colors.textMuted} />
+                          <View style={styles.addressPanelInfo}>
+                            <Text style={[styles.optionTitle, { color: colors.text }]}>{address.title || "عنوان محفوظ"}</Text>
+                            <Text numberOfLines={1} style={[styles.optionText, { color: colors.textSecondary }]}>{address.delivery_address}</Text>
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                    <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/addresses", params: { returnTo: "/checkout" } })} style={styles.manageAddressesAction}>
+                      <AppIcon name="settings-outline" size={17} color={colors.primary} />
+                      <Text style={[styles.selectorActionText, { color: colors.primary }]}>إدارة العناوين</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+
+                <Pressable
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: differentRecipient }}
+                  onPress={() => {
+                    const enabled = !differentRecipient;
+                    setDifferentRecipientMode(enabled);
+                    if (!enabled) {
+                      setRecipientName(selectedAddress.recipient_name);
+                      setContactPhone(selectedAddress.contact_phone);
+                    }
+                  }}
+                  style={[styles.recipientToggle, { borderTopColor: colors.border }]}
+                >
+                  <AppIcon name={differentRecipient ? "checkbox" : "square-outline"} size={20} color={differentRecipient ? colors.primary : colors.textMuted} />
+                  <Text style={[styles.recipientToggleText, { color: colors.text }]}>مستلم مختلف لهذا الطلب</Text>
                 </Pressable>
-              ))}
+                {differentRecipient ? (
+                  <View style={styles.recipientFields}>
+                    <AppTextField label="اسم المستلم" value={recipientName} onChangeText={setRecipientName} autoCapitalize="words" maxLength={120} />
+                    <AppTextField label="رقم الهاتف" value={contactPhone} onChangeText={setContactPhone} keyboardType="phone-pad" maxLength={32} />
+                  </View>
+                ) : null}
+              </>
+            ) : (
+              <View style={styles.addressEmptyCompact}>
+                <View style={[styles.addressIcon, { backgroundColor: colors.primaryLight }]}>
+                  <AppIcon name="location-outline" size={20} color={colors.primary} />
+                </View>
+                <View style={styles.addressPanelInfo}>
+                  <Text style={[styles.addressTitle, { color: colors.text }]}>لا يوجد عنوان محدد</Text>
+                  <Text style={[styles.addressDetails, { color: colors.textSecondary }]}>أضف عنوانًا لاختيار المنطقة وحساب رسوم التوصيل.</Text>
+                </View>
+                <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/addresses", params: { returnTo: "/checkout" } })} style={styles.addressChangeAction}>
+                  <Text style={[styles.addressChangeText, { color: colors.primary }]}>إضافة عنوان</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+
+          {!selectedAddress && manualAddressMode ? (
+            <View style={styles.manualAddressFields}>
+              <AppTextField label="اسم المستلم" value={recipientName} onChangeText={setRecipientName} autoCapitalize="words" maxLength={120} />
+              <AppTextField label="رقم الهاتف" value={contactPhone} onChangeText={setContactPhone} keyboardType="phone-pad" maxLength={32} />
+              <AppTextField label="العنوان بالتفصيل" value={deliveryAddress} onChangeText={setDeliveryAddress} placeholder="الحي، الشارع، أقرب علامة مميزة" multiline maxLength={1000} />
+              <Pressable onPress={() => setShowZoneChoices((current) => !current)} style={styles.selectorAction} accessibilityRole="button">
+                <AppIcon name={showZoneChoices ? "chevron-up-outline" : "chevron-down-outline"} size={17} color={colors.primary} />
+                <Text style={[styles.selectorActionText, { color: colors.primary }]}>{selectedZone?.name ?? "اختيار منطقة التوصيل"}</Text>
+              </Pressable>
+              {showZoneChoices ? <View style={styles.choiceList}>{deliveryZones.map((zone) => (
+                <Pressable key={zone.id} onPress={() => { setSelectedZoneId(zone.id); setShowZoneChoices(false); }} accessibilityRole="radio" accessibilityState={{ selected: selectedZoneId === zone.id }} style={[styles.optionCard, { borderColor: selectedZoneId === zone.id ? colors.primary : colors.border, backgroundColor: colors.surface }]}>
+                  <View style={styles.optionInfo}><Text style={[styles.optionTitle, { color: colors.text }]}>{zone.name}</Text><Text style={[styles.optionText, { color: colors.textSecondary }]}>الرسم الأساسي: {formatCurrency(zone.fixed_fee, "SYP")}</Text></View>
+                  <AppIcon name={selectedZoneId === zone.id ? "checkmark-circle" : "ellipse-outline"} size={20} color={selectedZoneId === zone.id ? colors.primary : colors.textMuted} />
+                </Pressable>
+              ))}</View> : null}
             </View>
+          ) : null}
+          {!selectedAddress && !loadingDetails ? (
+            <Pressable accessibilityRole="button" onPress={() => setManualAddressMode((current) => !current)} style={styles.manualAddressAction}>
+              <AppIcon name="create-outline" size={17} color={colors.primary} />
+              <Text style={[styles.selectorActionText, { color: colors.primary }]}>{manualAddressMode ? "إخفاء الإدخال المؤقت" : "إدخال عنوان لهذا الطلب فقط"}</Text>
+            </Pressable>
           ) : null}
           <AppTextField
             label="ملاحظة للطلب (اختياري)"
@@ -561,62 +582,25 @@ function CheckoutContent() {
           />
         </Section>
 
-        <Section title="طريقة الدفع">
-          <View style={styles.paymentLine}>
-            <View
-              style={[styles.optionIcon, { backgroundColor: colors.primaryLight }]}
-            >
-              <AppIcon
-                name="cash-outline"
-                size={21}
-                color={colors.primary}
-              />
-            </View>
-
-            <View style={styles.optionInfo}>
-              <Text
-                style={[
-                  styles.optionTitle,
-                  {
-                    color: colors.text,
-                  },
-                ]}
-              >
-                الدفع عند الاستلام
-              </Text>
-
-              <Text
-                style={[
-                  styles.optionText,
-                  {
-                    color:
-                      colors.textSecondary,
-                  },
-                ]}
-              >
-                ادفع نقداً عند وصول الطلب
-              </Text>
-            </View>
-
-            <AppIcon
-              name="checkmark-circle"
-              size={22}
-              color={colors.primary}
-            />
-          </View>
-        </Section>
-
         <Section title="ملخص الطلب">
-          <Text style={[styles.noticeText, { color: colors.textSecondary }]}>يحسب الخادم رسم المنطقة ورسم كل متجر إضافي، وتُحفظ مبالغ البضائع بدقتها الحالية حتى منزلتين عشريتين؛ رسوم التوصيل أعداد صحيحة بالليرة.</Text>
           <View style={[styles.priceSummary, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={styles.summaryIntro}>
+              <Text style={[styles.summaryIntroText, { color: colors.textSecondary }]}>ملخص خادمي نهائي بعد الخصومات المعتمدة</Text>
+              {(quoting || validating) ? (
+                <View style={styles.inlineStatus}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={[styles.inlineStatusText, { color: colors.textMuted }]}>جارٍ التحديث…</Text>
+                </View>
+              ) : null}
+            </View>
             <SummaryRow
-              label="عدد المنتجات"
-              value={`${itemCount} قطعة`}
+              label="نطاق الطلب"
+              value={`${itemCount} عنصر · ${cartStoreNames.length} متجر`}
             />
 
             <SummaryRow
-              label="المجموع الفرعي"
-              value={validQuote ? formatCurrency(validQuote.items_amount, "SYP") : "بانتظار حساب الخادم"}
+              label="المنتجات والعروض"
+              value={scopedQuote ? formatCurrency(scopedQuote.items_amount, "SYP") : "بانتظار حساب الخادم"}
             />
 
             <SummaryRow
@@ -651,7 +635,7 @@ function CheckoutContent() {
                   style={[
                     styles.totalAmount,
                     {
-                      color: colors.primary,
+                      color: colors.text,
                     },
                   ]}
                 >
@@ -671,30 +655,15 @@ function CheckoutContent() {
                 </Text>
               </View>
             </View>
+            <View style={[styles.paymentSummary, { borderTopColor: colors.border }]}>
+              <View style={[styles.paymentSummaryIcon, { backgroundColor: colors.primaryLight }]}>
+                <AppIcon name="cash-outline" size={18} color={colors.primary} />
+              </View>
+              <Text style={[styles.paymentSummaryLabel, { color: colors.textSecondary }]}>طريقة الدفع</Text>
+              <Text style={[styles.paymentSummaryValue, { color: colors.text }]}>الدفع عند الاستلام</Text>
+            </View>
           </View>
         </Section>
-
-        <View style={styles.multiStoreNote}>
-          <AppIcon
-            name="information-circle-outline"
-            size={21}
-            color={colors.primary}
-          />
-
-          <Text
-            style={[
-              styles.noticeText,
-              {
-                color:
-                  colors.textSecondary,
-              },
-            ]}
-          >
-            الطلب متعدد المتاجر يمكن أن يحتوي
-            على أكثر من فاتورة فرعية، وسيتم
-            احتساب تفاصيل كل متجر ضمن الطلب.
-          </Text>
-        </View>
 
         {hasUnavailableItems && !catalogLoading ? <Text accessibilityRole="alert" style={{ color: colors.error, textAlign: "right" }}>يوجد منتج أو عرض غير متاح؛ عُد إلى السلة لإزالته.</Text> : null}
         {catalogError ? <AppButton title="إعادة التحقق من توفر المنتجات" variant="outline" onPress={() => void refreshCatalog()} /> : null}
@@ -720,9 +689,9 @@ function CheckoutContent() {
           <Text numberOfLines={1} style={[styles.checkoutBarValue, { color: colors.primary }]}>{confirmationTotal}</Text>
         </View>
         <Pressable
-          disabled={!recoveryReady || !validQuote || loadingDetails || submitting || cartLoading || catalogLoading || Boolean(catalogError) || hasUnavailableItems || itemCount === 0 || Boolean(syncError)}
+          disabled={!deliveryDetailsReady || !recoveryReady || !validQuote || loadingDetails || submitting || cartLoading || validating || catalogLoading || Boolean(catalogError) || hasUnavailableItems || itemCount === 0 || Boolean(syncError)}
           onPress={handleConfirmOrder}
-          style={({ pressed }) => [styles.confirmButton, { backgroundColor: colors.primary }, pressed && styles.pressed, (loadingDetails || submitting || cartLoading || catalogLoading || Boolean(catalogError) || hasUnavailableItems || itemCount === 0 || Boolean(syncError)) && { opacity: 0.55 }]}
+          style={({ pressed }) => [styles.confirmButton, { backgroundColor: colors.primary }, pressed && styles.pressed, (!deliveryDetailsReady || !recoveryReady || !validQuote || loadingDetails || submitting || cartLoading || validating || catalogLoading || Boolean(catalogError) || hasUnavailableItems || itemCount === 0 || Boolean(syncError)) && { opacity: 0.55 }]}
           accessibilityRole="button"
           accessibilityLabel="تأكيد الطلب"
         >
@@ -813,6 +782,27 @@ function SummaryRow({
   );
 }
 
+function OverviewStat({
+  icon,
+  value,
+  label,
+}: {
+  icon: React.ComponentProps<typeof AppIcon>["name"];
+  value: string;
+  label: string;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View style={styles.overviewStat}>
+      <View style={[styles.overviewIcon, { backgroundColor: colors.primaryLight }]}>
+        <AppIcon name={icon} size={19} color={colors.primary} />
+      </View>
+      <Text style={[styles.overviewValue, { color: colors.text }]}>{value}</Text>
+      <Text style={[styles.overviewLabel, { color: colors.textMuted }]}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -832,6 +822,14 @@ const styles = StyleSheet.create({
 
   cartPreview: { borderTopWidth: 1, gap: Spacing.two, paddingTop: Spacing.two },
   cartPreviewText: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "right" },
+  orderOverview: { borderRadius: Radius.lg, borderWidth: 1, overflow: "hidden", paddingHorizontal: Spacing.three, paddingTop: Spacing.three },
+  overviewStats: { flexDirection: "row-reverse", gap: Spacing.two, justifyContent: "space-between" },
+  overviewStat: { alignItems: "center", flex: 1, gap: Spacing.half, minWidth: 0 },
+  overviewIcon: { alignItems: "center", borderRadius: Radius.md, height: 36, justifyContent: "center", width: 36 },
+  overviewValue: { fontFamily: Fonts.bold, fontSize: FontSizes.md, textAlign: "center" },
+  overviewLabel: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "center" },
+  overviewFooter: { alignItems: "center", borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row-reverse", gap: Spacing.two, marginTop: Spacing.three, paddingVertical: Spacing.two },
+  reviewCartAction: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.one, minHeight: 40, paddingHorizontal: Spacing.one },
   previewItem: { alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between", gap: Spacing.two },
   previewItemInfo: { flex: 1, gap: Spacing.half },
   previewItemName: { fontFamily: Fonts.medium, fontSize: FontSizes.sm, textAlign: "right" },
@@ -845,6 +843,29 @@ const styles = StyleSheet.create({
   selectorAction: { alignSelf: "flex-start", alignItems: "center", flexDirection: "row-reverse", gap: Spacing.one, minHeight: 38, paddingHorizontal: Spacing.one },
   selectorActionText: { fontFamily: Fonts.semiBold, fontSize: FontSizes.sm, textAlign: "right" },
   choiceList: { gap: Spacing.two },
+  manualAddressAction: { alignItems: "center", alignSelf: "flex-start", flexDirection: "row-reverse", gap: Spacing.one, minHeight: 40, paddingHorizontal: Spacing.one },
+  manualAddressFields: { gap: Spacing.two },
+  inlineStatus: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.two, minHeight: 28 },
+  inlineStatusText: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "right" },
+  addressPanel: { borderRadius: Radius.lg, borderWidth: 1, overflow: "hidden", padding: Spacing.three },
+  addressPanelHeader: { alignItems: "flex-start", flexDirection: "row-reverse", gap: Spacing.two },
+  addressIcon: { alignItems: "center", borderRadius: Radius.md, height: 38, justifyContent: "center", width: 38 },
+  addressPanelInfo: { flex: 1, minWidth: 0 },
+  addressTitleLine: { alignItems: "center", flexDirection: "row-reverse", flexWrap: "wrap", gap: Spacing.one },
+  addressTitle: { flexShrink: 1, fontFamily: Fonts.bold, fontSize: FontSizes.md, textAlign: "right" },
+  addressZone: { fontFamily: Fonts.semiBold, fontSize: FontSizes.xs, marginTop: Spacing.half, textAlign: "right" },
+  addressDetails: { fontFamily: Fonts.regular, fontSize: FontSizes.sm, lineHeight: 21, marginTop: Spacing.half, textAlign: "right" },
+  selectedMark: { alignItems: "center", borderRadius: Radius.full, flexDirection: "row-reverse", gap: 3, paddingHorizontal: Spacing.one, paddingVertical: 3 },
+  selectedMarkText: { fontFamily: Fonts.semiBold, fontSize: 10 },
+  addressChangeAction: { alignItems: "center", justifyContent: "center", minHeight: 44, paddingHorizontal: Spacing.one },
+  addressChangeText: { fontFamily: Fonts.semiBold, fontSize: FontSizes.xs, textAlign: "center" },
+  addressChoices: { borderTopWidth: StyleSheet.hairlineWidth, gap: Spacing.one, marginTop: Spacing.three, paddingTop: Spacing.two },
+  addressChoiceRow: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.two, minHeight: 48, paddingVertical: Spacing.one },
+  manageAddressesAction: { alignItems: "center", alignSelf: "flex-start", flexDirection: "row-reverse", gap: Spacing.one, minHeight: 40 },
+  recipientToggle: { alignItems: "center", borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row-reverse", gap: Spacing.two, marginTop: Spacing.three, minHeight: 44, paddingTop: Spacing.two },
+  recipientToggleText: { flex: 1, fontFamily: Fonts.medium, fontSize: FontSizes.sm, textAlign: "right" },
+  recipientFields: { gap: Spacing.two, paddingTop: Spacing.two },
+  addressEmptyCompact: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.two },
 
   sectionTitle: {
     fontFamily: Fonts.bold,
@@ -889,6 +910,8 @@ const styles = StyleSheet.create({
   },
 
   priceSummary: { borderRadius: Radius.lg, borderWidth: 1, gap: Spacing.two, padding: Spacing.three },
+  summaryIntro: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.two, justifyContent: "space-between", marginBottom: Spacing.one },
+  summaryIntroText: { flex: 1, fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "right" },
 
   summaryRow: {
     flexDirection: "row-reverse",
@@ -931,13 +954,17 @@ const styles = StyleSheet.create({
 
   totalAmount: {
     fontFamily: Fonts.bold,
-    fontSize: 23,
+    fontSize: FontSizes.lg,
   },
 
   totalCurrency: {
     fontFamily: Fonts.semiBold,
     fontSize: 10,
   },
+  paymentSummary: { alignItems: "center", borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row-reverse", gap: Spacing.two, marginTop: Spacing.one, paddingTop: Spacing.three },
+  paymentSummaryIcon: { alignItems: "center", borderRadius: Radius.sm, height: 32, justifyContent: "center", width: 32 },
+  paymentSummaryLabel: { flex: 1, fontFamily: Fonts.regular, fontSize: FontSizes.sm, textAlign: "right" },
+  paymentSummaryValue: { fontFamily: Fonts.semiBold, fontSize: FontSizes.sm, textAlign: "left" },
 
   multiStoreNote: {
     flexDirection: "row-reverse",

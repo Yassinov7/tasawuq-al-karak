@@ -9,9 +9,9 @@ export type OfferRecord=Pick<Tables<"store_offers">,"id"|"store_id"|"title"|"des
 export type OfferItem=Pick<Tables<"store_offer_products">,"id"|"product_id"|"item_role"|"quantity">;
 export type OfferLoaded={offer:OfferRecord;items:OfferItem[];products:OfferProduct[]};
 export type OfferSelection={key:string;productId:string;role:OfferRole;quantity:string};
-export type OfferForm={title:string;description:string;type:OfferType;discountMethod:"percentage"|"fixed_amount";discountValue:string;bundlePrice:string;active:boolean;endMode:"keep"|"none"|"new";originalEndsAt:string|null;endDate:string;endTime:string;selectedEndInstant?:string;items:OfferSelection[]};
-export const emptyOfferForm:OfferForm={title:'',description:'',type:'discount',discountMethod:'percentage',discountValue:'',bundlePrice:'',active:true,endMode:'none',originalEndsAt:null,endDate:'',endTime:'',items:[]};
-export function formFromOffer(data:OfferLoaded):OfferForm{return{...emptyOfferForm,title:data.offer.title,description:data.offer.description,type:data.offer.offer_type,discountMethod:data.offer.discount_method??'percentage',discountValue:data.offer.discount_value===null?'':String(data.offer.discount_value),bundlePrice:data.offer.bundle_price===null?'':String(data.offer.bundle_price),active:data.offer.is_active,endMode:data.offer.ends_at?'keep':'none',originalEndsAt:data.offer.ends_at,items:data.items.map(item=>({key:item.id,productId:item.product_id,role:item.item_role,quantity:String(item.quantity)}))};}
+export type OfferForm={title:string;description:string;type:OfferType;discountMethod:"percentage"|"fixed_amount";discountValue:string;bundlePrice:string;active:boolean;startMode:"now"|"keep"|"scheduled";originalStartsAt:string|null;startDate:string;startTime:string;selectedStartInstant?:string;endMode:"keep"|"none"|"new";originalEndsAt:string|null;endDate:string;endTime:string;selectedEndInstant?:string;items:OfferSelection[]};
+export const emptyOfferForm:OfferForm={title:'',description:'',type:'discount',discountMethod:'percentage',discountValue:'',bundlePrice:'',active:true,startMode:'now',originalStartsAt:null,startDate:'',startTime:'',endMode:'new',originalEndsAt:null,endDate:'',endTime:'',items:[]};
+export function formFromOffer(data:OfferLoaded):OfferForm{return{...emptyOfferForm,title:data.offer.title,description:data.offer.description,type:data.offer.offer_type,discountMethod:data.offer.discount_method??'percentage',discountValue:data.offer.discount_value===null?'':String(data.offer.discount_value),bundlePrice:data.offer.bundle_price===null?'':String(data.offer.bundle_price),active:data.offer.is_active,startMode:'keep',originalStartsAt:data.offer.starts_at,endMode:data.offer.ends_at?'keep':'none',originalEndsAt:data.offer.ends_at,items:data.items.map(item=>({key:item.id,productId:item.product_id,role:item.item_role,quantity:String(item.quantity)}))};}
 export function normaliseOfferDigits(value:string){return value.trim().replace(/[٠-٩]/g,d=>String(d.charCodeAt(0)-1632)).replace(/[۰-۹]/g,d=>String(d.charCodeAt(0)-1776)).replace(/٫/g,'.');}
 export function offerUnits(value:string,precision:number,scale:number):bigint{
  parseProductNumber(value,precision,scale);
@@ -36,14 +36,25 @@ export function offerEndsAt(form:OfferForm,startsAt?:string,now=Date.now()):stri
  if(startsAt&&Date.parse(result)<=Date.parse(startsAt))throw new Error('يجب أن تكون النهاية بعد بداية العرض المثبتة.');
  return result;
 }
-export type OfferArgs=Database['public']['Functions']['save_store_offer']['Args'];
+export function offerStartsAt(form:OfferForm,now=Date.now()):string{
+ if(form.startMode==='now')return new Date(now).toISOString();
+ if(form.startMode==='keep'&&form.originalStartsAt&&Number.isFinite(Date.parse(form.originalStartsAt)))return form.originalStartsAt;
+ if(form.startMode==='scheduled'){
+  const result=form.selectedStartInstant??localOfferEndInstant(normaliseOfferDigits(form.startDate),normaliseOfferDigits(form.startTime));
+  if(!Number.isFinite(Date.parse(result))||Date.parse(result)<=now)throw new Error('اختر موعد بداية مستقبليًا، أو اختر «يبدأ الآن».');
+  return result;
+ }
+ throw new Error('حدد بداية العرض.');
+}
+export type OfferArgs=Database['public']['Functions']['save_store_offer_v2']['Args'];
 export type OfferErrors=Record<string,string>;
 export type OfferPreview={original:bigint;final:bigint;saving:bigint;lines:{key:string;original:bigint;final:bigint|null}[];allocationKnown:boolean};
-export function validateOffer(form:OfferForm,products:readonly OfferProduct[],offerId:string|null,startsAt?:string,now=Date.now()):{errors:OfferErrors;args:OfferArgs|null;preview:OfferPreview|null}{
+export function validateOffer(form:OfferForm,products:readonly OfferProduct[],offerId:string|null,_startsAt?:string,now=Date.now()):{errors:OfferErrors;args:OfferArgs|null;preview:OfferPreview|null}{
  const errors:OfferErrors={};
  if([...form.title.trim()].length<2||[...form.title.trim()].length>140)errors.title='عنوان العرض مطلوب من 2 إلى 140 حرفًا.';
  if([...form.description].length>5000)errors.description='الحد الأقصى للوصف 5000 حرف.';
- let end:string|null=null;try{end=offerEndsAt(form,startsAt,now);}catch(error){errors.end=(error as Error).message;}
+ let start='';try{start=offerStartsAt(form,now);}catch(error){errors.start=(error as Error).message;}
+ let end:string|null=null;try{end=offerEndsAt(form,start||undefined,now);if((!offerId||form.active)&&end===null)throw new Error('تاريخ انتهاء العرض مطلوب للعروض الجديدة والمفعّلة.');}catch(error){errors.end=(error as Error).message;}
  if(!['discount','bundle','buy_x_get_y'].includes(form.type))errors.type='اختر نوع عرض مدعومًا.';
  const permitted:OfferRole[]=form.type==='discount'?['discounted']:form.type==='bundle'?['bundle']:['buy','reward'];
  if(!form.items.length)errors.items='اختر منتجًا واحدًا على الأقل.';
@@ -86,7 +97,7 @@ export function validateOffer(form:OfferForm,products:readonly OfferProduct[],of
  const final=form.type==='bundle'?bundle:lines.reduce((sum,line)=>sum+(line.final??0n),0n);
  if(original>moneyMax||final>moneyMax)errors.items='مجموع العرض يتجاوز دقة مبالغ الطلب.';
  if(Object.keys(errors).length)return{errors,args:null,preview:null};
- return{errors,args:{selected_offer:offerId,input_title:form.title.trim(),input_description:form.description.trim(),input_type:form.type,input_discount_method:form.type==='discount'?form.discountMethod:null,input_discount_value:form.type==='discount'?Number(discount)/100:null,input_bundle_price:form.type==='bundle'?Number(bundle)/100:null,input_ends_at:end,input_is_active:form.active,input_items:form.items.map(item=>({product_id:item.productId,item_role:item.role,quantity:Number(offerUnits(item.quantity,12,3))/1000}))},preview:{original,final,saving:original-final,lines,allocationKnown:form.type!=='bundle'}};
+ return{errors,args:{selected_offer:offerId,input_title:form.title.trim(),input_description:form.description.trim(),input_type:form.type,input_discount_method:form.type==='discount'?form.discountMethod:null,input_discount_value:form.type==='discount'?Number(discount)/100:null,input_bundle_price:form.type==='bundle'?Number(bundle)/100:null,input_starts_at:start,input_ends_at:end,input_is_active:form.active,input_items:form.items.map(item=>({product_id:item.productId,item_role:item.role,quantity:Number(offerUnits(item.quantity,12,3))/1000}))},preview:{original,final,saving:original-final,lines,allocationKnown:form.type!=='bundle'}};
 }
 export function displayOfferMoney(cents:bigint){return formatSyp(Number(cents)/100);}
 function itemSignature(items:readonly {product_id:string;item_role:string;quantity:number}[]){return JSON.stringify(items.map(item=>[item.product_id,item.item_role,offerUnits(String(item.quantity),12,3).toString()]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b))));}
@@ -94,9 +105,9 @@ export function sameOfferVersion(a:OfferLoaded,b:OfferLoaded){return Object.entr
 export function offerMatchesArgs(data:OfferLoaded,args:OfferArgs){
  const offer=data.offer;
  const desired=args.input_items as {product_id:string;item_role:string;quantity:number}[];
- return offer.title===args.input_title&&offer.description===args.input_description&&offer.offer_type===args.input_type&&offer.discount_method===args.input_discount_method&&offer.discount_value===args.input_discount_value&&offer.bundle_price===args.input_bundle_price&&offer.is_active===args.input_is_active&&(offer.ends_at===null?args.input_ends_at===null:args.input_ends_at!==null&&Date.parse(offer.ends_at)===Date.parse(args.input_ends_at))&&itemSignature(data.items)===itemSignature(desired);
+ return offer.title===args.input_title&&offer.description===args.input_description&&offer.offer_type===args.input_type&&offer.discount_method===args.input_discount_method&&offer.discount_value===args.input_discount_value&&offer.bundle_price===args.input_bundle_price&&offer.is_active===args.input_is_active&&Date.parse(offer.starts_at)===Date.parse(args.input_starts_at)&&(offer.ends_at===null?args.input_ends_at===null:args.input_ends_at!==null&&Date.parse(offer.ends_at)===Date.parse(args.input_ends_at))&&itemSignature(data.items)===itemSignature(desired);
 }
-export type OfferAttempt={version:1;ownerId:string;storeId:string;offerId:string|null;form:OfferForm;args:OfferArgs;baseline:OfferLoaded|null;status:'sending'|'unknown'|'known';resultId:string|null};
+export type OfferAttempt={version:2;ownerId:string;storeId:string;offerId:string|null;form:OfferForm;args:OfferArgs;baseline:OfferLoaded|null;status:'sending'|'unknown'|'known';resultId:string|null};
 export type OfferSaveResult={kind:'confirmed';id:string}|{kind:'unknown'|'conflict'|'rejected'|'blocked';message:string};
 export type OfferSaveApi={persist:(attempt:OfferAttempt)=>Promise<void>;clear:(attempt:OfferAttempt)=>Promise<void>;scope:(attempt:OfferAttempt)=>Promise<void>;read:(storeId:string,id:string)=>Promise<OfferLoaded>;rpc:(args:OfferArgs)=>Promise<{data:string|null;error:{code?:string;message:string}|null}>};
 export function createOfferSaver(api:OfferSaveApi){let locked=false;let pending:OfferAttempt|null=null;return{

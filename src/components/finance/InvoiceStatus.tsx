@@ -9,7 +9,7 @@ export function InvoiceStatus({invoice}:{invoice:Pick<MoneyInvoice,"status"|"voi
  const color=state.tone==="success"?colors.successForeground:state.tone==="info"?colors.infoForeground:colors.textSecondary;
  const backgroundColor=state.tone==="success"?colors.successSurface:state.tone==="info"?colors.infoSurface:colors.mutedSurface;
  return <View style={{flexDirection:"row-reverse",flexWrap:"wrap",gap:Spacing.two}}>
-  <Text style={{...Typography.caption,color:colors.textSecondary}}>المستند: {state.document}</Text>
-  {state.payment?<Text style={{...Typography.bodyStrong,color,backgroundColor,paddingHorizontal:Spacing.two,paddingVertical:Spacing.one,borderRadius:Radius.sm}}>السداد: {state.payment}</Text>:null}
+  <Text style={{...Typography.caption,color:colors.textSecondary}}>حالة الفاتورة: {state.document}</Text>
+  {state.payment?<Text style={{...Typography.bodyStrong,color,backgroundColor,paddingHorizontal:Spacing.two,paddingVertical:Spacing.one,borderRadius:Radius.sm}}>حالة السداد: {state.payment}</Text>:null}
  </View>;
 }

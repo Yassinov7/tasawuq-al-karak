@@ -1,20 +1,34 @@
-import { userErrorMessage } from "@/lib/user-error-message";
-import { LoadingSkeleton } from "@/components/ui/LoadingState";
+import { LoadingSkeleton, RefreshStatus } from "@/components/ui/LoadingState";
 import { useReadScope } from "@/hooks/useReadScope";
-import { LiveStatus } from "@/components/ui/LiveStatus";
+import { userErrorMessage } from "@/lib/user-error-message";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
 import { AppHeader } from "@/components/navigation/AppHeader";
+import { CategoryChip } from "@/components/marketplace/CategoryChip";
 import { AppButton } from "@/components/ui/AppButton";
+import { AppEmptyState } from "@/components/ui/AppEmptyState";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
-import { useCart } from "@/context/CartContext";
+import { ControlSizes, FontSizes, Fonts, Radius, RtlText, Spacing } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
+import { useCart } from "@/context/CartContext";
 import { useTheme } from "@/context/ThemeContext";
-import { formatCurrency, getCustomerOrders, type CustomerOrderView } from "@/lib/customer-orders";
 import { useOrderRealtime } from "@/hooks/useOrderRealtime";
+import {
+  formatCurrency,
+  getCustomerOrdersPage,
+  type CustomerOrderView,
+} from "@/lib/customer-orders";
 import { groupOrderItems } from "@/lib/order-item-groups";
 
 type OrderStatus = CustomerOrderView["status"];
@@ -31,7 +45,42 @@ type Order = {
   status: OrderStatus;
 };
 
-const statusIcons: Record<OrderStatus, React.ComponentProps<typeof AppIcon>["name"]> = {
+type OrdersSnapshot = {
+  orders: Order[];
+  hasMore: boolean;
+  filter: OrderFilter;
+  searchText: string;
+  query: string;
+  scrollOffset: number;
+};
+
+const ORDERS_PAGE_SIZE = 12;
+const orderSnapshots = new Map<string, OrdersSnapshot>();
+
+function toOrder(row: CustomerOrderView): Order {
+  return {
+    id: row.id,
+    displayId: row.c3?.references[`ORD:${row.id}`] ?? "مرجع الطلب غير متاح",
+    storeNames: row.stores.map((store) => store.storeName).join("، "),
+    itemCount: row.stores.reduce(
+      (count, store) => count + groupOrderItems(store.items).length,
+      0,
+    ),
+    total: row.totals[0]
+      ? formatCurrency(row.totals[0].total, row.totals[0].currency)
+      : "غير متاح",
+    date: new Intl.DateTimeFormat("ar-SY", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(row.created_at)),
+    status: row.status,
+  };
+}
+
+const statusIcons: Record<
+  OrderStatus,
+  React.ComponentProps<typeof AppIcon>["name"]
+> = {
   submitted: "time-outline",
   in_progress: "time-outline",
   ready_for_delivery: "checkmark-circle-outline",
@@ -52,44 +101,84 @@ const statusLabels: Record<OrderStatus, string> = {
 };
 
 export default function OrdersScreen() {
-  const {user}=useAuth();
-  return <OrdersContent key={user?.id ?? "guest"}/>;
+  const { user } = useAuth();
+  return <OrdersContent key={user?.id ?? "guest"} />;
 }
 function OrdersContent() {
   const router = useRouter();
   const { colors } = useTheme();
   const { itemCount } = useCart();
   const { user } = useAuth();
+  const scope = user?.id ?? "guest";
+  const initialSnapshot = orderSnapshots.get(scope);
 
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState<Order[]>(initialSnapshot?.orders ?? []);
+  const [loading, setLoading] = useState(!initialSnapshot);
   const [error, setError] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<OrderFilter>("all");
+  const [activeFilter, setActiveFilter] = useState<OrderFilter>(
+    initialSnapshot?.filter ?? "all",
+  );
+  const [searchText, setSearchText] = useState(initialSnapshot?.searchText ?? "");
+  const [query, setQuery] = useState(initialSnapshot?.query ?? "");
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(initialSnapshot?.hasMore ?? true);
+  const ordersRef = useRef(orders);
+  const readRef = useRef<{ key: string; promise: Promise<void> } | null>(null);
+  const criteriaRef = useRef({ query: initialSnapshot?.query ?? "", filter: initialSnapshot?.filter ?? "all" as OrderFilter });
+  const scrollRef = useRef<FlatList<Order>>(null);
+  const scrollOffsetRef = useRef(initialSnapshot?.scrollOffset ?? 0);
+  const restoredScrollRef = useRef(false);
+  const initialReadStartedRef = useRef(false);
 
-  const reads=useReadScope(user?.id??"guest");
-  const refresh = useCallback(async () => {
-    const epoch=reads.begin();
-    try {
-      const rows = await getCustomerOrders();
-      if(!reads.current(epoch))return;
-      setError(null);
-      setOrders(rows.map((order) => ({
-        id: order.id,
-        displayId: order.c3?.references[`ORD:${order.id}`] ?? "مرجع الطلب غير متاح",
-        storeNames: order.stores.map((store) => store.storeName).join("، "),
-        itemCount: order.stores.reduce((count, store) => count + groupOrderItems(store.items).length, 0),
-        total: order.totals[0] ? formatCurrency(order.totals[0].total, order.totals[0].currency) : "غير متاح",
-        date: new Date(order.created_at).toLocaleString("ar"),
-        status: order.status,
-      })));
-    } catch (cause) {
-      if(!reads.current(epoch))return;
-      setError(userErrorMessage(cause, "تعذر تحميل طلباتك."));
-    } finally {
-      if (reads.current(epoch)) { setLoading(false); setRefreshing(false); }
-    }
-  }, [reads]);
+  const reads = useReadScope(user?.id ?? "guest");
+  const readOrders = useCallback(
+    (append = false, criteria = criteriaRef.current) => {
+      const requestKey = JSON.stringify([criteria.query, criteria.filter, append ? ordersRef.current.length : 0]);
+      if (readRef.current?.key === requestKey) return readRef.current.promise;
+      const epoch = reads.begin();
+      const offset = append ? ordersRef.current.length : 0;
+      const limit = append
+        ? ORDERS_PAGE_SIZE
+        : Math.max(ORDERS_PAGE_SIZE, ordersRef.current.length);
+      const task = (async () => {
+        try {
+          const rows = await getCustomerOrdersPage(offset, limit, criteria.query, criteria.filter);
+          if (!reads.current(epoch)) return;
+          const mapped = rows.map(toOrder);
+          const next = append
+            ? [
+                ...ordersRef.current,
+                ...mapped.filter(
+                  (row) =>
+                    !ordersRef.current.some((current) => current.id === row.id),
+                ),
+              ]
+            : mapped;
+          ordersRef.current = next;
+          setOrders(next);
+          setHasMore(rows.length === limit);
+          setError(null);
+        } catch (cause) {
+          if (!reads.current(epoch)) return;
+          setError(userErrorMessage(cause, "تعذر تحميل طلباتك."));
+        } finally {
+          if (reads.current(epoch)) {
+            setLoading(false);
+            setRefreshing(false);
+            setLoadingMore(false);
+          }
+        }
+      })().finally(() => {
+        if (readRef.current?.promise === task) readRef.current = null;
+      });
+      readRef.current = { key: requestKey, promise: task };
+      return task;
+    },
+    [reads],
+  );
+
+  const refresh = useCallback(() => readOrders(false, criteriaRef.current), [readOrders]);
 
   const handlePullRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -97,70 +186,76 @@ function OrdersContent() {
     setRefreshing(false);
   }, [refresh]);
 
+  const handleLoadMore = useCallback(async () => {
+    if (!hasMore || loadingMore || refreshing || loading) return;
+    setLoadingMore(true);
+    await readOrders(true, criteriaRef.current);
+  }, [hasMore, loading, loadingMore, readOrders, refreshing]);
+
   useEffect(() => {
-    const timer = setTimeout(() => void refresh(), 0);
+    ordersRef.current = orders;
+    orderSnapshots.set(scope, {
+      orders,
+      hasMore,
+      filter: activeFilter,
+      searchText,
+      query,
+      scrollOffset: scrollOffsetRef.current,
+    });
+  }, [activeFilter, hasMore, orders, query, scope, searchText]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setQuery(searchText.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [searchText]);
+
+  useEffect(() => {
+    const next = { query, filter: activeFilter };
+    if (criteriaRef.current.query === next.query && criteriaRef.current.filter === next.filter) return;
+    criteriaRef.current = next;
+    ordersRef.current = [];
+    setOrders([]);
+    setHasMore(true);
+    setError(null);
+    setLoading(true);
+    restoredScrollRef.current = true;
+    scrollOffsetRef.current = 0;
+    scrollRef.current?.scrollToOffset({ offset: 0, animated: false });
+    void readOrders(false, next);
+  }, [activeFilter, query, readOrders]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!initialReadStartedRef.current) {
+        initialReadStartedRef.current = true;
+        void refresh();
+      }
+    }, 900);
     return () => clearTimeout(timer);
   }, [refresh]);
 
   const realtimeSubscriptions = useMemo(
-    () => user ? [
-      { table: "customer_orders" as const, filter: `customer_id=eq.${user.id}` },
-    ] : [],
+    () =>
+      user
+        ? [
+            {
+              table: "customer_orders" as const,
+              filter: `customer_id=eq.${user.id}`,
+            },
+          ]
+        : [],
     [user],
   );
   const refreshFromRealtime = useCallback(() => {
+    initialReadStartedRef.current = true;
     return refresh();
   }, [refresh]);
-  const live = useOrderRealtime({
+  useOrderRealtime({
     channelName: `customer-orders:${user?.id ?? "guest"}`,
     enabled: Boolean(user),
     subscriptions: realtimeSubscriptions,
     onChange: refreshFromRealtime,
   });
-
-  const filteredOrders = useMemo(() => {
-    return orders.filter((order) => {
-      if (activeFilter === "all") {
-        return true;
-      }
-
-      if (activeFilter === "active") {
-        return !["delivered", "cancelled"].includes(order.status);
-      }
-
-      if (activeFilter === "completed") {
-        return order.status === "delivered";
-      }
-
-      return order.status === "cancelled";
-    });
-  }, [activeFilter, orders]);
-
-  const getStatusColors = (status: OrderStatus) => {
-    switch (status) {
-      case "submitted":
-      case "in_progress":
-      case "out_for_delivery":
-        return {
-          color: colors.accent,
-          background: colors.accentLight,
-        };
-
-      case "ready_for_delivery":
-      case "delivered":
-        return {
-          color: colors.primary,
-          background: colors.primaryLight,
-        };
-
-      case "partially_cancelled":
-      case "cancelled":
-        return {
-          color: colors.error,
-          background: colors.error + "18",
-        };
-    }
-  };
 
   return (
     <View
@@ -171,321 +266,306 @@ function OrdersContent() {
         },
       ]}
     >
-      <AppHeader title="طلباتي" showBack cartCount={itemCount} mode="customer" />
+      <AppHeader
+        title="طلباتي"
+        showBack
+        cartCount={itemCount}
+        mode="customer"
+      />
 
-      <LiveStatus state={live}/>
-      <ScrollView
+      <FlatList
+        ref={scrollRef}
+        style={styles.container}
+        data={orders}
+        keyExtractor={(order) => order.id}
+        renderItem={({ item }) => (
+          <CustomerOrderCard
+            order={item}
+            onPress={() =>
+              router.push({
+                pathname: "/order-details",
+                params: { id: item.id },
+              })
+            }
+          />
+        )}
+        ItemSeparatorComponent={() => <View style={styles.itemSeparator} />}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handlePullRefresh()} tintColor={colors.primary} />}
-      >
-        <View style={[styles.intro, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
-          <Text
-            style={[
-              styles.title,
-              {
-                color: colors.text,
-              },
-            ]}
-          >
-            طلباتك
-          </Text>
-
-          <Text
-            style={[
-              styles.subtitle,
-              {
-                color: colors.textSecondary,
-              },
-            ]}
-          >
-            تابع طلباتك الحالية والسابقة بسهولة
-          </Text>
-        </View>
-
-        <View style={styles.filters}>
-          <FilterButton
-            label="الكل"
-            active={activeFilter === "all"}
-            onPress={() => setActiveFilter("all")}
-          />
-
-          <FilterButton
-            label="جارية"
-            active={activeFilter === "active"}
-            onPress={() => setActiveFilter("active")}
-          />
-
-          <FilterButton
-            label="مكتملة"
-            active={activeFilter === "completed"}
-            onPress={() => setActiveFilter("completed")}
-          />
-
-          <FilterButton
-            label="ملغاة"
-            active={activeFilter === "cancelled"}
-            onPress={() => setActiveFilter("cancelled")}
-          />
-        </View>
-
-        {error?<View style={{gap:Spacing.two}}><Text accessibilityRole="alert" style={{color:colors.errorForeground,textAlign:"right"}}>{orders.length?"تعذر تحديث الطلبات؛ المعروض آخر بيانات متاحة. ":""}{error}</Text><AppButton title="إعادة المحاولة" variant="outline" onPress={()=>{setRefreshing(true);void refresh();}}/></View>:null}
-        {(loading || refreshing) && !orders.length ? <LoadingSkeleton label="جارٍ تحميل طلباتك"/> : error && !orders.length ? null : filteredOrders.length > 0 ? (
-          <View style={styles.orders}>
-            {filteredOrders.map((order) => {
-              const statusColors = getStatusColors(order.status);
-
-              return (
-                <Pressable
-                  key={order.id}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/order-details",
-                      params: {
-                        id: order.id,
-                      },
-                    })
-                  }
-                  accessibilityRole="button"
-                  accessibilityLabel={`تفاصيل الطلب ${order.id}`}
-                  style={({ pressed }) => [
-                    styles.orderCard,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border,
-                    },
-                    pressed && styles.pressed,
+        scrollEventThrottle={120}
+        onScroll={(event) => {
+          scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+          const snapshot = orderSnapshots.get(scope);
+          if (snapshot) snapshot.scrollOffset = scrollOffsetRef.current;
+        }}
+        onContentSizeChange={() => {
+          if (restoredScrollRef.current || scrollOffsetRef.current <= 0) return;
+          restoredScrollRef.current = true;
+          scrollRef.current?.scrollToOffset({
+            offset: scrollOffsetRef.current,
+            animated: false,
+          });
+        }}
+        refreshing={refreshing}
+        onRefresh={() => void handlePullRefresh()}
+        onEndReached={() => void handleLoadMore()}
+        onEndReachedThreshold={0.35}
+        ListHeaderComponent={
+          <View style={styles.listHeader}>
+            <View style={[styles.search, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+              <AppIcon name="search-outline" size={20} color={colors.textMuted} />
+              <TextInput
+                value={searchText}
+                onChangeText={setSearchText}
+                onSubmitEditing={() => setQuery(searchText.trim())}
+                placeholder="ابحث برقم الطلب أو المتجر أو المنتج"
+                placeholderTextColor={colors.textMuted}
+                returnKeyType="search"
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={[styles.searchInput, { color: colors.text }]}
+              />
+              {searchText ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="مسح بحث الطلبات" style={styles.clearSearch} onPress={() => setSearchText("")}>
+                  <AppIcon name="close-circle" size={20} color={colors.textMuted} />
+                </Pressable>
+              ) : null}
+            </View>
+            <ScrollView
+              horizontal
+              nestedScrollEnabled
+              showsHorizontalScrollIndicator={false}
+              style={styles.filtersScroll}
+              contentContainerStyle={styles.filters}
+            >
+              <CategoryChip
+                label="الكل"
+                active={activeFilter === "all"}
+                onPress={() => setActiveFilter("all")}
+              />
+              <CategoryChip
+                label="جارية"
+                active={activeFilter === "active"}
+                onPress={() => setActiveFilter("active")}
+              />
+              <CategoryChip
+                label="مكتملة"
+                active={activeFilter === "completed"}
+                onPress={() => setActiveFilter("completed")}
+              />
+              <CategoryChip
+                label="ملغاة"
+                active={activeFilter === "cancelled"}
+                onPress={() => setActiveFilter("cancelled")}
+              />
+            </ScrollView>
+            {refreshing && orders.length > 0 ? (
+              <RefreshStatus busy label="جارٍ تحديث الطلبات…" />
+            ) : null}
+            {error && orders.length ? (
+              <View style={styles.inlineError}>
+                <Text
+                  accessibilityRole="alert"
+                  style={[
+                    styles.inlineErrorText,
+                    { color: colors.errorForeground },
                   ]}
                 >
-                  <View style={styles.orderTop}>
-                    <View style={styles.orderInfo}>
-                      <Text
-                        style={[
-                          styles.orderId,
-                          {
-                            color: colors.text,
-                          },
-                        ]}
-                      >
-                        {order.displayId}
-                      </Text>
-
-                      <Text
-                        style={[
-                          styles.orderDate,
-                          {
-                            color: colors.textMuted,
-                          },
-                        ]}
-                      >
-                        {order.date}
-                      </Text>
-                    </View>
-
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        {
-                          backgroundColor: statusColors.background,
-                        },
-                      ]}
-                    >
-                      <AppIcon
-                        name={statusIcons[order.status]}
-                        size={14}
-                        color={statusColors.color}
-                      />
-
-                      <Text
-                        style={[
-                          styles.statusText,
-                          {
-                            color: statusColors.color,
-                          },
-                        ]}
-                      >
-                        {statusLabels[order.status]}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.orderDetails}>
-                    <View style={styles.detailItem}>
-                      <AppIcon
-                        name="storefront-outline"
-                        size={18}
-                        color={colors.textMuted}
-                      />
-
-                      <Text
-                        style={[
-                          styles.detailText,
-                          {
-                            color: colors.textSecondary,
-                          },
-                        ]}
-                      >
-                        {order.storeNames}
-                      </Text>
-                    </View>
-
-                    <View style={styles.detailItem}>
-                      <AppIcon
-                        name="cube-outline"
-                        size={18}
-                        color={colors.textMuted}
-                      />
-
-                      <Text
-                        style={[
-                          styles.detailText,
-                          {
-                            color: colors.textSecondary,
-                          },
-                        ]}
-                      >
-                        {order.itemCount} عناصر
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.orderBottom}>
-                    <View style={styles.totalContainer}>
-                      <Text
-                        style={[
-                          styles.totalLabel,
-                          {
-                            color: colors.textMuted,
-                          },
-                        ]}
-                      >
-                        الإجمالي
-                      </Text>
-
-                      <Text
-                        style={[
-                          styles.totalValue,
-                          {
-                            color: colors.primary,
-                          },
-                        ]}
-                      >
-                        {order.total}
-                      </Text>
-                    </View>
-
-                    <View style={styles.detailsButton}>
-                      <Text
-                        style={[
-                          styles.detailsButtonText,
-                          {
-                            color: colors.primary,
-                          },
-                        ]}
-                      >
-                        التفاصيل
-                      </Text>
-
-                      <AppIcon
-                        name="arrow-back"
-                        size={16}
-                        color={colors.primary}
-                      />
-                    </View>
-                  </View>
-                </Pressable>
-              );
-            })}
+                  تعذر تحديث الطلبات؛ المعروض آخر بيانات متاحة.
+                </Text>
+                <AppButton
+                  compact
+                  fullWidth={false}
+                  title="إعادة المحاولة"
+                  variant="outline"
+                  onPress={() => {
+                    setRefreshing(true);
+                    void refresh();
+                  }}
+                />
+              </View>
+            ) : null}
           </View>
-        ) : (
-          <View
-            style={[
-              styles.emptyCard,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-              },
-            ]}
-          >
-            <View
-              style={[
-                styles.emptyIcon,
-                {
-                  backgroundColor: colors.primaryLight,
-                },
-              ]}
-            >
-              <AppIcon
-                name="receipt-outline"
-                size={36}
-                color={colors.primary}
-              />
+        }
+        ListEmptyComponent={
+          (loading || refreshing) && !orders.length ? (
+            <LoadingSkeleton label="جارٍ تحميل طلباتك" />
+          ) : error && !orders.length ? (
+            <AppEmptyState
+              icon="cloud-offline-outline"
+              title="تعذر تحميل الطلبات"
+              description={error}
+              buttonText="إعادة المحاولة"
+              onButtonPress={() => {
+                setRefreshing(true);
+                void refresh();
+              }}
+            />
+          ) : !query && activeFilter === "all" ? (
+            <AppEmptyState
+              icon="receipt-outline"
+              title="لا توجد طلبات بعد"
+              description="ابدأ التسوق وستظهر طلباتك هنا."
+              buttonText="ابدأ التسوق"
+              onButtonPress={() => router.navigate("/home")}
+            />
+          ) : query ? (
+            <AppEmptyState
+              icon="search-outline"
+              title="لا توجد نتائج للبحث"
+              description="جرّب رقم طلب أو اسم متجر أو منتج آخر."
+              buttonText="مسح البحث"
+              onButtonPress={() => setSearchText("")}
+            />
+          ) : (
+            <AppEmptyState
+              icon="filter-outline"
+              title="لا توجد طلبات ضمن هذا الفلتر"
+              description="جرّب فلترًا آخر أو اعرض جميع طلباتك."
+              buttonText="عرض كل الطلبات"
+              onButtonPress={() => setActiveFilter("all")}
+            />
+          )
+        }
+        ListFooterComponent={
+          orders.length > 0 ? (
+            <View style={styles.listFooter}>
+              {loadingMore ? (
+                <ActivityIndicator accessibilityLabel="جارٍ تحميل طلبات إضافية" size="small" color={colors.primary} />
+              ) : !hasMore && orders.length >= ORDERS_PAGE_SIZE ? (
+                <Text style={[styles.endText, { color: colors.textMuted }]}>
+                  وصلت إلى أقدم طلب محفوظ.
+                </Text>
+              ) : null}
             </View>
-
-            <Text
-              style={[
-                styles.emptyTitle,
-                {
-                  color: colors.text,
-                },
-              ]}
-            >
-              لا توجد طلبات
-            </Text>
-
-            <Text
-              style={[
-                styles.emptyText,
-                {
-                  color: colors.textSecondary,
-                },
-              ]}
-            >
-              لا توجد طلبات ضمن هذا التصنيف حالياً.
-            </Text>
-          </View>
-        )}
-      </ScrollView>
+          ) : null
+        }
+      />
     </View>
   );
 }
 
-type FilterButtonProps = {
-  label: string;
-  active: boolean;
+function CustomerOrderCard({
+  order,
+  onPress,
+}: {
+  order: Order;
   onPress: () => void;
-};
-
-function FilterButton({ label, active, onPress }: FilterButtonProps) {
+}) {
   const { colors } = useTheme();
+  const statusColors = (() => {
+    switch (order.status) {
+      case "submitted":
+      case "in_progress":
+      case "out_for_delivery":
+        return { color: colors.accent, background: colors.accentLight };
+      case "ready_for_delivery":
+      case "delivered":
+        return { color: colors.primary, background: colors.primaryLight };
+      case "partially_cancelled":
+      case "cancelled":
+        return { color: colors.error, background: colors.error + "18" };
+    }
+  })();
 
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`تصفية الطلبات: ${label}`}
-      accessibilityState={{
-        selected: active,
-      }}
+      accessibilityLabel={`تفاصيل الطلب ${order.displayId}`}
       style={({ pressed }) => [
-        styles.filterButton,
+        styles.orderCard,
         {
-          borderColor: active ? colors.primary : colors.border,
-          backgroundColor: active ? colors.primary : colors.surface,
+          backgroundColor: colors.surface,
+          borderColor: colors.border,
+          borderRightColor: statusColors.color,
         },
         pressed && styles.pressed,
       ]}
     >
-      <Text
-        style={[
-          styles.filterText,
-          {
-            color: active ? colors.surface : colors.textSecondary,
-          },
-        ]}
-      >
-        {label}
-      </Text>
+      <View style={styles.orderTop}>
+        <View style={styles.orderInfo}>
+          <Text style={[styles.orderEyebrow, { color: colors.textMuted }]}>
+            طلب
+          </Text>
+          <Text
+            numberOfLines={1}
+            style={[styles.orderId, { color: colors.text }]}
+          >
+            {order.displayId}
+          </Text>
+          <Text
+            numberOfLines={1}
+            style={[styles.orderDate, { color: colors.textMuted }]}
+          >
+            {order.date}
+          </Text>
+        </View>
+        <View
+          style={[
+            styles.statusBadge,
+            {
+              backgroundColor: statusColors.background,
+              borderColor: statusColors.color + "55",
+            },
+          ]}
+        >
+          <AppIcon
+            name={statusIcons[order.status]}
+            size={15}
+            color={statusColors.color}
+          />
+          <Text style={[styles.statusText, { color: statusColors.color }]}>
+            {statusLabels[order.status]}
+          </Text>
+        </View>
+      </View>
+
+      <View style={[styles.orderDetails, { borderColor: colors.border }]}>
+        <View style={styles.storeLine}>
+          <AppIcon
+            name="storefront-outline"
+            size={17}
+            color={colors.textMuted}
+          />
+          <Text
+            numberOfLines={2}
+            style={[styles.detailText, { color: colors.textSecondary }]}
+          >
+            {order.storeNames || "متجر"}
+          </Text>
+        </View>
+        <View style={[styles.itemCount, { borderColor: colors.border }]}>
+          <AppIcon name="cube-outline" size={15} color={colors.textMuted} />
+          <Text style={[styles.itemCountText, { color: colors.textSecondary }]}>
+            {order.itemCount} عنصر
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.orderBottom}>
+        <View style={styles.totalContainer}>
+          <Text style={[styles.totalLabel, { color: colors.textMuted }]}>
+            الإجمالي النهائي
+          </Text>
+          <Text style={[styles.totalValue, { color: colors.primary }]}>
+            {order.total}
+          </Text>
+        </View>
+        <View style={styles.detailsAction}>
+          <Text style={[styles.detailsButtonText, { color: colors.primary }]}>
+            تفاصيل الطلب
+          </Text>
+          <View
+            style={[
+              styles.detailsButton,
+              { backgroundColor: colors.primaryLight },
+            ]}
+          >
+            <AppIcon name="arrow-back" size={17} color={colors.primary} />
+          </View>
+        </View>
+      </View>
     </Pressable>
   );
 }
@@ -496,75 +576,98 @@ const styles = StyleSheet.create({
   },
 
   content: {
+    width: "100%",
+    maxWidth: 760,
+    alignSelf: "center",
     paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.five,
-    paddingBottom: Spacing.seven,
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.six,
+    flexGrow: 1,
   },
 
-  intro: {
-    alignItems: "flex-end",
-    borderRadius: Radius.xl,
+  search: {
+    direction: "rtl",
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: ControlSizes.input,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    padding: Spacing.four,
+    paddingHorizontal: Spacing.two,
+    gap: Spacing.two,
+    marginBottom: Spacing.two,
+  },
+  searchInput: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: ControlSizes.input,
+    fontFamily: Fonts.medium,
+    fontSize: FontSizes.sm,
+    ...RtlText,
+  },
+  clearSearch: {
+    minWidth: ControlSizes.touch,
+    minHeight: ControlSizes.touch,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
-  title: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.xl,
-    textAlign: "right",
+  filters: {
+    flexDirection: "row",
+    gap: Spacing.two,
+    paddingHorizontal: 0,
   },
 
-  subtitle: {
-    marginTop: Spacing.one,
+  filtersScroll: { direction: "rtl", marginBottom: 0 },
+  listHeader: { paddingBottom: Spacing.three },
+  itemSeparator: { height: Spacing.two },
+  listFooter: { paddingTop: Spacing.three },
+  inlineError: {
+    alignItems: "center",
+    flexDirection: "row-reverse",
+    flexWrap: "wrap",
+    gap: Spacing.two,
+    paddingBottom: Spacing.two,
+  },
+  inlineErrorText: {
+    flex: 1,
+    minWidth: 180,
     fontFamily: Fonts.regular,
     fontSize: FontSizes.sm,
     textAlign: "right",
   },
 
-  filters: {
-    flexDirection: "row-reverse",
-    flexWrap: "wrap",
-    gap: Spacing.two,
-    marginTop: Spacing.three,
-    marginBottom: Spacing.four,
-  },
-
-  filterButton: {
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    borderWidth: 1,
-    borderRadius: Radius.full,
-  },
-
-  filterText: {
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.xs,
-  },
-
-  orders: {
-    gap: Spacing.three,
-  },
-
   orderCard: {
-    gap: Spacing.three,
-    padding: Spacing.three,
+    borderRightWidth: 4,
     borderWidth: 1,
     borderRadius: Radius.lg,
+    overflow: "hidden",
+    padding: Spacing.three,
   },
 
   orderTop: {
     flexDirection: "row-reverse",
     alignItems: "flex-start",
+    flexWrap: "wrap",
+    gap: Spacing.two,
     justifyContent: "space-between",
   },
 
   orderInfo: {
     alignItems: "flex-end",
+    flex: 1,
+    minWidth: 0,
   },
 
   orderId: {
     fontFamily: Fonts.bold,
     fontSize: FontSizes.md,
+    textAlign: "right",
+  },
+
+  orderEyebrow: {
+    fontFamily: Fonts.regular,
+    fontSize: FontSizes.xs,
+    textAlign: "right",
   },
 
   orderDate: {
@@ -577,6 +680,7 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     alignItems: "center",
     gap: Spacing.one,
+    borderWidth: 1,
     paddingHorizontal: Spacing.two,
     paddingVertical: 5,
     borderRadius: Radius.full,
@@ -594,30 +698,62 @@ const styles = StyleSheet.create({
 
   orderDetails: {
     flexDirection: "row-reverse",
-    flexWrap: "wrap",
-    gap: Spacing.three,
+    alignItems: "center",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: Spacing.two,
+    marginTop: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+
+  storeLine: {
+    alignItems: "center",
+    flex: 1,
+    flexDirection: "row-reverse",
+    gap: Spacing.one,
+    minWidth: 0,
+  },
+  itemCount: {
+    alignItems: "center",
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row-reverse",
+    gap: Spacing.one,
+    paddingLeft: Spacing.two,
+  },
+  itemCountText: {
+    fontFamily: Fonts.medium,
+    fontSize: FontSizes.xs,
+    textAlign: "right",
   },
 
   detailItem: {
     flexDirection: "row-reverse",
     alignItems: "center",
     gap: Spacing.one,
+    minWidth: 0,
   },
 
   detailText: {
+    flex: 1,
     fontFamily: Fonts.regular,
-    fontSize: FontSizes.xs,
+    fontSize: FontSizes.sm,
+    lineHeight: 21,
+    textAlign: "right",
   },
 
   orderBottom: {
     flexDirection: "row-reverse",
-    alignItems: "flex-end",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: Spacing.two,
     justifyContent: "space-between",
-    marginTop: Spacing.one,
+    marginTop: Spacing.three,
   },
 
   totalContainer: {
     alignItems: "flex-end",
+    flex: 1,
+    minWidth: 130,
   },
 
   totalLabel: {
@@ -632,9 +768,18 @@ const styles = StyleSheet.create({
   },
 
   detailsButton: {
-    flexDirection: "row-reverse",
     alignItems: "center",
+    borderRadius: Radius.full,
+    height: 34,
+    justifyContent: "center",
+    width: 34,
+  },
+
+  detailsAction: {
+    alignItems: "center",
+    flexDirection: "row-reverse",
     gap: Spacing.one,
+    minHeight: 44,
   },
 
   detailsButtonText: {
@@ -642,35 +787,10 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
   },
 
-  emptyCard: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: Spacing.five,
-    paddingHorizontal: Spacing.five,
-    paddingVertical: Spacing.ten,
-    borderWidth: 1,
-    borderRadius: Radius.xl,
-  },
-
-  emptyIcon: {
-    width: 72,
-    height: 72,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.full,
-  },
-
-  emptyTitle: {
-    marginTop: Spacing.four,
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.lg,
-  },
-
-  emptyText: {
-    marginTop: Spacing.one,
+  endText: {
     fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    lineHeight: 22,
+    fontSize: FontSizes.xs,
+    paddingVertical: Spacing.two,
     textAlign: "center",
   },
 

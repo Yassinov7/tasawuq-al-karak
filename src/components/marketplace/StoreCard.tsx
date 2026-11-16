@@ -5,7 +5,7 @@ import { AppIcon } from "@/components/ui/AppIcon";
 import { RatingStars } from "@/components/marketplace/RatingStars";
 import { type Store } from "@/types/catalog";
 import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
-import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
+import { FontSizes, Fonts, Radius, RtlText, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 
 type StoreCardProps = {
@@ -16,6 +16,7 @@ type StoreCardProps = {
   showFeatured?: boolean;
   shelfWidth?: number;
   searchResult?: boolean;
+  orderable?: boolean;
   logo?: { url: string; key: string };
 };
 
@@ -28,8 +29,10 @@ export function StoreCard({
   logo,
   shelfWidth,
   searchResult = false,
+  orderable,
 }: StoreCardProps) {
   const { colors } = useTheme();
+  const searchCompact = compact && searchResult;
   const { width, fontScale } = useWindowDimensions();
   const { storeCategories: categories, products, storeRatings } = useCustomerCatalog();
 
@@ -47,9 +50,10 @@ export function StoreCard({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={store.name}
+      accessibilityLabel={orderable === undefined ? store.name : [store.name, category?.name, orderable ? "متاح للطلب" : "غير متاح للطلب"].filter(Boolean).join("، ")}
       style={({ pressed }) => [
         styles.card,
+        searchCompact && styles.searchCompactCard,
         grid ? (width < 360 || fontScale > 1.25 ? styles.singleColumnCard : styles.gridCard) : (compact ? styles.compactCard : styles.normalCard),
         searchResult && styles.singleColumnCard,
         shelfWidth === undefined ? undefined : { width: shelfWidth },
@@ -60,7 +64,7 @@ export function StoreCard({
         },
       ]}
     >
-      <View style={[styles.header, shelfWidth !== undefined && styles.shelfHeader]}>
+      <View style={[styles.header, (shelfWidth !== undefined || searchCompact) && styles.shelfHeader]}>
         <View
           style={[
             styles.storeIcon,
@@ -74,7 +78,7 @@ export function StoreCard({
             icon={category?.icon ?? "storefront-outline"} />
         </View>
 
-        <View style={[styles.identity, shelfWidth !== undefined && styles.shelfIdentity]}>
+        <View style={[styles.identity, (shelfWidth !== undefined || searchCompact) && styles.shelfIdentity]}>
           <Text
             style={[
               styles.name,
@@ -82,7 +86,7 @@ export function StoreCard({
                 color: colors.text,
               },
             ]}
-            numberOfLines={2}
+            numberOfLines={searchCompact ? undefined : 2}
           >
             {store.name}
           </Text>
@@ -94,7 +98,7 @@ export function StoreCard({
                   color: colors.textMuted,
                 },
               ]}
-              numberOfLines={1}
+              numberOfLines={searchCompact ? undefined : 1}
             >
               {category.name}
             </Text>
@@ -109,7 +113,7 @@ export function StoreCard({
         ) : null}
       </View>
 
-      {shelfWidth === undefined && store.description ? (
+      {!searchCompact && shelfWidth === undefined && store.description ? (
         <Text
           style={[
             styles.description,
@@ -123,6 +127,11 @@ export function StoreCard({
         </Text>
       ) : null}
 
+      {orderable !== undefined ? (
+        <Text style={[styles.category, styles.searchDelivery, { color: colors.textSecondary }]}>
+          {orderable ? "متاح للطلب" : "غير متاح للطلب"}
+        </Text>
+      ) : null}
       {average != null ? (
         <View style={styles.ratingRow}>
           <RatingStars rating={Math.round(average)} size={14} />
@@ -130,7 +139,7 @@ export function StoreCard({
         </View>
       ) : null}
 
-      {shelfWidth === undefined ? <View style={[styles.bottom, { borderTopColor: colors.border }]}>
+      {searchCompact ? (store.deliveryTime ? <Text style={[styles.category, styles.searchDelivery, { color: colors.textSecondary }]}>{store.deliveryTime}</Text> : null) : shelfWidth === undefined ? <View style={[styles.bottom, { borderTopColor: colors.border }]}>
         {productCount !== null ? <Text style={[styles.productCount, { color: colors.primary }]}>
           {productCount} منتج
         </Text> : null}
@@ -151,6 +160,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: Radius.xl,
   },
+
+  searchCompactCard: { flex: 1, padding: Spacing.two },
+  searchDelivery: { textAlign: "center", marginTop: Spacing.one },
 
   normalCard: {
     width: 235,
@@ -208,19 +220,20 @@ const styles = StyleSheet.create({
   name: {
     fontFamily: Fonts.bold,
     fontSize: FontSizes.sm,
-    textAlign: "right",
+    ...RtlText,
   },
 
   category: {
     marginTop: 3,
     fontFamily: Fonts.medium,
     fontSize: 10,
-    textAlign: "right",
+    ...RtlText,
   },
 
   featuredText: {
     fontFamily: Fonts.medium,
     fontSize: 10,
+    ...RtlText,
   },
 
   description: {
@@ -228,7 +241,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: FontSizes.xs,
     lineHeight: 18,
-    textAlign: "right",
+    ...RtlText,
   },
 
   ratingRow: {
@@ -241,6 +254,7 @@ const styles = StyleSheet.create({
   ratingText: {
     fontFamily: Fonts.medium,
     fontSize: FontSizes.xs,
+    writingDirection: "ltr",
   },
 
   bottom: {
@@ -255,6 +269,7 @@ const styles = StyleSheet.create({
   productCount: {
     fontFamily: Fonts.medium,
     fontSize: FontSizes.xs,
+    ...RtlText,
   },
 
   openAction: {
@@ -266,5 +281,6 @@ const styles = StyleSheet.create({
   openText: {
     fontFamily: Fonts.semiBold,
     fontSize: FontSizes.xs,
+    ...RtlText,
   },
 });

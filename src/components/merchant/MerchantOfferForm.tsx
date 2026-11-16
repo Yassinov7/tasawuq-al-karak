@@ -1,7 +1,6 @@
 import type {ReactNode} from 'react';
 import {ActivityIndicator,FlatList,KeyboardAvoidingView,Modal,Platform,Pressable,StyleSheet,Switch,Text,View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {formatCompactOfferDate} from '@/lib/offer-expiration';
 import {AppButton} from '@/components/ui/AppButton';
 import {AppTextField} from '@/components/ui/AppTextField';
 import {OfferExpirationPicker} from '@/components/merchant/OfferExpirationPicker';
@@ -75,8 +74,12 @@ export function MerchantOfferForm(props:Props){
   </Section>
   <Section title="فترة العرض والتفعيل" onLayout={y=>props.onSectionLayout('period',y)}>
    <View style={styles.row}><Text style={[styles.strong,styles.grow,{color:colors.text}]}>{form.active?'العرض مفعّل':'العرض متوقف'}</Text><Switch accessibilityLabel="تفعيل العرض" disabled={locked} value={form.active} onValueChange={value=>props.change('active',value)} trackColor={{false:colors.borderStrong,true:colors.primaryLight}} thumbColor={form.active?colors.primary:colors.surface}/></View>
-   <Amount label="البداية" value={props.startsAt ? formatCompactOfferDate(props.startsAt) ?? 'غير متاحة' : 'عند إنشاء العرض'} date={Boolean(props.startsAt)}/>
-   <OfferExpirationPicker mode={form.endMode} original={form.originalEndsAt} date={form.endDate} time={form.endTime} selectedInstant={form.selectedEndInstant} now={props.now} startsAt={props.startsAt} disabled={locked} error={errors.end}
+   <OfferExpirationPicker kind="start" mode={form.startMode==='now'?'none':form.startMode==='scheduled'?'new':'keep'} original={form.originalStartsAt} date={form.startDate} time={form.startTime} selectedInstant={form.selectedStartInstant} now={props.now} disabled={locked} error={errors.start}
+    onSelect={selection=>{
+     if(selection.mode==='new'){props.change('startDate',selection.date);props.change('startTime',selection.time);props.change('selectedStartInstant',selection.instant);props.change('startMode','scheduled');}
+     else props.change('startMode',selection.mode==='keep'?'keep':'now');
+    }}/>
+   <OfferExpirationPicker mode={form.endMode} original={form.originalEndsAt} date={form.endDate} time={form.endTime} selectedInstant={form.selectedEndInstant} now={props.now} startsAt={form.startMode==='keep'?form.originalStartsAt??undefined:form.selectedStartInstant} disabled={locked} error={errors.end} allowNone={Boolean(form.originalEndsAt===null&&props.startsAt&&form.active===false)}
     onSelect={selection=>{
      if(selection.mode==='new'){props.change('endDate',selection.date);props.change('endTime',selection.time);props.change('selectedEndInstant',selection.instant);}
      props.change('endMode',selection.mode);

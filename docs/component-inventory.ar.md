@@ -1,6 +1,6 @@
 # جرد المكونات وإعادة الاستخدام
 
-**102 وحدة TSX**: مكونات src/components ومضيفا AppDialog/Toast في context؛ **120 سجل تصدير مسمى بحرف كبير**، بينها حارس دور ومضيف Push غير مرئيين. hooks والأنواع المساعدة ليست ضمن عدد التصديرات المرئية. لا يمثل العدد عدد شاشات أو عدد مكونات معروضة على هاتف.
+**104 وحدة TSX**: مكونات src/components ومضيفا AppDialog/Toast في context؛ **122 سجل تصدير مسمى بحرف كبير**، بينها حارس دور ومضيف Push غير مرئيين. hooks والأنواع المساعدة ليست ضمن عدد التصديرات المرئية. لا يمثل العدد عدد شاشات أو عدد مكونات معروضة على هاتف.
 
 المستهلكون والصفحات محسوبون على مستوى الملف؛ تعدد exports قد يجعل القائمة أوسع من الاستخدام الفعلي لكل رمز. `—` لا يثبت أن المكون ميت: قد يستخدم من layout أو بتصدير آخر. مؤشرات loading/error/disabled تعني وجود رمز في الملف، وليست اختبار سلوك. المكون الزخرفي لا يحتاج حالات طلب شبكي؛ تدار لدى الأب. المكونات الخاصة لا تحول إلى مكون عام بشروط أدوار كثيرة.
 
@@ -52,7 +52,7 @@
 - الملف: `src/components/account/AccountMenuItem.tsx`. الوظيفة: صف رابط ضمن حسابي.
 - صفحات محتملة بالوصول الساكن: RUI-MER-10، RUI-MER-11، RUI-MER-13، RUI-DRV-04، RUI-ADM-13، RUI-CUS-15، RUI-SHR-05، RUI-SHR-06.
 - مستخدم عبر layout: —.
-- المستهلكون المباشرون: `src/app/admin/more.tsx`، `src/app/driver/account.tsx`، `src/app/home/account.tsx`، `src/components/account/SharedAccountParts.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`.
+- المستهلكون المباشرون: `src/app/(customer)/home/account.tsx`، `src/app/admin/more.tsx`، `src/app/driver/account.tsx`، `src/components/account/SharedAccountParts.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
 - مؤشرات حالات الملف: loading موجود؛ error غير ظاهر؛ افحص الأب/props؛ disabled موجود.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
@@ -74,7 +74,7 @@
 - الملف: `src/components/account/AccountSection.tsx`. الوظيفة: تجميع عناصر حسابي بعنوان.
 - صفحات محتملة بالوصول الساكن: RUI-MER-10، RUI-MER-11، RUI-MER-13، RUI-DRV-04، RUI-DRV-04.01، RUI-ADM-13، RUI-CUS-15، RUI-SHR-05، RUI-SHR-06.
 - مستخدم عبر layout: —.
-- المستهلكون المباشرون: `src/app/admin/more.tsx`، `src/app/driver/account.tsx`، `src/app/home/account.tsx`، `src/components/account/DriverProfessionalInfo.tsx`، `src/components/account/PersonalInfoScreen.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/account/SharedAccountParts.tsx`، `src/components/admin/C3DeliverySettings.tsx`.
+- المستهلكون المباشرون: `src/app/(customer)/home/account.tsx`، `src/app/admin/more.tsx`، `src/app/driver/account.tsx`، `src/components/account/DriverProfessionalInfo.tsx`، `src/components/account/PersonalInfoScreen.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/account/SharedAccountParts.tsx`، `src/components/admin/C3DeliverySettings.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
 - مؤشرات حالات الملف: loading غير ظاهر؛ افحص الأب/props؛ error غير ظاهر؛ افحص الأب/props؛ disabled غير ظاهر؛ افحص الأب/props.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
@@ -85,7 +85,7 @@
 - الملف: `src/components/account/AccountShell.tsx`. الوظيفة: حاوية تخطيط صفحة حساب.
 - صفحات محتملة بالوصول الساكن: RUI-MER-10، RUI-MER-11، RUI-MER-13، RUI-DRV-04، RUI-DRV-04.01، RUI-ADM-13، RUI-CUS-15، RUI-SHR-05، RUI-SHR-06.
 - مستخدم عبر layout: —.
-- المستهلكون المباشرون: `src/app/admin/more.tsx`، `src/app/driver/account.tsx`، `src/app/driver/credentials.tsx`، `src/app/home/account.tsx`، `src/components/account/PersonalInfoScreen.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`.
+- المستهلكون المباشرون: `src/app/(customer)/home/account.tsx`، `src/app/admin/more.tsx`، `src/app/driver/account.tsx`، `src/app/driver/credentials.tsx`، `src/components/account/PersonalInfoScreen.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: لا دليل مباشر في الملف؛ افحص الوراثة والأيقونات.
 - مؤشرات حالات الملف: loading غير ظاهر؛ افحص الأب/props؛ error غير ظاهر؛ افحص الأب/props؛ disabled غير ظاهر؛ افحص الأب/props.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
@@ -140,7 +140,7 @@
 - الملف: `src/components/account/SharedAccountParts.tsx`. الوظيفة: عرض تحميل أو خطأ الحساب.
 - صفحات محتملة بالوصول الساكن: RUI-MER-10، RUI-MER-11، RUI-MER-13، RUI-DRV-04، RUI-ADM-13، RUI-CUS-15، RUI-SHR-05، RUI-SHR-06.
 - مستخدم عبر layout: —.
-- المستهلكون المباشرون: `src/app/admin/more.tsx`، `src/app/driver/account.tsx`، `src/app/home/account.tsx`، `src/components/account/PersonalInfoScreen.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`.
+- المستهلكون المباشرون: `src/app/(customer)/home/account.tsx`، `src/app/admin/more.tsx`، `src/app/driver/account.tsx`، `src/components/account/PersonalInfoScreen.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
 - مؤشرات حالات الملف: loading موجود؛ error موجود؛ disabled موجود.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
@@ -151,7 +151,7 @@
 - الملف: `src/components/account/SharedAccountParts.tsx`. الوظيفة: إجراء الخروج من الحساب.
 - صفحات محتملة بالوصول الساكن: RUI-MER-10، RUI-MER-11، RUI-MER-13، RUI-DRV-04، RUI-ADM-13، RUI-CUS-15، RUI-SHR-05، RUI-SHR-06.
 - مستخدم عبر layout: —.
-- المستهلكون المباشرون: `src/app/admin/more.tsx`، `src/app/driver/account.tsx`، `src/app/home/account.tsx`، `src/components/account/PersonalInfoScreen.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`.
+- المستهلكون المباشرون: `src/app/(customer)/home/account.tsx`، `src/app/admin/more.tsx`، `src/app/driver/account.tsx`، `src/components/account/PersonalInfoScreen.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
 - مؤشرات حالات الملف: loading موجود؛ error موجود؛ disabled موجود.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
@@ -162,7 +162,7 @@
 - الملف: `src/components/account/SharedAccountParts.tsx`. الوظيفة: عرض بيانات هوية الحساب المشتركة.
 - صفحات محتملة بالوصول الساكن: RUI-MER-10، RUI-MER-11، RUI-MER-13، RUI-DRV-04، RUI-ADM-13، RUI-CUS-15، RUI-SHR-05، RUI-SHR-06.
 - مستخدم عبر layout: —.
-- المستهلكون المباشرون: `src/app/admin/more.tsx`، `src/app/driver/account.tsx`، `src/app/home/account.tsx`، `src/components/account/PersonalInfoScreen.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`.
+- المستهلكون المباشرون: `src/app/(customer)/home/account.tsx`، `src/app/admin/more.tsx`، `src/app/driver/account.tsx`، `src/components/account/PersonalInfoScreen.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
 - مؤشرات حالات الملف: loading موجود؛ error موجود؛ disabled موجود.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
@@ -173,7 +173,7 @@
 - الملف: `src/components/account/SharedAccountParts.tsx`. الوظيفة: روابط البيانات والإعدادات والأمان المشتركة.
 - صفحات محتملة بالوصول الساكن: RUI-MER-10، RUI-MER-11، RUI-MER-13، RUI-DRV-04، RUI-ADM-13، RUI-CUS-15، RUI-SHR-05، RUI-SHR-06.
 - مستخدم عبر layout: —.
-- المستهلكون المباشرون: `src/app/admin/more.tsx`، `src/app/driver/account.tsx`، `src/app/home/account.tsx`، `src/components/account/PersonalInfoScreen.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`.
+- المستهلكون المباشرون: `src/app/(customer)/home/account.tsx`، `src/app/admin/more.tsx`، `src/app/driver/account.tsx`، `src/components/account/PersonalInfoScreen.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
 - مؤشرات حالات الملف: loading موجود؛ error موجود؛ disabled موجود.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
@@ -248,9 +248,9 @@
 ## BrandMark
 
 - الملف: `src/components/brand/BrandMark.tsx`. الوظيفة: الشعار والهوية.
-- صفحات محتملة بالوصول الساكن: RUI-AUTH-01، RUI-AUTH-02، RUI-AUTH-04، RUI-LEGAL-01.
+- صفحات محتملة بالوصول الساكن: RUI-CUS-04، RUI-AUTH-01، RUI-AUTH-02، RUI-AUTH-04، RUI-LEGAL-01.
 - مستخدم عبر layout: —.
-- المستهلكون المباشرون: `src/app/index.tsx`، `src/app/verify-email.tsx`، `src/components/about/AboutHeader.tsx`، `src/components/login/LoginHeader.tsx`.
+- المستهلكون المباشرون: `src/app/index.tsx`، `src/app/verify-email.tsx`، `src/components/about/AboutHeader.tsx`، `src/components/login/LoginHeader.tsx`، `src/components/marketplace/StorePromoVideo.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: لا دليل مباشر في الملف؛ افحص الوراثة والأيقونات.
 - مؤشرات حالات الملف: loading غير ظاهر؛ افحص الأب/props؛ error غير ظاهر؛ افحص الأب/props؛ disabled غير ظاهر؛ افحص الأب/props.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
@@ -322,6 +322,15 @@
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
 - إعادة الاستخدام والتحسين: مرشح لإعادة الاستخدام ضمن اختصاصه؛ لا استبدال مقرر دون حاجة الصفحة واختبار props والمستهلكين. لا استبدال مقرر بلا فحص الصفحة وأثر المستهلكين.
 
+## CustomerInvoicesScreen
+
+- الملف: `src/components/finance/CustomerInvoicesScreen.tsx`. الوظيفة: قائمة مستندات العميل المالية على `/invoice` دون معرف.
+- صفحات الاستخدام: RUI-CUS-12.01 فقط؛ لا تستخدمها الإدارة أو التاجر أو السائق.
+- المكونات المعاد استخدامها: `AppHeader`، `AppSearchBar`، `CategoryChip`، `DocumentReference`، `LoadingSkeleton`، `RefreshStatus` و`AppButton`. تستخدم البطاقة خريطة عرض محلية فوق `invoicePresentation` لتقديم حالة أساسية واحدة دون تغيير `InvoiceStatus` المشترك.
+- البيانات: `read_customer_invoices` ببحث وفلتر قبل مؤشر `(created_at,id)` ودفعة 12، مع لقطة حساب ودمج طلبات متزامنة وحماية الرد القديم.
+- الثيمان وRTL: رموز success/warning/info/error/muted مع شارة نصية وشريط جانبي، ومحاذاة عربية، والمراجع والمبالغ LTR داخل موضعها فقط.
+- الحالة: مكون متخصص مناسب؛ لا يوسّع `FinanceScreen` المشتركة بشروط عميل إضافية.
+
 ## FinancialAmount
 
 - الملف: `src/components/finance/FinancialParts.tsx`. الوظيفة: عرض مبلغ باستخدام التنسيق المالي القائم؛ المصدر يحدد عقد كل نسخة.
@@ -375,7 +384,7 @@
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
 - مؤشرات حالات الملف: loading موجود؛ error موجود؛ disabled موجود.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
-- إعادة الاستخدام والتحسين: يبقى السلوك المالي المقبول؛ افصل العرض فقط حسب حاجة الدور ولا تغير مفتاح التحقق أو شروط الإجراء؛ UX-03/04 تنتظران القبول. لا استبدال مقرر بلا فحص الصفحة وأثر المستهلكين.
+- إعادة الاستخدام والتحسين: يوحّد عرض مستند العميل عند الوصول بفاتورة طلب أو معرف فاتورة مباشر، بينما يبقى العرض الإداري والمالي العام منفصلًا داخل المكون نفسه. لا يغير مفتاح التحقق أو شروط الإجراء؛ UX-03/04 تنتظران القبول.
 
 ## InvoiceStatus
 
@@ -448,7 +457,7 @@
 - الملف: `src/components/home/CustomerHomeSponsored.tsx`. الوظيفة: مساحة الإعلان 16:9 مع تبديل وفيديو صامت.
 - صفحات محتملة بالوصول الساكن: RUI-CUS-01.
 - مستخدم عبر layout: —.
-- المستهلكون المباشرون: `src/app/home/index.tsx`.
+- المستهلكون المباشرون: `src/app/(customer)/home/index.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
 - مؤشرات حالات الملف: loading غير ظاهر؛ افحص الأب/props؛ error موجود؛ disabled غير ظاهر؛ افحص الأب/props.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
@@ -544,10 +553,10 @@
 
 ## CategoryChip
 
-- الملف: `src/components/marketplace/CategoryChip.tsx`. الوظيفة: اختيار فئة ضمن السوق.
+- الملف: `src/components/marketplace/CategoryChip.tsx`. الوظيفة: شريحة تصنيف قابلة للتمرير وتراعي تكبير الخط.
 - صفحات محتملة بالوصول الساكن: RUI-CUS-01، RUI-CUS-02، RUI-CUS-03، RUI-CUS-04، RUI-CUS-06.
 - مستخدم عبر layout: —.
-- المستهلكون المباشرون: `src/app/home/index.tsx`، `src/app/home/offers.tsx`، `src/app/store-details.tsx`، `src/app/stores.tsx`، `src/components/search/ProductRefinements.tsx`، `src/components/search/SearchResults.tsx`.
+- المستهلكون المباشرون: `src/app/(customer)/home/index.tsx`، `src/app/(customer)/home/offers.tsx`، `src/app/(customer)/stores.tsx`، `src/app/store-details.tsx`، `src/components/search/SearchResults.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
 - مؤشرات حالات الملف: loading غير ظاهر؛ افحص الأب/props؛ error غير ظاهر؛ افحص الأب/props؛ disabled غير ظاهر؛ افحص الأب/props.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
@@ -556,9 +565,9 @@
 ## CustomerCatalogStatus
 
 - الملف: `src/components/marketplace/CustomerCatalogStatus.tsx`. الوظيفة: حالات توفر/تحميل الكتالوج للعميل.
-- صفحات محتملة بالوصول الساكن: RUI-CUS-02، RUI-CUS-03، RUI-CUS-04، RUI-CUS-05، RUI-CUS-06، RUI-CUS-07، RUI-CUS-08، RUI-CUS-13.
+- صفحات محتملة بالوصول الساكن: RUI-CUS-05، RUI-CUS-06، RUI-CUS-07، RUI-CUS-08، RUI-CUS-13.
 - مستخدم عبر layout: —.
-- المستهلكون المباشرون: `src/app/cart.tsx`، `src/app/favorites.tsx`، `src/app/home/offers.tsx`، `src/app/home/search.tsx`، `src/app/offer-details.tsx`، `src/app/product-details.tsx`، `src/app/store-details.tsx`، `src/app/stores.tsx`.
+- المستهلكون المباشرون: `src/app/(customer)/home/offers.tsx`، `src/app/cart.tsx`، `src/app/favorites.tsx`، `src/app/offer-details.tsx`، `src/app/product-details.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
 - مؤشرات حالات الملف: loading موجود؛ error موجود؛ disabled غير ظاهر؛ افحص الأب/props.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
@@ -566,10 +575,10 @@
 
 ## OfferCard
 
-- الملف: `src/components/marketplace/OfferCard.tsx`. الوظيفة: بطاقة عرض وسعره وتوفره.
-- صفحات محتملة بالوصول الساكن: RUI-CUS-01، RUI-CUS-04، RUI-CUS-06.
+- الملف: `src/components/marketplace/OfferCard.tsx`. الوظيفة: بطاقة عرض مشتركة بأيقونة نوع ثابتة وسعر نهائي بمحاذاة الأسفل؛ تعرض القيمة المنفردة والتوفير فقط عندما تكون القيمة المرجعية المحسوبة موثوقة والتوفير موجبًا، وعدًا تنازليًا مختصرًا من مصدر وقت مشترك بلا مؤقت لكل بطاقة.
+- صفحات محتملة بالوصول الساكن: RUI-CUS-01، RUI-CUS-02، RUI-CUS-04، RUI-CUS-06.
 - مستخدم عبر layout: —.
-- المستهلكون المباشرون: `src/app/home/index.tsx`، `src/app/home/offers.tsx`، `src/app/store-details.tsx`.
+- المستهلكون المباشرون: `src/app/(customer)/home/index.tsx`، `src/app/(customer)/home/offers.tsx`، `src/app/store-details.tsx`، `src/components/search/SearchResults.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
 - مؤشرات حالات الملف: loading غير ظاهر؛ افحص الأب/props؛ error غير ظاهر؛ افحص الأب/props؛ disabled غير ظاهر؛ افحص الأب/props.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
@@ -577,10 +586,11 @@
 
 ## ProductCard
 
-- الملف: `src/components/marketplace/ProductCard.tsx`. الوظيفة: بطاقة منتج وإجراءاته.
+- الملف: `src/components/marketplace/ProductCard.tsx`. الوظيفة: بطاقة منتج مدمجة تعرض السعر والوحدة، وتحافظ على هوية المنتج مع شارة محايدة عند وجود عرض مرتبط.
 - صفحات محتملة بالوصول الساكن: RUI-CUS-01، RUI-CUS-02، RUI-CUS-04، RUI-CUS-05.
 - مستخدم عبر layout: —.
-- المستهلكون المباشرون: `src/app/home/index.tsx`، `src/app/product-details.tsx`، `src/app/store-details.tsx`، `src/components/search/SearchResults.tsx`.
+- المستهلكون المباشرون: `src/app/(customer)/home/index.tsx`، `src/app/favorites.tsx`، `src/app/product-details.tsx`، `src/app/store-details.tsx`، `src/components/search/SearchResults.tsx`.
+- تحسين RUI-CUS-13: يدعم إجراء مفضلة اختياريًا داخل مساحة الصورة؛ لا يظهر ولا يغير بقية المستهلكين ما لم تمرر الصفحة `onFavoritePress`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
 - مؤشرات حالات الملف: loading غير ظاهر؛ افحص الأب/props؛ error موجود؛ disabled غير ظاهر؛ افحص الأب/props.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
@@ -588,7 +598,7 @@
 
 ## ProductMediaGallery
 
-- الملف: `src/components/marketplace/ProductMediaGallery.tsx`. الوظيفة: معرض وسائط المنتج.
+- الملف: `src/components/marketplace/ProductMediaGallery.tsx`. الوظيفة: معرض وسائط المنتج مع شارة التصنيف الحقيقي وإشارة العرض المدمجة.
 - صفحات محتملة بالوصول الساكن: RUI-CUS-05.
 - مستخدم عبر layout: —.
 - المستهلكون المباشرون: `src/app/product-details.tsx`.
@@ -611,9 +621,9 @@
 ## RatingsSection
 
 - الملف: `src/components/marketplace/RatingsSection.tsx`. الوظيفة: قائمة تقييمات وملخصها ونموذجها.
-- صفحات محتملة بالوصول الساكن: RUI-CUS-04، RUI-CUS-05.
+- صفحات محتملة بالوصول الساكن: RUI-CUS-04.01، RUI-CUS-05.
 - مستخدم عبر layout: —.
-- المستهلكون المباشرون: `src/app/product-details.tsx`، `src/app/store-details.tsx`.
+- المستهلكون المباشرون: `src/app/product-reviews.tsx`، `src/app/store-reviews.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
 - مؤشرات حالات الملف: loading موجود؛ error موجود؛ disabled غير ظاهر؛ افحص الأب/props.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
@@ -622,7 +632,7 @@
 ## RatingStars
 
 - الملف: `src/components/marketplace/RatingStars.tsx`. الوظيفة: تمثيل التقييم بالنجوم.
-- صفحات محتملة بالوصول الساكن: RUI-CUS-01، RUI-CUS-02، RUI-CUS-03، RUI-CUS-04، RUI-CUS-05.
+- صفحات محتملة بالوصول الساكن: RUI-CUS-01، RUI-CUS-02، RUI-CUS-03، RUI-CUS-04، RUI-CUS-04.01، RUI-CUS-05.
 - مستخدم عبر layout: —.
 - المستهلكون المباشرون: `src/app/product-details.tsx`، `src/components/marketplace/ProductCard.tsx`، `src/components/marketplace/RatingsSection.tsx`، `src/components/marketplace/ReviewCard.tsx`، `src/components/marketplace/ReviewForm.tsx`، `src/components/marketplace/StoreCard.tsx`، `src/components/marketplace/StoreDetailsHero.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
@@ -633,7 +643,7 @@
 ## RatingSummary
 
 - الملف: `src/components/marketplace/RatingStars.tsx`. الوظيفة: ملخص عددي للتقييم.
-- صفحات محتملة بالوصول الساكن: RUI-CUS-01، RUI-CUS-02، RUI-CUS-03، RUI-CUS-04، RUI-CUS-05.
+- صفحات محتملة بالوصول الساكن: RUI-CUS-01، RUI-CUS-02، RUI-CUS-03، RUI-CUS-04، RUI-CUS-04.01، RUI-CUS-05.
 - مستخدم عبر layout: —.
 - المستهلكون المباشرون: `src/app/product-details.tsx`، `src/components/marketplace/ProductCard.tsx`، `src/components/marketplace/RatingsSection.tsx`، `src/components/marketplace/ReviewCard.tsx`، `src/components/marketplace/ReviewForm.tsx`، `src/components/marketplace/StoreCard.tsx`، `src/components/marketplace/StoreDetailsHero.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
@@ -644,7 +654,7 @@
 ## ReviewCard
 
 - الملف: `src/components/marketplace/ReviewCard.tsx`. الوظيفة: عرض تقييم ومحتواه.
-- صفحات محتملة بالوصول الساكن: RUI-CUS-04، RUI-CUS-05.
+- صفحات محتملة بالوصول الساكن: RUI-CUS-04.01، RUI-CUS-05.
 - مستخدم عبر layout: —.
 - المستهلكون المباشرون: `src/components/marketplace/RatingsSection.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
@@ -655,7 +665,7 @@
 ## ReviewForm
 
 - الملف: `src/components/marketplace/ReviewForm.tsx`. الوظيفة: نموذج كتابة تقييم.
-- صفحات محتملة بالوصول الساكن: RUI-CUS-04، RUI-CUS-05.
+- صفحات محتملة بالوصول الساكن: RUI-CUS-04.01، RUI-CUS-05.
 - مستخدم عبر layout: —.
 - المستهلكون المباشرون: `src/components/marketplace/RatingsSection.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
@@ -668,7 +678,7 @@
 - الملف: `src/components/marketplace/ShoppingCardImage.tsx`. الوظيفة: صور بطاقات السوق العامة وروابط الوسائط المقيدة بالذاكرة.
 - صفحات محتملة بالوصول الساكن: RUI-ADM-15، RUI-CUS-01، RUI-CUS-02، RUI-CUS-03، RUI-CUS-04، RUI-CUS-05، RUI-CUS-06.
 - مستخدم عبر layout: —.
-- المستهلكون المباشرون: `src/app/admin/home-ads.tsx`، `src/components/admin/HomeAdTargetPicker.tsx`، `src/components/home/CustomerHomeSponsored.tsx`، `src/components/marketplace/OfferCard.tsx`، `src/components/marketplace/ProductCard.tsx`، `src/components/marketplace/StoreCard.tsx`.
+- المستهلكون المباشرون: `src/app/admin/home-ads.tsx`، `src/components/admin/HomeAdTargetPicker.tsx`، `src/components/home/CustomerHomeSponsored.tsx`، `src/components/marketplace/OfferCard.tsx`، `src/components/marketplace/ProductCard.tsx`، `src/components/marketplace/StoreCard.tsx`، `src/components/marketplace/StoreDetailsHero.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: لا دليل مباشر في الملف؛ افحص الوراثة والأيقونات.
 - مؤشرات حالات الملف: loading غير ظاهر؛ افحص الأب/props؛ error موجود؛ disabled غير ظاهر؛ افحص الأب/props.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
@@ -679,7 +689,7 @@
 - الملف: `src/components/marketplace/StoreCard.tsx`. الوظيفة: بطاقة متجر وتوفره.
 - صفحات محتملة بالوصول الساكن: RUI-CUS-01، RUI-CUS-02، RUI-CUS-03.
 - مستخدم عبر layout: —.
-- المستهلكون المباشرون: `src/app/home/index.tsx`، `src/app/stores.tsx`، `src/components/search/SearchResults.tsx`.
+- المستهلكون المباشرون: `src/app/(customer)/home/index.tsx`، `src/app/(customer)/stores.tsx`، `src/components/search/SearchResults.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
 - مؤشرات حالات الملف: loading غير ظاهر؛ افحص الأب/props؛ error غير ظاهر؛ افحص الأب/props؛ disabled غير ظاهر؛ افحص الأب/props.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
@@ -693,6 +703,17 @@
 - المستهلكون المباشرون: `src/app/store-details.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
 - مؤشرات حالات الملف: loading غير ظاهر؛ افحص الأب/props؛ error غير ظاهر؛ افحص الأب/props؛ disabled غير ظاهر؛ افحص الأب/props.
+- ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
+- إعادة الاستخدام والتحسين: مرشح لإعادة الاستخدام ضمن اختصاصه؛ لا استبدال مقرر دون حاجة الصفحة واختبار props والمستهلكين. لا استبدال مقرر بلا فحص الصفحة وأثر المستهلكين.
+
+## StorePromoVideo
+
+- الملف: `src/components/marketplace/StorePromoVideo.tsx`. الوظيفة: جزء متخصص؛ اقرأ عقد props قبل إعادة الاستخدام.
+- صفحات محتملة بالوصول الساكن: RUI-CUS-04.
+- مستخدم عبر layout: —.
+- المستهلكون المباشرون: `src/components/marketplace/StoreDetailsHero.tsx`.
+- الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
+- مؤشرات حالات الملف: loading موجود؛ error موجود؛ disabled غير ظاهر؛ افحص الأب/props.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
 - إعادة الاستخدام والتحسين: مرشح لإعادة الاستخدام ضمن اختصاصه؛ لا استبدال مقرر دون حاجة الصفحة واختبار props والمستهلكين. لا استبدال مقرر بلا فحص الصفحة وأثر المستهلكين.
 
@@ -886,11 +907,22 @@
 ## AppHeader
 
 - الملف: `src/components/navigation/AppHeader.tsx`. الوظيفة: ترويسة وعودة وجرس بحسب السياق.
-- صفحات محتملة بالوصول الساكن: RUI-MER-03، RUI-MER-10، RUI-MER-11، RUI-MER-12، RUI-MER-13، RUI-DRV-01، RUI-DRV-02، RUI-DRV-02.01، RUI-DRV-03، RUI-DRV-04، RUI-DRV-04.01، RUI-DRV-04.02، RUI-ADM-06، RUI-CUS-01، RUI-CUS-02، RUI-CUS-03، RUI-CUS-04، RUI-CUS-05، RUI-CUS-06، RUI-CUS-07، RUI-CUS-08، RUI-CUS-09، RUI-CUS-10، RUI-CUS-11، RUI-CUS-12، RUI-CUS-13، RUI-CUS-14، RUI-CUS-15، RUI-SHR-01، RUI-SHR-02، RUI-SHR-03، RUI-SHR-04، RUI-SHR-05، RUI-SHR-06.
+- صفحات محتملة بالوصول الساكن: RUI-MER-03، RUI-MER-10، RUI-MER-11، RUI-MER-12، RUI-MER-13، RUI-DRV-01، RUI-DRV-02، RUI-DRV-02.01، RUI-DRV-03، RUI-DRV-04، RUI-DRV-04.01، RUI-DRV-04.02، RUI-ADM-06، RUI-CUS-01، RUI-CUS-03، RUI-CUS-04، RUI-CUS-04.01، RUI-CUS-05، RUI-CUS-06، RUI-CUS-07، RUI-CUS-08، RUI-CUS-09، RUI-CUS-10، RUI-CUS-11، RUI-CUS-12، RUI-CUS-13، RUI-CUS-14، RUI-CUS-15، RUI-SHR-01، RUI-SHR-02، RUI-SHR-03، RUI-SHR-04، RUI-SHR-05، RUI-SHR-06.
 - مستخدم عبر layout: `src/app/admin/_layout.tsx`، `src/app/merchant/_layout.tsx`.
-- المستهلكون المباشرون: `src/app/addresses.tsx`، `src/app/admin/_layout.tsx`، `src/app/cart.tsx`، `src/app/checkout.tsx`، `src/app/driver/account.tsx`، `src/app/driver/cash-account.tsx`، `src/app/driver/credentials.tsx`، `src/app/driver/index.tsx`، `src/app/driver/orders.tsx`، `src/app/driver/task-details.tsx`، `src/app/favorites.tsx`، `src/app/financial-invoice.tsx`، `src/app/home/account.tsx`، `src/app/home/index.tsx`، `src/app/home/offers.tsx`، `src/app/home/search.tsx`، `src/app/merchant/_layout.tsx`، `src/app/notifications.tsx`، `src/app/offer-details.tsx`، `src/app/order-details.tsx`، `src/app/orders.tsx`، `src/app/product-details.tsx`، `src/app/store-details.tsx`، `src/app/stores.tsx`، `src/components/account/PersonalInfoScreen.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/account/SettingsScreen.tsx`، `src/components/finance/FinanceScreen.tsx`، `src/components/finance/InvoiceScreen.tsx`، `src/components/finance/MerchantInvoiceScreen.tsx`.
+- المستهلكون المباشرون: `src/app/(customer)/home/account.tsx`، `src/app/addresses.tsx`، `src/app/admin/_layout.tsx`، `src/app/cart.tsx`، `src/app/checkout.tsx`، `src/app/driver/account.tsx`، `src/app/driver/cash-account.tsx`، `src/app/driver/credentials.tsx`، `src/app/driver/index.tsx`، `src/app/driver/orders.tsx`، `src/app/driver/task-details.tsx`، `src/app/favorites.tsx`، `src/app/financial-invoice.tsx`، `src/app/merchant/_layout.tsx`، `src/app/notifications.tsx`، `src/app/order-details.tsx`، `src/app/orders.tsx`، `src/components/account/PersonalInfoScreen.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/account/SettingsScreen.tsx`، `src/components/finance/FinanceScreen.tsx`، `src/components/finance/InvoiceScreen.tsx`، `src/components/finance/MerchantInvoiceScreen.tsx`، `src/components/navigation/CustomerMarketHeader.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
 - مؤشرات حالات الملف: loading غير ظاهر؛ افحص الأب/props؛ error موجود؛ disabled غير ظاهر؛ افحص الأب/props.
+- ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
+- إعادة الاستخدام والتحسين: مرشح لإعادة الاستخدام ضمن اختصاصه؛ لا استبدال مقرر دون حاجة الصفحة واختبار props والمستهلكين. لا استبدال مقرر بلا فحص الصفحة وأثر المستهلكين.
+
+## CustomerMarketHeader
+
+- الملف: `src/components/navigation/CustomerMarketHeader.tsx`. الوظيفة: عنوان موحد للترويسة والتنقل والمتصفح في مسارات السوق.
+- صفحات محتملة بالوصول الساكن: RUI-CUS-01، RUI-CUS-03، RUI-CUS-04، RUI-CUS-04.01، RUI-CUS-05، RUI-CUS-06، RUI-CUS-07.
+- مستخدم عبر layout: —.
+- المستهلكون المباشرون: `src/app/(customer)/home/index.tsx`، `src/app/(customer)/home/offers.tsx`، `src/app/(customer)/stores.tsx`، `src/app/offer-details.tsx`، `src/app/product-details.tsx`، `src/app/store-details.tsx`، `src/app/store-reviews.tsx`.
+- الثيمان: لا استدعاء ثيم مباشر؛ افحص الألوان الممررة/المكون الأب، لا يثبت غياب الدعم. RTL: لا دليل مباشر في الملف؛ افحص الوراثة والأيقونات.
+- مؤشرات حالات الملف: loading غير ظاهر؛ افحص الأب/props؛ error غير ظاهر؛ افحص الأب/props؛ disabled غير ظاهر؛ افحص الأب/props.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
 - إعادة الاستخدام والتحسين: مرشح لإعادة الاستخدام ضمن اختصاصه؛ لا استبدال مقرر دون حاجة الصفحة واختبار props والمستهلكين. لا استبدال مقرر بلا فحص الصفحة وأثر المستهلكين.
 
@@ -927,9 +959,9 @@
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
 - إعادة الاستخدام والتحسين: مرشح لإعادة الاستخدام ضمن اختصاصه؛ لا استبدال مقرر دون حاجة الصفحة واختبار props والمستهلكين. لا استبدال مقرر بلا فحص الصفحة وأثر المستهلكين.
 
-## CustomerOrderTimeline
+## OrderSuborderTracking
 
-- الملف: `src/components/orders/OrderTracking.tsx`. الوظيفة: تسلسل حالات طلب العميل.
+- الملف: `src/components/orders/OrderTracking.tsx`. الوظيفة: اختيار طلب متجر فرعي واحد وعرض مراحله المثبتة وشعاره وحالته النهائية.
 - صفحات محتملة بالوصول الساكن: RUI-CUS-11.
 - مستخدم عبر layout: —.
 - المستهلكون المباشرون: `src/app/order-details.tsx`.
@@ -962,7 +994,7 @@
 
 ## ProductRefinements
 
-- الملف: `src/components/search/ProductRefinements.tsx`. الوظيفة: خيارات تنقيح نتائج المنتجات.
+- الملف: `src/components/search/ProductRefinements.tsx`. الوظيفة: لوحة تصفية بسجل اختيارات ومسار تصنيف تدريجي وترتيب المنتجات.
 - صفحات محتملة بالوصول الساكن: RUI-CUS-02.
 - مستخدم عبر layout: —.
 - المستهلكون المباشرون: `src/app/home/search.tsx`.
@@ -973,11 +1005,11 @@
 
 ## SearchControls
 
-- الملف: `src/components/search/SearchControls.tsx`. الوظيفة: حقل البحث وتحكماته.
+- الملف: `src/components/search/SearchControls.tsx`. الوظيفة: حقل البحث والرجوع ومحدد الأنواع عند الطلب.
 - صفحات محتملة بالوصول الساكن: RUI-CUS-02.
 - مستخدم عبر layout: —.
 - المستهلكون المباشرون: `src/app/home/search.tsx`.
-- الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
+- الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: لا دليل مباشر في الملف؛ افحص الوراثة والأيقونات.
 - مؤشرات حالات الملف: loading غير ظاهر؛ افحص الأب/props؛ error غير ظاهر؛ افحص الأب/props؛ disabled غير ظاهر؛ افحص الأب/props.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
 - إعادة الاستخدام والتحسين: مرشح لإعادة الاستخدام ضمن اختصاصه؛ لا استبدال مقرر دون حاجة الصفحة واختبار props والمستهلكين. لا استبدال مقرر بلا فحص الصفحة وأثر المستهلكين.
@@ -988,7 +1020,7 @@
 - صفحات محتملة بالوصول الساكن: RUI-CUS-02.
 - مستخدم عبر layout: —.
 - المستهلكون المباشرون: `src/app/home/search.tsx`.
-- الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: لا دليل مباشر في الملف؛ افحص الوراثة والأيقونات.
+- الثيمان: لا استدعاء ثيم مباشر؛ افحص الألوان الممررة/المكون الأب، لا يثبت غياب الدعم. RTL: لا دليل مباشر في الملف؛ افحص الوراثة والأيقونات.
 - مؤشرات حالات الملف: loading غير ظاهر؛ افحص الأب/props؛ error غير ظاهر؛ افحص الأب/props؛ disabled غير ظاهر؛ افحص الأب/props.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
 - إعادة الاستخدام والتحسين: مرشح لإعادة الاستخدام ضمن اختصاصه؛ لا استبدال مقرر دون حاجة الصفحة واختبار props والمستهلكين. لا استبدال مقرر بلا فحص الصفحة وأثر المستهلكين.
@@ -1117,9 +1149,9 @@
 ## AppButton
 
 - الملف: `src/components/ui/AppButton.tsx`. الوظيفة: زر مشترك مع نوع وحالة تحميل وتعطيل.
-- صفحات محتملة بالوصول الساكن: RUI-MER-01، RUI-MER-02، RUI-MER-03، RUI-MER-04، RUI-MER-06، RUI-MER-08، RUI-MER-09، RUI-MER-10، RUI-MER-11، RUI-MER-13، RUI-DRV-01، RUI-DRV-02، RUI-DRV-02.01، RUI-DRV-04، RUI-DRV-04.01، RUI-ADM-01، RUI-ADM-02، RUI-ADM-03، RUI-ADM-04، RUI-ADM-05، RUI-ADM-06، RUI-ADM-07، RUI-ADM-08، RUI-ADM-09، RUI-ADM-10، RUI-ADM-11، RUI-ADM-12، RUI-ADM-13، RUI-ADM-14، RUI-ADM-15، RUI-CUS-01، RUI-CUS-02، RUI-CUS-03، RUI-CUS-04، RUI-CUS-05، RUI-CUS-06، RUI-CUS-07، RUI-CUS-08، RUI-CUS-09، RUI-CUS-10، RUI-CUS-11، RUI-CUS-12، RUI-CUS-13، RUI-CUS-14، RUI-CUS-15، RUI-SHR-01، RUI-SHR-02، RUI-SHR-03، RUI-SHR-05، RUI-SHR-06، RUI-AUTH-01، RUI-AUTH-02، RUI-AUTH-03، RUI-AUTH-04، RUI-AUTH-05، RUI-AUTH-06، RUI-AUTH-07، RUI-AUTH-08.
+- صفحات محتملة بالوصول الساكن: RUI-MER-01، RUI-MER-02، RUI-MER-03، RUI-MER-04، RUI-MER-06، RUI-MER-08، RUI-MER-09، RUI-MER-10، RUI-MER-11، RUI-MER-13، RUI-DRV-01، RUI-DRV-02، RUI-DRV-02.01، RUI-DRV-04، RUI-DRV-04.01، RUI-ADM-01، RUI-ADM-02، RUI-ADM-03، RUI-ADM-04، RUI-ADM-05، RUI-ADM-06، RUI-ADM-07، RUI-ADM-08، RUI-ADM-09، RUI-ADM-10، RUI-ADM-11، RUI-ADM-12، RUI-ADM-13، RUI-ADM-14، RUI-ADM-15، RUI-CUS-01، RUI-CUS-02، RUI-CUS-03، RUI-CUS-04، RUI-CUS-04.01، RUI-CUS-05، RUI-CUS-06، RUI-CUS-07، RUI-CUS-08، RUI-CUS-09، RUI-CUS-10، RUI-CUS-11، RUI-CUS-12، RUI-CUS-13، RUI-CUS-14، RUI-CUS-15، RUI-SHR-01، RUI-SHR-02، RUI-SHR-03، RUI-SHR-05، RUI-SHR-06، RUI-AUTH-01، RUI-AUTH-02، RUI-AUTH-03، RUI-AUTH-04، RUI-AUTH-05، RUI-AUTH-06، RUI-AUTH-07، RUI-AUTH-08.
 - مستخدم عبر layout: `src/app/admin/_layout.tsx`، `src/app/driver/_layout.tsx`، `src/app/merchant/_layout.tsx`.
-- المستهلكون المباشرون: `src/app/addresses.tsx`، `src/app/admin/application-details.tsx`، `src/app/admin/applications.tsx`، `src/app/admin/driver-details.tsx`، `src/app/admin/drivers.tsx`، `src/app/admin/home-ads.tsx`، `src/app/admin/index.tsx`، `src/app/admin/order-details.tsx`، `src/app/admin/orders.tsx`، `src/app/admin/plan-form.tsx`، `src/app/admin/plans.tsx`، `src/app/admin/store-details.tsx`، `src/app/admin/stores.tsx`، `src/app/application-status.tsx`، `src/app/cart.tsx`، `src/app/checkout.tsx`، `src/app/driver/account.tsx`، `src/app/driver/index.tsx`، `src/app/driver/orders.tsx`، `src/app/driver/task-details.tsx`، `src/app/financial-invoice.tsx`، `src/app/index.tsx`، `src/app/merchant/index.tsx`، `src/app/merchant/orders.tsx`، `src/app/notifications.tsx`، `src/app/offer-details.tsx`، `src/app/order-details.tsx`، `src/app/orders.tsx`، `src/app/product-details.tsx`، `src/app/reset-password.tsx`، `src/app/signup.tsx`، `src/app/verify-email.tsx`، `src/components/account/DriverProfessionalInfo.tsx`، `src/components/account/PersonalInfoScreen.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/account/SharedAccountParts.tsx`، `src/components/admin/AdminCategoriesScreen.tsx`، `src/components/admin/C3DeliverySettings.tsx`، `src/components/admin/HomeAdTargetPicker.tsx`، `src/components/application-status/ApplicationStatusEmptyState.tsx`، `src/components/auth/RoleRouteGuard.tsx`، `src/components/driver/DeliveryTaskCard.tsx`، `src/components/driver/DriverTaskLocation.tsx`، `src/components/driver/StorePickupPanel.tsx`، `src/components/finance/FinanceScreen.tsx`، `src/components/finance/InvoiceScreen.tsx`، `src/components/finance/MerchantInvoiceScreen.tsx`، `src/components/finance/PendingMoneyCard.tsx`، `src/components/login/LoginForm.tsx`، `src/components/marketplace/CustomerCatalogStatus.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`، `src/components/merchant/MerchantAddProduct.tsx`، `src/components/merchant/MerchantCatalogPanel.tsx`، `src/components/merchant/MerchantEditProduct.tsx`، `src/components/merchant/MerchantFinancialCards.tsx`، `src/components/merchant/MerchantOfferEditor.tsx`، `src/components/merchant/MerchantOfferForm.tsx`، `src/components/merchant/MerchantProductForm.tsx`، `src/components/merchant/MerchantStoreBranding.tsx`، `src/components/merchant/MerchantStoreInfo.tsx`، `src/components/merchant/OfferExpirationPicker.tsx`، `src/components/orders/MerchantOrderCard.tsx`، `src/components/signup/MerchantPlanChoice.tsx`، `src/components/signup/ProfessionalApplicationFields.tsx`، `src/components/signup/ProfessionalApplicationScreen.tsx`، `src/components/signup/SignupCredentialsStep.tsx`، `src/components/signup/SignupReviewStep.tsx`، `src/components/signup/SignupRoleStep.tsx`، `src/components/ui/AppEmptyState.tsx`.
+- المستهلكون المباشرون: `src/app/(customer)/stores.tsx`، `src/app/addresses.tsx`، `src/app/admin/application-details.tsx`، `src/app/admin/applications.tsx`، `src/app/admin/driver-details.tsx`، `src/app/admin/drivers.tsx`، `src/app/admin/home-ads.tsx`، `src/app/admin/index.tsx`، `src/app/admin/order-details.tsx`، `src/app/admin/orders.tsx`، `src/app/admin/plan-form.tsx`، `src/app/admin/plans.tsx`، `src/app/admin/store-details.tsx`، `src/app/admin/stores.tsx`، `src/app/application-status.tsx`، `src/app/cart.tsx`، `src/app/checkout.tsx`، `src/app/driver/account.tsx`، `src/app/driver/index.tsx`، `src/app/driver/orders.tsx`، `src/app/driver/task-details.tsx`، `src/app/financial-invoice.tsx`، `src/app/home/search.tsx`، `src/app/index.tsx`، `src/app/merchant/index.tsx`، `src/app/merchant/orders.tsx`، `src/app/notifications.tsx`، `src/app/offer-details.tsx`، `src/app/order-details.tsx`، `src/app/orders.tsx`، `src/app/product-details.tsx`، `src/app/reset-password.tsx`، `src/app/signup.tsx`، `src/app/store-details.tsx`، `src/app/store-reviews.tsx`، `src/app/verify-email.tsx`، `src/components/account/DriverProfessionalInfo.tsx`، `src/components/account/PersonalInfoScreen.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/account/SharedAccountParts.tsx`، `src/components/admin/AdminCategoriesScreen.tsx`، `src/components/admin/C3DeliverySettings.tsx`، `src/components/admin/HomeAdTargetPicker.tsx`، `src/components/application-status/ApplicationStatusEmptyState.tsx`، `src/components/auth/RoleRouteGuard.tsx`، `src/components/driver/DeliveryTaskCard.tsx`، `src/components/driver/DriverTaskLocation.tsx`، `src/components/driver/StorePickupPanel.tsx`، `src/components/finance/FinanceScreen.tsx`، `src/components/finance/InvoiceScreen.tsx`، `src/components/finance/MerchantInvoiceScreen.tsx`، `src/components/finance/PendingMoneyCard.tsx`، `src/components/login/LoginForm.tsx`، `src/components/marketplace/CustomerCatalogStatus.tsx`، `src/components/marketplace/RatingsSection.tsx`، `src/components/marketplace/StorePromoVideo.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`، `src/components/merchant/MerchantAddProduct.tsx`، `src/components/merchant/MerchantCatalogPanel.tsx`، `src/components/merchant/MerchantEditProduct.tsx`، `src/components/merchant/MerchantFinancialCards.tsx`، `src/components/merchant/MerchantOfferEditor.tsx`، `src/components/merchant/MerchantOfferForm.tsx`، `src/components/merchant/MerchantProductForm.tsx`، `src/components/merchant/MerchantStoreBranding.tsx`، `src/components/merchant/MerchantStoreInfo.tsx`، `src/components/merchant/OfferExpirationPicker.tsx`، `src/components/orders/MerchantOrderCard.tsx`، `src/components/search/ProductRefinements.tsx`، `src/components/search/SearchEmptyState.tsx`، `src/components/signup/MerchantPlanChoice.tsx`، `src/components/signup/ProfessionalApplicationFields.tsx`، `src/components/signup/ProfessionalApplicationScreen.tsx`، `src/components/signup/SignupCredentialsStep.tsx`، `src/components/signup/SignupReviewStep.tsx`، `src/components/signup/SignupRoleStep.tsx`، `src/components/ui/AppEmptyState.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
 - مؤشرات حالات الملف: loading موجود؛ error موجود؛ disabled موجود.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
@@ -1128,9 +1160,9 @@
 ## AppEmptyState
 
 - الملف: `src/components/ui/AppEmptyState.tsx`. الوظيفة: حالة عدم وجود بيانات وإجراء مناسب.
-- صفحات محتملة بالوصول الساكن: RUI-CUS-01، RUI-CUS-02، RUI-CUS-03، RUI-CUS-06.
+- صفحات محتملة بالوصول الساكن: RUI-CUS-01، RUI-CUS-02، RUI-CUS-03، RUI-CUS-04، RUI-CUS-04.01، RUI-CUS-06.
 - مستخدم عبر layout: —.
-- المستهلكون المباشرون: `src/app/home/index.tsx`، `src/app/home/offers.tsx`، `src/app/stores.tsx`، `src/components/search/SearchEmptyState.tsx`.
+- المستهلكون المباشرون: `src/app/(customer)/home/index.tsx`، `src/app/(customer)/home/offers.tsx`، `src/app/(customer)/stores.tsx`، `src/app/store-details.tsx`، `src/app/store-reviews.tsx`، `src/components/search/SearchEmptyState.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
 - مؤشرات حالات الملف: loading غير ظاهر؛ افحص الأب/props؛ error غير ظاهر؛ افحص الأب/props؛ disabled غير ظاهر؛ افحص الأب/props.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
@@ -1139,9 +1171,9 @@
 ## AppIcon
 
 - الملف: `src/components/ui/AppIcon.tsx`. الوظيفة: رمز مرئي موحد.
-- صفحات محتملة بالوصول الساكن: RUI-MER-01، RUI-MER-02، RUI-MER-03، RUI-MER-04، RUI-MER-06، RUI-MER-08، RUI-MER-09، RUI-MER-10، RUI-MER-11، RUI-MER-12، RUI-MER-13، RUI-DRV-01، RUI-DRV-02، RUI-DRV-02.01، RUI-DRV-03، RUI-DRV-04، RUI-DRV-04.01، RUI-DRV-04.02، RUI-ADM-01، RUI-ADM-02، RUI-ADM-03، RUI-ADM-04، RUI-ADM-05، RUI-ADM-06، RUI-ADM-07، RUI-ADM-08، RUI-ADM-09، RUI-ADM-10، RUI-ADM-11، RUI-ADM-12، RUI-ADM-13، RUI-ADM-14، RUI-ADM-15، RUI-CUS-01، RUI-CUS-02، RUI-CUS-03، RUI-CUS-04، RUI-CUS-05، RUI-CUS-06، RUI-CUS-07، RUI-CUS-08، RUI-CUS-09، RUI-CUS-10، RUI-CUS-11، RUI-CUS-12، RUI-CUS-13، RUI-CUS-14، RUI-CUS-15، RUI-SHR-01، RUI-SHR-02، RUI-SHR-03، RUI-SHR-04، RUI-SHR-05، RUI-SHR-06، RUI-AUTH-01، RUI-AUTH-02، RUI-AUTH-03، RUI-AUTH-04، RUI-AUTH-05، RUI-AUTH-06، RUI-AUTH-07، RUI-AUTH-08، RUI-LEGAL-01، RUI-LEGAL-02، RUI-LEGAL-03.
+- صفحات محتملة بالوصول الساكن: RUI-MER-01، RUI-MER-02، RUI-MER-03، RUI-MER-04، RUI-MER-06، RUI-MER-08، RUI-MER-09، RUI-MER-10، RUI-MER-11، RUI-MER-12، RUI-MER-13، RUI-DRV-01، RUI-DRV-02، RUI-DRV-02.01، RUI-DRV-03، RUI-DRV-04، RUI-DRV-04.01، RUI-DRV-04.02، RUI-ADM-01، RUI-ADM-02، RUI-ADM-03، RUI-ADM-04، RUI-ADM-05، RUI-ADM-06، RUI-ADM-07، RUI-ADM-08، RUI-ADM-09، RUI-ADM-10، RUI-ADM-11، RUI-ADM-12، RUI-ADM-13، RUI-ADM-14، RUI-ADM-15، RUI-CUS-01، RUI-CUS-02، RUI-CUS-03، RUI-CUS-04، RUI-CUS-04.01، RUI-CUS-05، RUI-CUS-06، RUI-CUS-07، RUI-CUS-08، RUI-CUS-09، RUI-CUS-10، RUI-CUS-11، RUI-CUS-12، RUI-CUS-13، RUI-CUS-14، RUI-CUS-15، RUI-SHR-01، RUI-SHR-02، RUI-SHR-03، RUI-SHR-04، RUI-SHR-05، RUI-SHR-06، RUI-AUTH-01، RUI-AUTH-02، RUI-AUTH-03، RUI-AUTH-04، RUI-AUTH-05، RUI-AUTH-06، RUI-AUTH-07، RUI-AUTH-08، RUI-LEGAL-01، RUI-LEGAL-02، RUI-LEGAL-03.
 - مستخدم عبر layout: `src/app/_layout.tsx`، `src/app/admin/_layout.tsx`، `src/app/driver/_layout.tsx`، `src/app/merchant/_layout.tsx`.
-- المستهلكون المباشرون: `src/app/about.tsx`، `src/app/addresses.tsx`، `src/app/admin/applications.tsx`، `src/app/admin/drivers.tsx`، `src/app/admin/orders.tsx`، `src/app/admin/plan-form.tsx`، `src/app/admin/plans.tsx`، `src/app/admin/stores.tsx`، `src/app/application-status.tsx`، `src/app/cart.tsx`، `src/app/checkout.tsx`، `src/app/driver/index.tsx`، `src/app/driver/orders.tsx`، `src/app/favorites.tsx`، `src/app/home/index.tsx`، `src/app/home/offers.tsx`، `src/app/home/search.tsx`، `src/app/merchant/catalog.tsx`، `src/app/merchant/index.tsx`، `src/app/merchant/orders.tsx`، `src/app/notifications.tsx`، `src/app/offer-details.tsx`، `src/app/order-details.tsx`، `src/app/orders.tsx`، `src/app/product-details.tsx`، `src/app/store-details.tsx`، `src/app/stores.tsx`، `src/components/about/AboutContent.tsx`، `src/components/about/AboutFeatureList.tsx`، `src/components/account/AccountMenuItem.tsx`، `src/components/account/AccountProfileHeader.tsx`، `src/components/account/AccountSection.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/account/SettingsScreen.tsx`، `src/components/admin/AdminCategoriesScreen.tsx`، `src/components/application-status/ApplicationStatusEmptyState.tsx`، `src/components/driver/DeliveryTaskCard.tsx`، `src/components/driver/DriverTaskLocation.tsx`، `src/components/finance/MerchantFinanceView.tsx`، `src/components/legal/LegalPageLayout.tsx`، `src/components/login/LoginForm.tsx`، `src/components/marketplace/CategoryChip.tsx`، `src/components/marketplace/OfferCard.tsx`، `src/components/marketplace/ProductMediaGallery.tsx`، `src/components/marketplace/ProductMediaPreview.tsx`، `src/components/marketplace/RatingStars.tsx`، `src/components/marketplace/ShoppingCardImage.tsx`، `src/components/marketplace/StoreCard.tsx`، `src/components/marketplace/StoreDetailsHero.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`، `src/components/merchant/MerchantCatalogPanel.tsx`، `src/components/merchant/MerchantCategorySelect.tsx`، `src/components/merchant/MerchantProductForm.tsx`، `src/components/merchant/MerchantStoreBranding.tsx`، `src/components/navigation/AppBottomNav.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/orders/MerchantOrderCard.tsx`، `src/components/orders/MerchantOrdersToolbar.tsx`، `src/components/orders/OrderTracking.tsx`، `src/components/search/ProductRefinements.tsx`، `src/components/search/SearchControls.tsx`، `src/components/search/SearchEmptyState.tsx`، `src/components/search/SearchResults.tsx`، `src/components/signup/SignupProgress.tsx`، `src/components/signup/SignupReviewStep.tsx`، `src/components/signup/SignupRoleStep.tsx`، `src/components/ui/AppBadge.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppEmptyState.tsx`، `src/components/ui/AppModal.tsx`، `src/components/ui/AppSearchBar.tsx`، `src/components/ui/AppSectionHeader.tsx`، `src/components/ui/AppTextField.tsx`.
+- المستهلكون المباشرون: `src/app/(customer)/home/index.tsx`، `src/app/(customer)/home/offers.tsx`، `src/app/(customer)/stores.tsx`، `src/app/about.tsx`، `src/app/addresses.tsx`، `src/app/admin/applications.tsx`، `src/app/admin/drivers.tsx`، `src/app/admin/orders.tsx`، `src/app/admin/plan-form.tsx`، `src/app/admin/plans.tsx`، `src/app/admin/stores.tsx`، `src/app/application-status.tsx`، `src/app/cart.tsx`، `src/app/checkout.tsx`، `src/app/driver/index.tsx`، `src/app/driver/orders.tsx`، `src/app/favorites.tsx`، `src/app/merchant/catalog.tsx`، `src/app/merchant/index.tsx`، `src/app/merchant/orders.tsx`، `src/app/notifications.tsx`، `src/app/offer-details.tsx`، `src/app/order-details.tsx`، `src/app/orders.tsx`، `src/app/product-details.tsx`، `src/app/store-details.tsx`، `src/components/about/AboutContent.tsx`، `src/components/about/AboutFeatureList.tsx`، `src/components/account/AccountMenuItem.tsx`، `src/components/account/AccountProfileHeader.tsx`، `src/components/account/AccountSection.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/account/SettingsScreen.tsx`، `src/components/admin/AdminCategoriesScreen.tsx`، `src/components/application-status/ApplicationStatusEmptyState.tsx`، `src/components/driver/DeliveryTaskCard.tsx`، `src/components/driver/DriverTaskLocation.tsx`، `src/components/finance/MerchantFinanceView.tsx`، `src/components/legal/LegalPageLayout.tsx`، `src/components/login/LoginForm.tsx`، `src/components/marketplace/CategoryChip.tsx`، `src/components/marketplace/OfferCard.tsx`، `src/components/marketplace/ProductMediaGallery.tsx`، `src/components/marketplace/ProductMediaPreview.tsx`، `src/components/marketplace/RatingStars.tsx`، `src/components/marketplace/ShoppingCardImage.tsx`، `src/components/marketplace/StoreCard.tsx`، `src/components/marketplace/StoreDetailsHero.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`، `src/components/merchant/MerchantCatalogPanel.tsx`، `src/components/merchant/MerchantCategorySelect.tsx`، `src/components/merchant/MerchantProductForm.tsx`، `src/components/merchant/MerchantStoreBranding.tsx`، `src/components/navigation/AppBottomNav.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/orders/MerchantOrderCard.tsx`، `src/components/orders/MerchantOrdersToolbar.tsx`، `src/components/orders/OrderTracking.tsx`، `src/components/search/ProductRefinements.tsx`، `src/components/search/SearchControls.tsx`، `src/components/signup/SignupProgress.tsx`، `src/components/signup/SignupReviewStep.tsx`، `src/components/signup/SignupRoleStep.tsx`، `src/components/ui/AppBadge.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppEmptyState.tsx`، `src/components/ui/AppModal.tsx`، `src/components/ui/AppSearchBar.tsx`، `src/components/ui/AppSectionHeader.tsx`، `src/components/ui/AppTextField.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: لا دليل مباشر في الملف؛ افحص الوراثة والأيقونات.
 - مؤشرات حالات الملف: loading غير ظاهر؛ افحص الأب/props؛ error موجود؛ disabled غير ظاهر؛ افحص الأب/props.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
@@ -1196,7 +1228,7 @@
 - الملف: `src/components/ui/AppSectionHeader.tsx`. الوظيفة: عنوان قسم وإجراء اختياري.
 - صفحات محتملة بالوصول الساكن: RUI-CUS-01.
 - مستخدم عبر layout: —.
-- المستهلكون المباشرون: `src/app/home/index.tsx`.
+- المستهلكون المباشرون: `src/app/(customer)/home/index.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
 - مؤشرات حالات الملف: loading غير ظاهر؛ افحص الأب/props؛ error غير ظاهر؛ افحص الأب/props؛ disabled غير ظاهر؛ افحص الأب/props.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
@@ -1249,9 +1281,9 @@
 ## KeyboardAwareScrollView
 
 - الملف: `src/components/ui/KeyboardAwareScrollView.tsx`. الوظيفة: تمرير النموذج وإبقاء الحقل النشط فوق لوحة المفاتيح.
-- صفحات محتملة بالوصول الساكن: RUI-MER-02، RUI-MER-03، RUI-MER-04، RUI-MER-06، RUI-MER-08، RUI-MER-09، RUI-MER-10، RUI-MER-11، RUI-MER-13، RUI-DRV-02، RUI-DRV-03، RUI-ADM-05، RUI-ADM-06، RUI-ADM-12، RUI-ADM-13، RUI-ADM-14، RUI-ADM-15، RUI-CUS-09، RUI-CUS-12، RUI-CUS-14، RUI-SHR-02، RUI-SHR-03، RUI-SHR-05، RUI-SHR-06، RUI-AUTH-02، RUI-AUTH-03، RUI-AUTH-05، RUI-AUTH-06، RUI-AUTH-07.
+- صفحات محتملة بالوصول الساكن: RUI-MER-02، RUI-MER-03، RUI-MER-04، RUI-MER-06، RUI-MER-08، RUI-MER-09، RUI-MER-10، RUI-MER-11، RUI-MER-13، RUI-DRV-02، RUI-DRV-03، RUI-ADM-05، RUI-ADM-06، RUI-ADM-12، RUI-ADM-13، RUI-ADM-14، RUI-ADM-15، RUI-CUS-04.01، RUI-CUS-09، RUI-CUS-12، RUI-CUS-14، RUI-SHR-02، RUI-SHR-03، RUI-SHR-05، RUI-SHR-06، RUI-AUTH-02، RUI-AUTH-03، RUI-AUTH-05، RUI-AUTH-06، RUI-AUTH-07.
 - مستخدم عبر layout: —.
-- المستهلكون المباشرون: `src/app/admin/home-ads.tsx`، `src/app/admin/plan-form.tsx`، `src/app/checkout.tsx`، `src/app/driver/orders.tsx`، `src/app/reset-password.tsx`، `src/app/signup.tsx`، `src/components/account/PersonalInfoScreen.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/finance/FinanceScreen.tsx`، `src/components/finance/InvoiceScreen.tsx`، `src/components/finance/MerchantFinanceView.tsx`، `src/components/merchant/MerchantAddProduct.tsx`، `src/components/merchant/MerchantEditProduct.tsx`، `src/components/merchant/MerchantOfferEditor.tsx`، `src/components/merchant/MerchantStoreInfo.tsx`، `src/components/signup/ProfessionalApplicationScreen.tsx`، `src/components/ui/AppTextField.tsx`.
+- المستهلكون المباشرون: `src/app/admin/home-ads.tsx`، `src/app/admin/plan-form.tsx`، `src/app/checkout.tsx`، `src/app/driver/orders.tsx`، `src/app/reset-password.tsx`، `src/app/signup.tsx`، `src/app/store-reviews.tsx`، `src/components/account/PersonalInfoScreen.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/finance/FinanceScreen.tsx`، `src/components/finance/InvoiceScreen.tsx`، `src/components/finance/MerchantFinanceView.tsx`، `src/components/merchant/MerchantAddProduct.tsx`، `src/components/merchant/MerchantEditProduct.tsx`، `src/components/merchant/MerchantOfferEditor.tsx`، `src/components/merchant/MerchantStoreInfo.tsx`، `src/components/signup/ProfessionalApplicationScreen.tsx`، `src/components/ui/AppTextField.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: لا دليل مباشر في الملف؛ افحص الوراثة والأيقونات.
 - مؤشرات حالات الملف: loading غير ظاهر؛ افحص الأب/props؛ error غير ظاهر؛ افحص الأب/props؛ disabled غير ظاهر؛ افحص الأب/props.
 - ألوان حرفية: لا hex حرفي؛ هذا لا يثبت التباين.
@@ -1271,7 +1303,7 @@
 ## LoadingSkeleton
 
 - الملف: `src/components/ui/LoadingState.tsx`. الوظيفة: عناصر تحميل أول ثابتة بلا حركة مستمرة.
-- صفحات محتملة بالوصول الساكن: RUI-MER-01، RUI-MER-02، RUI-MER-03، RUI-MER-04، RUI-MER-06، RUI-MER-08، RUI-MER-09، RUI-MER-10، RUI-MER-11، RUI-MER-13، RUI-DRV-01، RUI-DRV-02، RUI-DRV-02.01، RUI-DRV-03، RUI-DRV-04، RUI-DRV-04.01، RUI-ADM-01، RUI-ADM-02، RUI-ADM-03، RUI-ADM-04، RUI-ADM-05، RUI-ADM-06، RUI-ADM-07، RUI-ADM-08، RUI-ADM-09، RUI-ADM-10، RUI-ADM-11، RUI-ADM-12، RUI-ADM-13، RUI-ADM-14، RUI-ADM-15، RUI-CUS-01، RUI-CUS-02، RUI-CUS-03، RUI-CUS-04، RUI-CUS-05، RUI-CUS-06، RUI-CUS-07، RUI-CUS-08، RUI-CUS-09، RUI-CUS-10، RUI-CUS-11، RUI-CUS-12، RUI-CUS-13، RUI-CUS-14، RUI-CUS-15، RUI-SHR-01، RUI-SHR-02، RUI-SHR-03، RUI-SHR-05، RUI-SHR-06، RUI-AUTH-01، RUI-AUTH-02، RUI-AUTH-03، RUI-AUTH-04، RUI-AUTH-05، RUI-AUTH-06، RUI-AUTH-07، RUI-AUTH-08.
+- صفحات محتملة بالوصول الساكن: RUI-MER-01، RUI-MER-02، RUI-MER-03، RUI-MER-04، RUI-MER-06، RUI-MER-08، RUI-MER-09، RUI-MER-10، RUI-MER-11، RUI-MER-13، RUI-DRV-01، RUI-DRV-02، RUI-DRV-02.01، RUI-DRV-03، RUI-DRV-04، RUI-DRV-04.01، RUI-ADM-01، RUI-ADM-02، RUI-ADM-03، RUI-ADM-04، RUI-ADM-05، RUI-ADM-06، RUI-ADM-07، RUI-ADM-08، RUI-ADM-09، RUI-ADM-10، RUI-ADM-11، RUI-ADM-12، RUI-ADM-13، RUI-ADM-14، RUI-ADM-15، RUI-CUS-01، RUI-CUS-02، RUI-CUS-03، RUI-CUS-04، RUI-CUS-04.01، RUI-CUS-05، RUI-CUS-06، RUI-CUS-07، RUI-CUS-08، RUI-CUS-09، RUI-CUS-10، RUI-CUS-11، RUI-CUS-12، RUI-CUS-13، RUI-CUS-14، RUI-CUS-15، RUI-SHR-01، RUI-SHR-02، RUI-SHR-03، RUI-SHR-05، RUI-SHR-06، RUI-AUTH-01، RUI-AUTH-02، RUI-AUTH-03، RUI-AUTH-04، RUI-AUTH-05، RUI-AUTH-06، RUI-AUTH-07، RUI-AUTH-08.
 - مستخدم عبر layout: `src/app/admin/_layout.tsx`، `src/app/driver/_layout.tsx`، `src/app/merchant/_layout.tsx`.
 - المستهلكون المباشرون: `src/app/admin/applications.tsx`، `src/app/admin/index.tsx`، `src/app/admin/order-details.tsx`، `src/app/admin/orders.tsx`، `src/app/driver/cash-account.tsx`، `src/app/driver/index.tsx`، `src/app/driver/orders.tsx`، `src/app/driver/task-details.tsx`، `src/app/merchant/orders.tsx`، `src/app/order-details.tsx`، `src/app/orders.tsx`، `src/components/finance/FinanceScreen.tsx`، `src/components/finance/InvoiceScreen.tsx`، `src/components/finance/MerchantFinanceView.tsx`، `src/components/finance/MerchantInvoiceScreen.tsx`، `src/components/merchant/MerchantCatalogPanel.tsx`، `src/components/ui/AppButton.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.
@@ -1282,7 +1314,7 @@
 ## RefreshStatus
 
 - الملف: `src/components/ui/LoadingState.tsx`. الوظيفة: صف محجوز لحالة التحديث دون إزاحة المحتوى.
-- صفحات محتملة بالوصول الساكن: RUI-MER-01، RUI-MER-02، RUI-MER-03، RUI-MER-04، RUI-MER-06، RUI-MER-08، RUI-MER-09، RUI-MER-10، RUI-MER-11، RUI-MER-13، RUI-DRV-01، RUI-DRV-02، RUI-DRV-02.01، RUI-DRV-03، RUI-DRV-04، RUI-DRV-04.01، RUI-ADM-01، RUI-ADM-02، RUI-ADM-03، RUI-ADM-04، RUI-ADM-05، RUI-ADM-06، RUI-ADM-07، RUI-ADM-08، RUI-ADM-09، RUI-ADM-10، RUI-ADM-11، RUI-ADM-12، RUI-ADM-13، RUI-ADM-14، RUI-ADM-15، RUI-CUS-01، RUI-CUS-02، RUI-CUS-03، RUI-CUS-04، RUI-CUS-05، RUI-CUS-06، RUI-CUS-07، RUI-CUS-08، RUI-CUS-09، RUI-CUS-10، RUI-CUS-11، RUI-CUS-12، RUI-CUS-13، RUI-CUS-14، RUI-CUS-15، RUI-SHR-01، RUI-SHR-02، RUI-SHR-03، RUI-SHR-05، RUI-SHR-06، RUI-AUTH-01، RUI-AUTH-02، RUI-AUTH-03، RUI-AUTH-04، RUI-AUTH-05، RUI-AUTH-06، RUI-AUTH-07، RUI-AUTH-08.
+- صفحات محتملة بالوصول الساكن: RUI-MER-01، RUI-MER-02، RUI-MER-03، RUI-MER-04، RUI-MER-06، RUI-MER-08، RUI-MER-09، RUI-MER-10، RUI-MER-11، RUI-MER-13، RUI-DRV-01، RUI-DRV-02، RUI-DRV-02.01، RUI-DRV-03، RUI-DRV-04، RUI-DRV-04.01، RUI-ADM-01، RUI-ADM-02، RUI-ADM-03، RUI-ADM-04، RUI-ADM-05، RUI-ADM-06، RUI-ADM-07، RUI-ADM-08، RUI-ADM-09، RUI-ADM-10، RUI-ADM-11، RUI-ADM-12، RUI-ADM-13، RUI-ADM-14، RUI-ADM-15، RUI-CUS-01، RUI-CUS-02، RUI-CUS-03، RUI-CUS-04، RUI-CUS-04.01، RUI-CUS-05، RUI-CUS-06، RUI-CUS-07، RUI-CUS-08، RUI-CUS-09، RUI-CUS-10، RUI-CUS-11، RUI-CUS-12، RUI-CUS-13، RUI-CUS-14، RUI-CUS-15، RUI-SHR-01، RUI-SHR-02، RUI-SHR-03، RUI-SHR-05، RUI-SHR-06، RUI-AUTH-01، RUI-AUTH-02، RUI-AUTH-03، RUI-AUTH-04، RUI-AUTH-05، RUI-AUTH-06، RUI-AUTH-07، RUI-AUTH-08.
 - مستخدم عبر layout: `src/app/admin/_layout.tsx`، `src/app/driver/_layout.tsx`، `src/app/merchant/_layout.tsx`.
 - المستهلكون المباشرون: `src/app/admin/applications.tsx`، `src/app/admin/index.tsx`، `src/app/admin/order-details.tsx`، `src/app/admin/orders.tsx`، `src/app/driver/cash-account.tsx`، `src/app/driver/index.tsx`، `src/app/driver/orders.tsx`، `src/app/driver/task-details.tsx`، `src/app/merchant/orders.tsx`، `src/app/order-details.tsx`، `src/app/orders.tsx`، `src/components/finance/FinanceScreen.tsx`، `src/components/finance/InvoiceScreen.tsx`، `src/components/finance/MerchantFinanceView.tsx`، `src/components/finance/MerchantInvoiceScreen.tsx`، `src/components/merchant/MerchantCatalogPanel.tsx`، `src/components/ui/AppButton.tsx`.
 - الثيمان: يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج. RTL: دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة.

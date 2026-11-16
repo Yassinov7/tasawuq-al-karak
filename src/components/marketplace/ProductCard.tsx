@@ -1,12 +1,13 @@
-import { formatSypNumber } from "@/lib/money";
+import { formatSyp } from "@/lib/money";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { AppBadge } from "@/components/ui/AppBadge";
+import { AppIcon } from "@/components/ui/AppIcon";
 import { ShoppingCardImage } from "@/components/marketplace/ShoppingCardImage";
 import { RatingStars } from "@/components/marketplace/RatingStars";
 import type { Product } from "@/types/catalog";
 import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
-import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
+import { FontSizes, Fonts, Radius, RtlText, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 
 type ProductCardProps = {
@@ -17,6 +18,8 @@ type ProductCardProps = {
   showOffer?: boolean;
   cardWidth?: number;
   storeName?: string;
+  favorite?: boolean;
+  onFavoritePress?: () => void;
 };
 
 export function ProductCard({
@@ -27,9 +30,11 @@ export function ProductCard({
   showOffer = false,
   cardWidth,
   storeName,
+  favorite = false,
+  onFavoritePress,
 }: ProductCardProps) {
   const { colors } = useTheme();
-  const { categories, stores, productRatings } = useCustomerCatalog();
+  const { categories, stores, productRatings, offers } = useCustomerCatalog();
   const { width, fontScale } = useWindowDimensions();
 
   const category = categories.find((item) => item.id === product.categoryId);
@@ -37,13 +42,18 @@ export function ProductCard({
   const store = storeName ?? stores.find((item) => item.id === product.storeId)?.name;
   const rating = productRatings.get(product.id);
 
+  const productOffers = showOffer && product.available
+    ? offers.filter(offer => offer.items.some(item => item.product.id === product.id))
+    : [];
+  const offerLabel = productOffers.length ? "ضمن عرض" : undefined;
+  const price = formatSyp(product.price);
   const media = product.media?.find((item) => item.type === "image");
 
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={[product.name, showStore ? store : undefined, formatSypNumber(product.price) + " ل.س", product.unit, !product.available ? "غير متوفر" : undefined].filter(Boolean).join("، ")}
+      accessibilityLabel={[product.name, showStore ? store : undefined, price, product.unit, offerLabel, !product.available ? "غير متوفر" : undefined].filter(Boolean).join("، ")}
       style={({ pressed }) => [
         styles.card,
         compact ? (width < 360 || fontScale > 1.25 ? styles.singleColumnCard : styles.compactCard) : styles.normalCard,
@@ -58,19 +68,34 @@ export function ProductCard({
       <View
         style={[
           styles.image,
-          compact ? styles.compactImage : styles.normalImage,
-          {
-            backgroundColor: product.offer
-              ? colors.accentLight
-              : colors.primaryLight,
-          },
+          { backgroundColor: colors.primaryLight },
         ]}
       >
         <ShoppingCardImage uri={media?.uri} icon={category?.icon ?? "cube-outline"} />
 
-        {showOffer && product.offer ? (
+        {onFavoritePress ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={favorite ? `إزالة ${product.name} من المفضلة` : `إضافة ${product.name} إلى المفضلة`}
+            accessibilityState={{ selected: favorite }}
+            hitSlop={6}
+            onPress={(event) => {
+              event.stopPropagation();
+              onFavoritePress();
+            }}
+            style={({ pressed }) => [styles.favoriteButton, {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              opacity: pressed ? 0.72 : 1,
+            }]}
+          >
+            <AppIcon name={favorite ? "heart" : "heart-outline"} size={20} color={favorite ? colors.error : colors.textSecondary} />
+          </Pressable>
+        ) : null}
+
+        {productOffers.length ? (
           <View style={styles.offerBadge}>
-            <AppBadge text="عرض" variant="accent" icon="pricetag-outline" />
+            <AppBadge text="ضمن عرض" variant="neutral" icon="pricetag-outline" />
           </View>
         ) : null}
       </View>
@@ -82,7 +107,7 @@ export function ProductCard({
             color: colors.text,
           },
         ]}
-        numberOfLines={2}
+        numberOfLines={fontScale <= 1.25 ? 2 : undefined}
       >
         {product.name}
       </Text>
@@ -108,39 +133,9 @@ export function ProductCard({
       ) : null}
 
       <View style={styles.priceRow}>
-        <Text
-          style={[
-            styles.price,
-            {
-              color: colors.primary,
-            },
-          ]}
-        >
-          {formatSypNumber(product.price)}
-        </Text>
-
-        <Text
-          style={[
-            styles.currency,
-            {
-              color: colors.textSecondary,
-            },
-          ]}
-        >
-          {"ل.س"}
-        </Text>
+        <Text style={[styles.price, { color: colors.primary }]}>{price}</Text>
+        {product.unit ? <Text style={[styles.unit, { color: colors.textMuted }]}>{product.unit}</Text> : null}
       </View>
-
-      <Text
-        style={[
-          styles.unit,
-          {
-            color: colors.textMuted,
-          },
-        ]}
-      >
-        {product.unit}
-      </Text>
 
       {rating && rating.averageRating !== null && rating.ratingCount > 0 ? (
         <View style={styles.ratingRow}>
@@ -154,7 +149,7 @@ export function ProductCard({
 
 const styles = StyleSheet.create({
   card: {
-    padding: Spacing.three,
+    padding: Spacing.two,
     borderWidth: 1,
     borderRadius: Radius.xl,
   },
@@ -177,14 +172,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     overflow: "hidden",
     position: "relative",
-  },
-
-  normalImage: {
-    height: 110,
-  },
-
-  compactImage: {
-    height: 105,
+    height: 90,
   },
 
   offerBadge: {
@@ -192,44 +180,52 @@ const styles = StyleSheet.create({
     top: Spacing.two,
     right: Spacing.two,
   },
+  favoriteButton: {
+    position: "absolute",
+    left: Spacing.two,
+    top: Spacing.two,
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderRadius: Radius.full,
+  },
 
   name: {
-    marginTop: Spacing.three,
+    marginTop: Spacing.one,
     fontFamily: Fonts.bold,
     fontSize: FontSizes.sm,
-    textAlign: "right",
+    ...RtlText,
   },
 
   store: {
     marginTop: 3,
     fontFamily: Fonts.regular,
     fontSize: FontSizes.xs,
-    textAlign: "right",
+    ...RtlText,
   },
 
   priceRow: {
     flexDirection: "row-reverse",
     alignItems: "baseline",
     flexWrap: "wrap",
-    gap: 3,
-    marginTop: Spacing.three,
+    columnGap: Spacing.one,
+    marginTop: Spacing.one,
   },
 
   price: {
+    flexShrink: 1,
+    ...RtlText,
     fontFamily: Fonts.bold,
     fontSize: FontSizes.md,
   },
 
-  currency: {
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.xs,
-  },
-
   unit: {
-    marginTop: 2,
+    flexShrink: 1,
     fontFamily: Fonts.regular,
     fontSize: FontSizes.xs,
-    textAlign: "right",
+    ...RtlText,
   },
 
   unavailableBadge: {
@@ -243,6 +239,7 @@ const styles = StyleSheet.create({
   unavailableText: {
     fontFamily: Fonts.medium,
     fontSize: FontSizes.xs,
+    ...RtlText,
   },
 
   ratingRow: {
@@ -255,5 +252,7 @@ const styles = StyleSheet.create({
   ratingText: {
     fontFamily: Fonts.medium,
     fontSize: FontSizes.xs,
+    textAlign: "auto",
+    writingDirection: "ltr",
   },
 });

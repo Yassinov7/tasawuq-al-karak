@@ -125,7 +125,7 @@ export function MerchantOfferEditor({ownerId,offerId,fromCatalog}:{ownerId:strin
    setAvailabilityError(false);
    const selected=new Set(form.items.map(item=>item.productId)),found=new Set(fresh.map(item=>item.id));setProducts(previous=>mergeProducts(previous.map(item=>selected.has(item.id)&&!found.has(item.id)?{...item,is_available:false}:item),fresh));
    const checked=validateOffer(form,fresh,offerId,startsAt);if(!checked.args){showErrors(checked.errors);return;}
-   const attempt:OfferAttempt={version:1,ownerId,storeId:store.id,offerId,form:copyForm(form),args:checked.args,baseline:baseline.current,status:'sending',resultId:null};
+   const attempt:OfferAttempt={version:2,ownerId,storeId:store.id,offerId,form:copyForm(form),args:checked.args,baseline:baseline.current,status:'sending',resultId:null};
    await complete(await session.saver.save(attempt));
   }catch{if(alive.current){setPending(session.saver.getPending());setError('تعذر إتمام التحقق أو تحديث العرض. إن أُرسلت محاولة فستبقى محفوظة للتحقق دون إعادة إرسال تلقائية.');}}
   finally{busyRef.current=false;if(alive.current)setBusy(false);}

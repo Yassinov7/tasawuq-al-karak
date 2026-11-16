@@ -64,7 +64,7 @@ function MerchantOrders({ ownerId,targetId,initialFilter }: { ownerId: string;ta
     if(intent.current.has(order.id))return;
     intent.current.add(order.id);
     try{
-      const accepted=await dialog.confirm({title:next==="preparing"?"قبول طلب المتجر":"تأكيد جاهزية طلب المتجر",message:`${order.reference??`رقم الطلب ${order.customer_orders.order_number}`}\n${order.store_order_items.length} بنود · ${orderTotal(order.store_order_totals)??"الإجمالي غير متاح"}\n${next==="preparing"?"سيبدأ تجهيز طلب متجرك فقط.":"أكد أن جميع منتجات طلب متجرك جاهزة ليستلمها السائق."}`,confirmText:next==="preparing"?"قبول وبدء التجهيز":"تأكيد الجاهزية",cancelText:"رجوع"});
+      const accepted=await dialog.confirm({title:next==="preparing"?"قبول طلب المتجر":"تأكيد جاهزية طلب المتجر",message:`${order.reference??`رقم الطلب ${order.customer_orders.order_number}`}\n${order.store_order_items.length} عناصر · ${orderTotal(order.store_order_totals)??"الإجمالي غير متاح"}\n${next==="preparing"?"سيبدأ تجهيز طلب متجرك فقط.":"أكد أن جميع منتجات طلب متجرك جاهزة ليستلمها السائق."}`,confirmText:next==="preparing"?"قبول وبدء التجهيز":"تأكيد الجاهزية",cancelText:"رجوع"});
       if(accepted)await controller.action(order,next);
     }finally{intent.current.delete(order.id);}
   };

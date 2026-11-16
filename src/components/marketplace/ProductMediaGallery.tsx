@@ -10,34 +10,38 @@ import { useTheme } from "@/context/ThemeContext";
 type ProductMediaGalleryProps = {
   activeMediaIndex: number;
   categoryIcon?: IconName;
+  categoryLabel?: string;
   favorite: boolean;
   onSelectMedia: (index: number) => void;
   onToggleFavorite: () => void;
   product: Product;
   width: number;
+  height?: number;
 };
 
 export function ProductMediaGallery({
   activeMediaIndex,
   categoryIcon,
+  categoryLabel,
   favorite,
   onSelectMedia,
   onToggleFavorite,
   product,
   width,
+  height = 270,
 }: ProductMediaGalleryProps) {
   const { colors } = useTheme();
   const activeMedia = product.media?.[activeMediaIndex];
 
   return (
     <>
-      <View style={[styles.preview, { backgroundColor: product.offer ? colors.accentLight : colors.primaryLight }]}>
+      <View style={[styles.preview, { height, backgroundColor: product.offer ? colors.accentLight : colors.primaryLight }]}>
         {activeMedia ? (
           <ProductMediaPreview
             key={activeMedia.id}
             media={activeMedia}
             width={width}
-            height={270}
+            height={height}
             fallbackIcon={categoryIcon ?? "cube-outline"}
             contentFit="contain"
             interactive
@@ -60,9 +64,16 @@ export function ProductMediaGallery({
           <AppIcon name={favorite ? "heart" : "heart-outline"} size={23} color={favorite ? colors.error : colors.textSecondary} />
         </Pressable>
 
+        {categoryLabel ? (
+          <View style={[styles.categoryBadge, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <AppIcon name={categoryIcon ?? "cube-outline"} size={14} color={colors.primary} />
+            <Text numberOfLines={1} style={[styles.categoryText, { color: colors.text }]}>{categoryLabel}</Text>
+          </View>
+        ) : null}
+
         {product.offer ? (
-          <View style={[styles.offerBadge, { backgroundColor: colors.accent }]}>
-            <Text style={[styles.offerBadgeText, { color: colors.surface }]}>عرض</Text>
+          <View style={[styles.offerBadge, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.offerBadgeText, { color: colors.accent }]}>ضمن عرض</Text>
           </View>
         ) : null}
       </View>
@@ -102,9 +113,12 @@ export function ProductMediaGallery({
 }
 
 const styles = StyleSheet.create({
-  preview: { alignItems: "center", borderRadius: Radius.xl, height: 270, justifyContent: "center", overflow: "hidden", position: "relative" },
+  preview: { alignItems: "center", borderRadius: Radius.xl, justifyContent: "center", overflow: "hidden", position: "relative" },
   favoriteButton: { alignItems: "center", borderRadius: Radius.full, borderWidth: 1, height: 46, justifyContent: "center", left: Spacing.three, position: "absolute", top: Spacing.three, width: 46 },
-  offerBadge: { alignItems: "center", borderRadius: Radius.full, justifyContent: "center", paddingHorizontal: Spacing.three, paddingVertical: 5, position: "absolute", right: Spacing.three, top: Spacing.three },
+  categoryBadge: { alignItems: "center", borderRadius: Radius.full, borderWidth: 1, flexDirection: "row", gap: Spacing.one,
+    maxWidth: "62%", paddingHorizontal: Spacing.three, paddingVertical: 6, position: "absolute", right: Spacing.three, top: Spacing.three },
+  categoryText: { flexShrink: 1, fontFamily: Fonts.medium, fontSize: FontSizes.xs, textAlign: "right", writingDirection: "rtl" },
+  offerBadge: { alignItems: "center", borderRadius: Radius.full, borderWidth: 1, justifyContent: "center", paddingHorizontal: Spacing.three, paddingVertical: 5, position: "absolute", bottom: Spacing.three, right: Spacing.three },
   offerBadgeText: { fontFamily: Fonts.bold, fontSize: FontSizes.xs },
   thumbnails: { flexDirection: "row-reverse", gap: Spacing.two, paddingTop: Spacing.two },
   thumbnail: { alignItems: "center", borderRadius: Radius.md, height: 64, justifyContent: "center", overflow: "hidden", width: 64 },

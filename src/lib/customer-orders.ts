@@ -127,6 +127,24 @@ export async function getCustomerOrders(): Promise<CustomerOrderView[]> {
   return attachOrderDetails(data ?? []);
 }
 
+export async function getCustomerOrdersPage(
+  offset: number,
+  limit: number,
+  query = "",
+  status: "all" | "active" | "completed" | "cancelled" = "all",
+): Promise<CustomerOrderView[]> {
+  const safeOffset = Math.max(0, Math.trunc(offset));
+  const safeLimit = Math.min(50, Math.max(1, Math.trunc(limit)));
+  const { data, error } = await supabase.rpc("read_customer_orders_page", {
+    query_value: query.trim(),
+    status_value: status,
+    offset_value: safeOffset,
+    limit_value: safeLimit,
+  });
+  if (error) throw error;
+  return attachOrderDetails(data ?? []);
+}
+
 export async function getCustomerOrder(orderId: string): Promise<CustomerOrderView | null> {
   const { data, error } = await supabase
     .from("customer_orders")

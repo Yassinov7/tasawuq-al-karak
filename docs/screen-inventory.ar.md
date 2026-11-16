@@ -2,97 +2,126 @@
 
 مرجع ثابت للترقيم؛ المصدر هو src/app وليس عناوين الترويسة القديمة. توليد: `python scripts/build-ui-foundation-inventory.py`؛ تحقق دون كتابة: `python scripts/build-ui-foundation-inventory.py --check`.
 
-الإجمالي **65 صفحة فعلية** ضمن **114 ملف مسار**. لا يعد التبويب الداخلي أو الحوار أو وضع الإضافة/التعديل صفحة إضافية. المسار المشترك يعد مرة واحدة؛ مسارات دورين إلى مكون واحد تبقى مدخلين فعليين مختلفين.
+الإجمالي **66 صفحة فعلية** ضمن **115 ملف مسار**. لا يعد التبويب الداخلي أو الحوار أو وضع الإضافة/التعديل صفحة إضافية. المسار المشترك يعد مرة واحدة؛ مسارات دورين إلى مكون واحد تبقى مدخلين فعليين مختلفين.
 
 ## حدود الدليل
 
 فحص ساكن بلا جلسات دخول أو هاتف. المكونات والخدمات أدناه وصول محافظ عبر imports/re-exports على مستوى الملف، وقد يشمل تصديرًا آخر أو مسارًا شرطيًا؛ ليس إثبات عرض أو صلاحية. ملفات الإشارة تضم الترويسات وخرائط التنقل وقد لا تكون زرًا قابلًا للضغط. المسارات الديناميكية/Push يراجعها اختبار الصفحة. الحاويات الموروثة في الملحق؛ لا تكرر قوائمها لكل صفحة. جرد JSON يضم خدمات/hooks كل صفحة وسلسلة الاعتماديات القابلة للتتبع.
 
-## العميل — 15 صفحة
+## العميل — 16 صفحة
 
 ### RUI-CUS-01 — الرئيسية
 
-- الدور: العميل. المصدر: `src/app/home/index.tsx`؛ الوجهة: `/home`.
+- الدور: العميل. المصدر: `src/app/(customer)/home/index.tsx`؛ الوجهة: `/home`.
 - الوظيفة: بدء التسوق وعرض المحتوى المحلي المتاح.
-- الوصول: تبويب الرئيسية. إشارات المصدر: `src/app/_layout.tsx`، `src/app/cart.tsx`، `src/app/favorites.tsx`، `src/components/navigation/AppBottomNav.tsx`، `src/lib/account-routing.ts`، `src/lib/notification-opening.ts`، `src/lib/notification-routing.ts`، `src/lib/safe-back.ts`.
+- الوصول: تبويب الرئيسية. إشارات المصدر: `src/app/_layout.tsx`، `src/app/cart.tsx`، `src/app/favorites.tsx`، `src/app/home/search.tsx`، `src/components/navigation/AppBottomNav.tsx`، `src/lib/account-routing.ts`، `src/lib/notification-opening.ts`، `src/lib/notification-routing.ts`، `src/lib/safe-back.ts`.
 - التبويب: تبويب مباشر.
 - التفاصيل الموجودة/الناقصة: إعلان ممول بعد البحث واكتشاف خادمي مستقر وشعار المتجر المنشور؛ دليل docs/rui-cus-01.ar.md.
-- المكونات (وصول محافظ): `src/components/home/CustomerHomeSponsored.tsx`، `src/components/marketplace/CategoryChip.tsx`، `src/components/marketplace/OfferCard.tsx`، `src/components/marketplace/ProductCard.tsx`، `src/components/marketplace/RatingStars.tsx`، `src/components/marketplace/ShoppingCardImage.tsx`، `src/components/marketplace/StoreCard.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppBadge.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppEmptyState.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/AppSectionHeader.tsx`، `src/components/ui/LoadingState.tsx`.
-- النصوص والحالات: حفظ حالة العودة من البحث، الإعلان العريض والفيديو الصامت والرفوف المدمجة. ينتظر ترحيل المصغرات واختبار الهاتف وقبول المالك.
+- المكونات (وصول محافظ): `src/components/home/CustomerHomeSponsored.tsx`، `src/components/marketplace/CategoryChip.tsx`، `src/components/marketplace/OfferCard.tsx`، `src/components/marketplace/ProductCard.tsx`، `src/components/marketplace/RatingStars.tsx`، `src/components/marketplace/ShoppingCardImage.tsx`، `src/components/marketplace/StoreCard.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/navigation/CustomerMarketHeader.tsx`، `src/components/ui/AppBadge.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppEmptyState.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/AppSectionHeader.tsx`، `src/components/ui/LoadingState.tsx`.
+- النصوص والحالات: بحث مدمج وشرائح أوضح وروابط للقوائم الثلاث؛ حفظ التمرير والفيديو الصامت. أغلقها المالك بعد تجربة الهاتف.
 - الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
-- الأولوية: P1: الاستخدام اليومي. الحالة: **بانتظار اختبار الهاتف** في مسار RUI؛ لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md.
+- الأولوية: P1: الاستخدام اليومي. الحالة: **مغلقة** في مسار RUI؛ أكد المالك اختبار الدفعة على الهاتف وقبولها النهائي.
 
 ### RUI-CUS-02 — البحث
 
 - الدور: العميل. المصدر: `src/app/home/search.tsx`؛ الوجهة: `/home/search`.
-- الوظيفة: البحث في المنتجات والعروض وتنقيح النتائج.
-- الوصول: تبويب البحث وروابط البحث. إشارات المصدر: `src/app/_layout.tsx`، `src/app/home/index.tsx`، `src/components/navigation/AppBottomNav.tsx`.
-- التبويب: تبويب مباشر.
-- التفاصيل الموجودة/الناقصة: ProductRefinements وSearchControls/Results وproduct-details/offer-details.
-- المكونات (وصول محافظ): `src/components/marketplace/CategoryChip.tsx`، `src/components/marketplace/CustomerCatalogStatus.tsx`، `src/components/marketplace/ProductCard.tsx`، `src/components/marketplace/RatingStars.tsx`، `src/components/marketplace/ShoppingCardImage.tsx`، `src/components/marketplace/StoreCard.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/search/ProductRefinements.tsx`، `src/components/search/SearchControls.tsx`، `src/components/search/SearchEmptyState.tsx`، `src/components/search/SearchResults.tsx`، `src/components/ui/AppBadge.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppEmptyState.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/LoadingState.tsx`.
-- النصوص والحالات: تمييز الفراغ من فشل البحث؛ استخدام الشعار المنشور حيث تظهر هوية متجر عند تطوير النتائج.
+- الوظيفة: البحث في السوق وقائمة المنتجات المخصصة mode=products.
+- الوصول: شاشة مستقلة من الرئيسية وعرض كل المنتجات والروابط المباشرة. إشارات المصدر: `src/app/(customer)/home/index.tsx`.
+- التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
+- التفاصيل الموجودة/الناقصة: نتائج بقائمة افتراضية؛ product-details وstore-details وoffer-details.
+- المكونات (وصول محافظ): `src/components/marketplace/CategoryChip.tsx`، `src/components/marketplace/OfferCard.tsx`، `src/components/marketplace/ProductCard.tsx`، `src/components/marketplace/RatingStars.tsx`، `src/components/marketplace/ShoppingCardImage.tsx`، `src/components/marketplace/StoreCard.tsx`، `src/components/search/ProductRefinements.tsx`، `src/components/search/SearchControls.tsx`، `src/components/search/SearchEmptyState.tsx`، `src/components/search/SearchResults.tsx`، `src/components/ui/AppBadge.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppEmptyState.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/LoadingState.tsx`.
+- النصوص والحالات: اعتمد المالك نتائج الأنواع الأربعة والمنتجات الافتراضية بعد مراجعتها على الهاتف؛ دليل docs/rui-cus-02.ar.md.
 - الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
-- الأولوية: P1: الاستخدام اليومي. الحالة: **لم تبدأ** في مسار RUI؛ لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md.
+- الأولوية: P1: الاستخدام اليومي. الحالة: **مغلقة** في مسار RUI؛ أكد المالك القبول النهائي بعد مراجعة تعديلات الإغلاق على الهاتف.
 
 ### RUI-CUS-03 — المتاجر
 
-- الدور: العميل. المصدر: `src/app/stores.tsx`؛ الوجهة: `/stores`.
-- الوظيفة: استعراض المتاجر المتاحة للعميل.
-- الوصول: الرئيسية وروابط السوق. إشارات المصدر: `src/app/home/index.tsx`، `src/app/store-details.tsx`.
-- التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
+- الدور: العميل. المصدر: `src/app/(customer)/stores.tsx`؛ الوجهة: `/stores`.
+- الوظيفة: دليل جميع المتاجر المؤهلة مع البحث والتصفية.
+- الوصول: تبويب المتاجر وعرض الكل في الرئيسية. إشارات المصدر: `src/app/(customer)/home/index.tsx`، `src/app/_layout.tsx`، `src/app/store-details.tsx`، `src/app/store-reviews.tsx`، `src/components/navigation/AppBottomNav.tsx`.
+- التبويب: تبويب مباشر.
 - التفاصيل الموجودة/الناقصة: store-details عبر StoreCard.
-- المكونات (وصول محافظ): `src/components/marketplace/CategoryChip.tsx`، `src/components/marketplace/CustomerCatalogStatus.tsx`، `src/components/marketplace/RatingStars.tsx`، `src/components/marketplace/ShoppingCardImage.tsx`، `src/components/marketplace/StoreCard.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppEmptyState.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/LoadingState.tsx`.
-- النصوص والحالات: الأهلية والتوفر من المصدر؛ استخدام الشعار المنشور عند تطوير القائمة.
+- المكونات (وصول محافظ): `src/components/marketplace/CategoryChip.tsx`، `src/components/marketplace/RatingStars.tsx`، `src/components/marketplace/ShoppingCardImage.tsx`، `src/components/marketplace/StoreCard.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/navigation/CustomerMarketHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppEmptyState.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/LoadingState.tsx`.
+- النصوص والحالات: بحث داخل التبويب وترقيم خادمي وترتيب اكتشاف ثابت وشعارات منشورة؛ دليل docs/rui-cus-03.ar.md.
 - الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
-- الأولوية: P1: الاستخدام اليومي. الحالة: **لم تبدأ** في مسار RUI؛ لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md.
+- الأولوية: P1: الاستخدام اليومي. الحالة: **مغلقة** في مسار RUI؛ أكد المالك قبوله النهائي؛ قراءة دليل المتاجر نجحت على Supabase البعيدة.
 
 ### RUI-CUS-04 — تفاصيل المتجر
 
 - الدور: العميل. المصدر: `src/app/store-details.tsx`؛ الوجهة: `/store-details`.
-- الوظيفة: عرض المتجر وكتالوجه ومراجعاته.
-- الوصول: بطاقة المتجر. إشارات المصدر: `src/app/home/index.tsx`، `src/app/home/search.tsx`، `src/app/offer-details.tsx`، `src/app/product-details.tsx`، `src/app/stores.tsx`، `src/lib/customer-home-feed.ts`، `src/lib/notification-opening.ts`.
+- الوظيفة: عرض هوية المتجر والفيديو المنشور والعروض ثم المنتجات.
+- الوصول: بطاقة المتجر. إشارات المصدر: `src/app/(customer)/home/index.tsx`، `src/app/(customer)/stores.tsx`، `src/app/home/search.tsx`، `src/app/offer-details.tsx`، `src/app/product-details.tsx`، `src/app/store-reviews.tsx`، `src/lib/customer-home-feed.ts`، `src/lib/notification-opening.ts`.
 - التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
-- التفاصيل الموجودة/الناقصة: product-details/offer-details ومراجعات داخل RatingsSection.
-- المكونات (وصول محافظ): `src/components/marketplace/CategoryChip.tsx`، `src/components/marketplace/CustomerCatalogStatus.tsx`، `src/components/marketplace/OfferCard.tsx`، `src/components/marketplace/ProductCard.tsx`، `src/components/marketplace/RatingStars.tsx`، `src/components/marketplace/RatingsSection.tsx`، `src/components/marketplace/ReviewCard.tsx`، `src/components/marketplace/ReviewForm.tsx`، `src/components/marketplace/ShoppingCardImage.tsx`، `src/components/marketplace/StoreDetailsHero.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppBadge.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/LoadingState.tsx`.
-- النصوص والحالات: استخدام الشعار المنشور؛ الفيديو المنشور عند الطلب مع إيقافه عند المغادرة وإخفاء قسمه عند غيابه؛ التنفيذ مؤجل لهذه الصفحة.
+- التفاصيل الموجودة/الناقصة: store-reviews/product-details/offer-details.
+- المكونات (وصول محافظ): `src/components/brand/BrandMark.tsx`، `src/components/marketplace/CategoryChip.tsx`، `src/components/marketplace/OfferCard.tsx`، `src/components/marketplace/ProductCard.tsx`، `src/components/marketplace/RatingStars.tsx`، `src/components/marketplace/ShoppingCardImage.tsx`، `src/components/marketplace/StoreDetailsHero.tsx`، `src/components/marketplace/StorePromoVideo.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/navigation/CustomerMarketHeader.tsx`، `src/components/ui/AppBadge.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppEmptyState.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/LoadingState.tsx`.
+- النصوص والحالات: هوية وفيديو مدمجان، زر مراجعات، رف عروض، وشبكة منتجات بدفعات؛ دليل docs/rui-cus-04.ar.md.
 - الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
-- الأولوية: P1: الاستخدام اليومي. الحالة: **لم تبدأ** في مسار RUI؛ لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md.
+- الأولوية: P1: الاستخدام اليومي. الحالة: **مغلقة**؛ أكد المالك نجاح اختبار الهاتف والقبول النهائي، بما فيه RTL والفيديو.
+
+### RUI-CUS-04.01 — تقييمات ومراجعات المتجر
+
+- الدور: العميل. المصدر: `src/app/store-reviews.tsx`؛ الوجهة: `/store-reviews`.
+- الوظيفة: قراءة تقييمات المتجر وإضافة أو تعديل تقييم العميل المؤهل.
+- الوصول: زر التقييمات داخل هوية المتجر. إشارات المصدر: `src/app/store-details.tsx`.
+- التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
+- التفاصيل الموجودة/الناقصة: RatingsSection داخل الصفحة؛ العودة إلى store-details.
+- المكونات (وصول محافظ): `src/components/marketplace/RatingStars.tsx`، `src/components/marketplace/RatingsSection.tsx`، `src/components/marketplace/ReviewCard.tsx`، `src/components/marketplace/ReviewForm.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/navigation/CustomerMarketHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppEmptyState.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/KeyboardAwareScrollView.tsx`، `src/components/ui/LoadingState.tsx`.
+- النصوص والحالات: ملخص ومراجعات عامة بلا هوية شخصية، وإجراء تقييم مقيد بطلب مسلّم؛ دليل docs/rui-cus-04.ar.md.
+- الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
+- الأولوية: P1: الاستخدام اليومي. الحالة: **مؤجلة — بانتظار المراجعة والاعتماد**؛ لا قبول نهائي للصفحة، والتنفيذ الحالي محفوظ.
+
+### RUI-CUS-04.02 — جميع المنتجات
+
+- الدور: العميل. المصدر: `src/app/(customer)/products.tsx`؛ الوجهة: `/products`.
+- الوظيفة: دليل منتجات مؤهلة ببحث عربي وتصنيفات مركزية وترتيب متنوع أو سعري وترقيم خادمي.
+- الوصول: تبويب المنتجات وزر «عرض الكل» في رئيسية العميل.
+- التبويب: تبويب رئيسي مباشر ضمن خمسة تبويبات.
+- التفاصيل الموجودة/الناقصة: تفتح `/product-details` الحالية؛ لا تغيير لتفاصيل المنتج ضمن هذه الدفعة.
+- المكونات: `ProductCard` و`CategoryChip` و`ProductRefinements` و`CustomerMarketHeader` وحالات UI المشتركة.
+- البيانات: `read_customer_product_directory` تعيد 12 عنصرًا ومؤشر استمرار؛ أكد المالك تطبيق ترحيلها على Supabase.
+- الأولوية: P1. الحالة: **مغلقة**؛ أكد المالك القبول النهائي بعد اختبار الهاتف.
 
 ### RUI-CUS-05 — تفاصيل المنتج
 
 - الدور: العميل. المصدر: `src/app/product-details.tsx`؛ الوجهة: `/product-details`.
 - الوظيفة: اختيار المنتج والكمية وإضافته للسلة.
-- الوصول: بطاقات المنتجات والبحث والمتجر والمفضلة. إشارات المصدر: `src/app/favorites.tsx`، `src/app/home/index.tsx`، `src/app/home/search.tsx`، `src/app/offer-details.tsx`، `src/app/store-details.tsx`، `src/lib/customer-home-feed.ts`، `src/lib/notification-opening.ts`.
+- الوصول: بطاقات المنتجات والبحث والمتجر والمفضلة. إشارات المصدر: `src/app/(customer)/home/index.tsx`، `src/app/favorites.tsx`، `src/app/home/search.tsx`، `src/app/offer-details.tsx`، `src/app/store-details.tsx`، `src/lib/customer-home-feed.ts`، `src/lib/notification-opening.ts`.
 - التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
 - التفاصيل الموجودة/الناقصة: ProductMediaGallery/Preview ومراجعات؛ السلة مسار مستقل.
-- المكونات (وصول محافظ): `src/components/marketplace/CustomerCatalogStatus.tsx`، `src/components/marketplace/ProductCard.tsx`، `src/components/marketplace/ProductMediaGallery.tsx`، `src/components/marketplace/ProductMediaPreview.tsx`، `src/components/marketplace/RatingStars.tsx`، `src/components/marketplace/RatingsSection.tsx`، `src/components/marketplace/ReviewCard.tsx`، `src/components/marketplace/ReviewForm.tsx`، `src/components/marketplace/ShoppingCardImage.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppBadge.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/LoadingState.tsx`.
+- المكونات (وصول محافظ): `src/components/marketplace/CustomerCatalogStatus.tsx`، `src/components/marketplace/ProductCard.tsx`، `src/components/marketplace/ProductMediaGallery.tsx`، `src/components/marketplace/ProductMediaPreview.tsx`، `src/components/marketplace/RatingStars.tsx`، `src/components/marketplace/RatingsSection.tsx`، `src/components/marketplace/ReviewCard.tsx`، `src/components/marketplace/ReviewForm.tsx`، `src/components/marketplace/ShoppingCardImage.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/navigation/CustomerMarketHeader.tsx`، `src/components/ui/AppBadge.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/LoadingState.tsx`.
 - النصوص والحالات: الوحدة والسعر والتوفر وملاحظات الإضافة؛ عرض الوسائط حوار لا صفحة.
 - الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
-- الأولوية: P1: الاستخدام اليومي. الحالة: **لم تبدأ** في مسار RUI؛ لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md.
+- الأولوية: P1: الاستخدام اليومي. الحالة: **مغلقة بقبول المالك على الهاتف**؛ عداد الكمية والإجمالي غير معتمدين بصريًا ومسجلان كتحسين مؤجل `RUI-CUS-05-FU-01` لمرحلة السلة/توحيد الشراء.
+
+### RUI-CUS-05.01 — تقييمات ومراجعات المنتج
+
+- الدور: العميل. المصدر: `src/app/product-reviews.tsx`؛ الوجهة: `/product-reviews`.
+- الوظيفة: ملخص ومراجعات المنتج ونموذج التقييم المؤهل عبر `RatingsSection` المشتركة وخدمات المنتج.
+- الحالة: **بانتظار مراجعة واعتماد مستقلين على الهاتف**؛ لا يغلقها قبول تفاصيل المنتج، ولا يؤثر ذلك في RUI-CUS-04.01 المؤجلة.
 
 ### RUI-CUS-06 — العروض
 
-- الدور: العميل. المصدر: `src/app/home/offers.tsx`؛ الوجهة: `/home/offers`.
+- الدور: العميل. المصدر: `src/app/(customer)/home/offers.tsx`؛ الوجهة: `/home/offers`.
 - الوظيفة: تصفح العروض المتاحة.
-- الوصول: تبويب العروض. إشارات المصدر: `src/app/_layout.tsx`، `src/app/home/index.tsx`، `src/app/offer-details.tsx`، `src/components/navigation/AppBottomNav.tsx`، `src/lib/notification-opening.ts`، `src/lib/notification-routing.ts`.
+- الوصول: تبويب العروض وعرض الكل في الرئيسية. إشارات المصدر: `src/app/(customer)/home/index.tsx`، `src/app/_layout.tsx`، `src/app/offer-details.tsx`، `src/components/navigation/AppBottomNav.tsx`، `src/lib/notification-opening.ts`، `src/lib/notification-routing.ts`.
 - التبويب: تبويب مباشر.
 - التفاصيل الموجودة/الناقصة: offer-details عبر OfferCard.
-- المكونات (وصول محافظ): `src/components/marketplace/CategoryChip.tsx`، `src/components/marketplace/CustomerCatalogStatus.tsx`، `src/components/marketplace/OfferCard.tsx`، `src/components/marketplace/ShoppingCardImage.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppEmptyState.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/LoadingState.tsx`.
+- المكونات (وصول محافظ): `src/components/marketplace/CategoryChip.tsx`، `src/components/marketplace/CustomerCatalogStatus.tsx`، `src/components/marketplace/OfferCard.tsx`، `src/components/marketplace/ShoppingCardImage.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/navigation/CustomerMarketHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppEmptyState.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/LoadingState.tsx`.
 - النصوص والحالات: الانتهاء والتوفر والسعر الفعلي؛ لا لون ذهبي صغير ضعيف.
 - الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
-- الأولوية: P1: الاستخدام اليومي. الحالة: **لم تبدأ** في مسار RUI؛ لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md.
+- الأولوية: P1: الاستخدام اليومي. الحالة: **مغلقة بقبول المالك على الهاتف**؛ اعتمدت الشبكة والبحث العربي والتصنيف وحفظ الحالة.
 
 ### RUI-CUS-07 — تفاصيل العرض
 
 - الدور: العميل. المصدر: `src/app/offer-details.tsx`؛ الوجهة: `/offer-details`.
 - الوظيفة: مراجعة العرض ومكوناته وإضافته للسلة.
-- الوصول: بطاقة عرض. إشارات المصدر: `src/app/home/index.tsx`، `src/app/home/offers.tsx`، `src/app/store-details.tsx`، `src/lib/customer-home-feed.ts`.
+- الوصول: بطاقة عرض. إشارات المصدر: `src/app/(customer)/home/index.tsx`، `src/app/(customer)/home/offers.tsx`، `src/app/home/search.tsx`، `src/app/store-details.tsx`، `src/lib/customer-home-feed.ts`.
 - التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
 - التفاصيل الموجودة/الناقصة: المنتجات المرتبطة والسلة؛ التفاصيل داخل الصفحة.
-- المكونات (وصول محافظ): `src/components/marketplace/CustomerCatalogStatus.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/LoadingState.tsx`.
+- المكونات (وصول محافظ): `src/components/marketplace/CustomerCatalogStatus.tsx`، `src/components/marketplace/ShoppingCardImage.tsx`، `src/components/navigation/CustomerMarketHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppEmptyState.tsx`، `src/components/ui/AppIcon.tsx`.
 - النصوص والحالات: تمييز سعر العرض من السعر الأصلي وشروطه الحقيقية.
 - الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
-- الأولوية: P1: الاستخدام اليومي. الحالة: **لم تبدأ** في مسار RUI؛ لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md.
+- الأولوية: P1: الاستخدام اليومي. الحالة: **مغلقة بقبول المالك على الهاتف**؛ اعتمدت دورة الحياة والتسعير والعد والشريط الثابت وأهلية الخادم نهائيًا.
 
 ### RUI-CUS-08 — السلة
 
@@ -104,7 +133,7 @@
 - المكونات (وصول محافظ): `src/components/marketplace/CustomerCatalogStatus.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/AppModal.tsx`، `src/components/ui/LoadingState.tsx`.
 - النصوص والحالات: تغير السعر/توفر المتجر ورسوم الطلب واضحة؛ لا حذف بيانات عند تحديث خلفي.
 - الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
-- الأولوية: P1: الاستخدام اليومي. الحالة: **لم تبدأ** في مسار RUI؛ لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md.
+- الأولوية: P1: الاستخدام اليومي. الحالة: **مغلقة بقبول المالك على الهاتف**؛ اعتمد المحتوى المجمع حسب المتجر والكمية والإجماليات وثبات الترتيب وSWR والشريط الثابت وسلامة التسعير.
 
 ### RUI-CUS-09 — إتمام الطلب
 
@@ -116,19 +145,19 @@
 - المكونات (وصول محافظ): `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/AppModal.tsx`، `src/components/ui/AppTextField.tsx`، `src/components/ui/KeyboardAwareScrollView.tsx`، `src/components/ui/LoadingState.tsx`.
 - النصوص والحالات: السعر قبل التأكيد مقابل لقطة السعر المثبتة بعده؛ منع إرسال مزدوج.
 - الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
-- الأولوية: P0: بيانات/مال/إجراء. الحالة: **لم تبدأ** في مسار RUI؛ لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md.
+- الأولوية: P0: بيانات/مال/إجراء. الحالة: **مغلقة بقبول المالك على الهاتف**؛ اعتمد العنوان المدمج والبديل والمستلم المختلف والملخص الخادمي والتوصيل والتأكيد المحمي والاستعادة وSWR.
 
 ### RUI-CUS-10 — طلباتي
 
 - الدور: العميل. المصدر: `src/app/orders.tsx`؛ الوجهة: `/orders`.
 - الوظيفة: قائمة طلبات العميل ومتابعتها.
-- الوصول: حسابي وروابط الطلبات. إشارات المصدر: `src/app/home/account.tsx`، `src/components/navigation/AppHeader.tsx`، `src/lib/safe-back.ts`.
+- الوصول: حسابي وروابط الطلبات. إشارات المصدر: `src/app/(customer)/home/account.tsx`، `src/components/navigation/AppHeader.tsx`، `src/lib/safe-back.ts`.
 - التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
 - التفاصيل الموجودة/الناقصة: order-details وفاتورة الطلب.
-- المكونات (وصول محافظ): `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/LiveStatus.tsx`، `src/components/ui/LoadingState.tsx`.
+- المكونات (وصول محافظ): `src/components/navigation/AppHeader.tsx`، `src/components/marketplace/CategoryChip.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppEmptyState.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/LoadingState.tsx`.
 - النصوص والحالات: حالات ORD مفهومة وتحديث غير مزعج؛ فراغ مختلف عن فشل القراءة.
 - الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
-- الأولوية: P0: بيانات/مال/إجراء. الحالة: **لم تبدأ** في مسار RUI؛ لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md.
+- الأولوية: P0: بيانات/مال/إجراء. الحالة: **مغلقة بقبول المالك النهائي على الهاتف**؛ قراءة 12 طلبًا في الدفعة، بحث وفلاتر خادمية، لقطة حساب تحفظ النتائج والفلتر والتمرير، وتحديث لحظي هادئ. تطبيق ترحيل البحث البعيد غير مثبت.
 
 ### RUI-CUS-11 — متابعة الطلب
 
@@ -140,55 +169,77 @@
 - المكونات (وصول محافظ): `src/components/navigation/AppHeader.tsx`، `src/components/orders/OrderTracking.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/AppModal.tsx`، `src/components/ui/LiveStatus.tsx`، `src/components/ui/LoadingState.tsx`.
 - النصوص والحالات: الطلب ORD مقابل أجزاء المتاجر؛ التحديث وحالة الإلغاء.
 - الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
-- الأولوية: P1: الاستخدام اليومي. الحالة: **لم تبدأ** في مسار RUI؛ لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md.
+- الأولوية: P1: الاستخدام اليومي. الحالة: **مكتملة برمجيًا — بانتظار اختبار الهاتف وقبول المالك**؛ اختيار طلب فرعي واحد بالمعرف، مراحل من سجل المتجر، وحفظ بيانات الصفحة والاختيار والتمرير.
 
 ### RUI-CUS-12 — فاتورة الطلب
 
 - الدور: العميل. المصدر: `src/app/invoice.tsx`؛ الوجهة: `/invoice`.
-- الوظيفة: فاتورة مرتبطة بطلب أو مدخل المالية عند غياب id/orderId.
-- الوصول: تفاصيل طلب العميل وروابط الفاتورة. إشارات المصدر: `src/app/home/account.tsx`، `src/app/order-details.tsx`، `src/components/finance/FinanceScreen.tsx`، `src/components/finance/InvoiceScreen.tsx`، `src/lib/safe-back.ts`.
+- الوظيفة: تفاصيل فاتورة مرتبطة بطلب عند وجود id/orderId.
+- الوصول: تفاصيل طلب العميل وروابط الفاتورة. إشارات المصدر: `src/app/order-details.tsx`، `src/components/finance/InvoiceScreen.tsx`، `src/lib/safe-back.ts`.
 - التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
-- التفاصيل الموجودة/الناقصة: InvoiceScreen order عند وجود المعرف؛ FinanceScreen عند غيابه؛ حالتان في مسار واحد.
+- التفاصيل الموجودة/الناقصة: `InvoiceScreen` بوضع الطلب عند تمرير معرف طلب؛ القائمة دون معرف مسجلة منفصلة تحت RUI-CUS-12.01؛ وتفاصيل المستند المختار عبر `/financial-invoice?id=<invoiceId>` بعد توجيه الدور.
 - المكونات (وصول محافظ): `src/components/finance/FinanceScreen.tsx`، `src/components/finance/FinancialAccountSummary.tsx`، `src/components/finance/FinancialParts.tsx`، `src/components/finance/InvoiceScreen.tsx`، `src/components/finance/InvoiceStatus.tsx`، `src/components/finance/MerchantFinanceView.tsx`، `src/components/finance/PendingMoneyCard.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/AppModal.tsx`، `src/components/ui/AppTextField.tsx`، `src/components/ui/DocumentReference.tsx`، `src/components/ui/KeyboardAwareScrollView.tsx`، `src/components/ui/LiveStatus.tsx`، `src/components/ui/LoadingState.tsx`.
 - النصوص والحالات: منع عرض مستند غير مملوك ووضوح الرجوع.
 - الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
-- الأولوية: P0: بيانات/مال/إجراء. الحالة: **لم تبدأ** في مسار RUI؛ لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md.
+- الأولوية: P0: بيانات/مال/إجراء. الحالة: **مغلقة بقبول المالك النهائي على الهاتف**؛ مستند شراء العميل المعتمد بتفاصيل تاريخية وحالات عربية ولقطة حساب وتمرير وRealtime.
+
+### RUI-CUS-12.01 — فواتيري
+
+- الدور: العميل. المصدر: `src/app/invoice.tsx` و`src/components/finance/CustomerInvoicesScreen.tsx`؛ الوجهة: `/invoice` دون معرف.
+- الوظيفة: البحث والتصفية والتصفح في فواتير الشراء ومستندات التصحيح والتسوية الخاصة بالعميل.
+- الوصول: حساب العميل وروابط «فواتيري». التفاصيل عبر `/financial-invoice?id=<invoiceId>`.
+- التبويب: ليست تبويبًا مباشرًا؛ ترويسة مستقلة مع رجوع.
+- التفاصيل الموجودة/الناقصة: بحث خادمي بمرجع INV/ORD، فلاتر ALL/INV/COR/SET، مؤشر خادمي من 12 سجلًا، لقطة حساب وتمرير وتحديث خلفي وRealtime.
+- المكونات: `CustomerInvoicesScreen`، `AppHeader`، `AppSearchBar`، `CategoryChip`، `DocumentReference`، `LoadingSkeleton`، `RefreshStatus`، وخريطة شارة محلية مبنية على `invoicePresentation`.
+- النصوص والحالات: نوع المستند العربي وقيمته وشارة حالة أساسية؛ تعطي فاتورة الشراء أولوية للسداد، بينما تعرض التسوية والتصحيح حالة الإصدار دون تكرار.
+- الثيم الليلي: رموز success/warning/info/error/muted مع نص وأيقونة وشريط جانبي، دون تلوين سطح البطاقة كاملًا.
+- الأولوية: P0: بيانات مالية وملكية. الحالة: **مغلقة بقبول المالك النهائي على الهاتف**؛ أكد المالك تطبيق Migration القراءة على Supabase بنجاح في 16 نوفمبر 2026.
 
 ### RUI-CUS-13 — المفضلة
 
 - الدور: العميل. المصدر: `src/app/favorites.tsx`؛ الوجهة: `/favorites`.
 - الوظيفة: الوصول إلى المنتجات المفضلة.
-- الوصول: حساب العميل وروابط المفضلة. إشارات المصدر: `src/app/home/account.tsx`.
+- الوصول: حساب العميل وروابط المفضلة. إشارات المصدر: `src/app/(customer)/home/account.tsx`.
 - التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
 - التفاصيل الموجودة/الناقصة: product-details.
-- المكونات (وصول محافظ): `src/components/marketplace/CustomerCatalogStatus.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/AppModal.tsx`، `src/components/ui/LoadingState.tsx`.
+- المكونات (وصول محافظ): `src/components/marketplace/ProductCard.tsx`، `src/components/marketplace/CustomerCatalogStatus.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppEmptyState.tsx`، `src/components/ui/AppIcon.tsx`، وحوار التأكيد المشترك.
 - النصوص والحالات: التوفر وحذف المفضلة والفراغ؛ عدم ظهور مفضلة حساب سابق.
 - الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
-- الأولوية: P1: الاستخدام اليومي. الحالة: **لم تبدأ** في مسار RUI؛ لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md.
+- الأولوية: P1: الاستخدام اليومي. الحالة: **مغلقة بقبول المالك النهائي على الهاتف**؛ اعتمدت الشبكة والحفظ المحلي المعزول والحالات والتمرير والتحديث الخلفي وRTL والثيمين والتجاوب.
 
 ### RUI-CUS-14 — العناوين
 
 - الدور: العميل. المصدر: `src/app/addresses.tsx`؛ الوجهة: `/addresses`.
 - الوظيفة: إدارة عناوين التوصيل.
-- الوصول: حسابي وتدفق إتمام الطلب. إشارات المصدر: `src/app/checkout.tsx`، `src/app/home/account.tsx`.
+- الوصول: حسابي وتدفق إتمام الطلب. إشارات المصدر: `src/app/(customer)/home/account.tsx`، `src/app/checkout.tsx`.
 - التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
-- التفاصيل الموجودة/الناقصة: إضافة/تعديل العنوان ضمن الصفحة لا مسار مستقل.
-- المكونات (وصول محافظ): `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/AppTextField.tsx`، `src/components/ui/KeyboardAwareScrollView.tsx`، `src/components/ui/LoadingState.tsx`.
+- التفاصيل الموجودة/الناقصة: الإضافة والتعديل في `RUI-CUS-14.01` على `/address-details`؛ لا نموذج داخل القائمة.
+- المكونات (وصول محافظ): `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppEmptyState.tsx`، `src/components/ui/AppIcon.tsx`، وحوار التأكيد المشترك.
 - النصوص والحالات: العنوان والمنطقة والحقول اللازمة ولوحة المفاتيح؛ لا إرسال بيانات موقع إلى السجلات.
 - الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
-- الأولوية: P1: الاستخدام اليومي. الحالة: **لم تبدأ** في مسار RUI؛ لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md.
+- الأولوية: P1: الاستخدام اليومي. الحالة: **مغلقة بقبول المالك النهائي على الهاتف**؛ اعتمدت القائمة وإجراءاتها والتخزين المؤقت المعزول والتكامل مع إتمام الطلب.
+
+### RUI-CUS-14.01 — إضافة وتعديل العنوان
+
+- الدور: العميل. المصدر: `src/app/address-details.tsx`؛ الوجهة: `/address-details` مع `id` اختياري و`returnTo` مقيد.
+- الوظيفة: إنشاء عنوان أو تعديل عنوان مملوك بالمعرف الحقيقي.
+- الوصول: زر الإضافة والتعديل من `/addresses`، وسياق العودة من `/checkout` عبر القائمة.
+- التبويب: صفحة فرعية بلا تبويب مباشر.
+- المكونات: `AppHeader`، `KeyboardAwareScrollView`، `AppTextField`، `AppButton`، و`useAccountDraftGuard`.
+- النصوص والحالات: تحميل، غير موجود/غير مصرح، تحقق حقول، حفظ وفشل، ومسودة غير محفوظة.
+- الأولوية: P1. الحالة: **مغلقة بقبول المالك النهائي على الهاتف**؛ اعتمدت الإضافة والتعديل وحماية المسودة والرجوع؛ لا Migration.
 
 ### RUI-CUS-15 — حساب العميل
 
-- الدور: العميل. المصدر: `src/app/home/account.tsx`؛ الوجهة: `/home/account`.
+- الدور: العميل. المصدر: `src/app/(customer)/home/account.tsx`؛ الوجهة: `/home/account`.
 - الوظيفة: حساب العميل وروابط الخدمات المشتركة.
 - الوصول: تبويب حسابي. إشارات المصدر: `src/app/_layout.tsx`، `src/app/notifications.tsx`، `src/components/navigation/AppBottomNav.tsx`، `src/lib/personal-account-model.ts`، `src/lib/safe-back.ts`.
 - التبويب: تبويب مباشر.
 - التفاصيل الموجودة/الناقصة: settings/personal-info/security والطلبات والعناوين والقانونية؛ لا /account مشترك فعلي.
 - المكونات (وصول محافظ): `src/components/account/AccountMenuItem.tsx`، `src/components/account/AccountProfileHeader.tsx`، `src/components/account/AccountSection.tsx`، `src/components/account/AccountShell.tsx`، `src/components/account/SharedAccountParts.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/AppModal.tsx`، `src/components/ui/LoadingState.tsx`.
 - النصوص والحالات: أسماء الوجهات وبيانات الدور والعودة.
-- الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
-- الأولوية: P1: الاستخدام اليومي. الحالة: **لم تبدأ** في مسار RUI؛ لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md.
+- الثيم الليلي: يستخدم رموز الثيم ومكونات الحساب المشتركة؛ ينتظر التحقق البصري على الهاتف في الوضعين.
+- الأولوية: P1: الاستخدام اليومي. الحالة: **مكتملة برمجيًا — بانتظار اختبار الهاتف وقبول المالك**؛ أُعيد تنظيم الملف الشخصي والمجموعات المدمجة دون تغيير روابط العميل أو وظائف الأدوار الأخرى.
 
 ## التاجر — 11 صفحة
 
@@ -586,11 +637,11 @@
 - الوظيفة: إدارة إعلانات الرئيسية ضمن SYS-ADS-01.
 - الوصول: المزيد ← إعلانات الرئيسية؛ حساب الإدارة. إشارات المصدر: `src/app/admin/_layout.tsx`، `src/app/admin/more.tsx`.
 - التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
-- التفاصيل الموجودة/الناقصة: الرفع والمعاينة والتحرير داخل الصفحة؛ يتطلب ترحيل الإعلانات.
+- التفاصيل الموجودة/الناقصة: الرفع والمعاينة والتحرير داخل الصفحة؛ غلاف الفيديو من المعرض.
 - المكونات (وصول محافظ): `src/components/admin/HomeAdTargetPicker.tsx`، `src/components/marketplace/ShoppingCardImage.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/AppModal.tsx`، `src/components/ui/AppTextField.tsx`، `src/components/ui/KeyboardAwareScrollView.tsx`، `src/components/ui/LoadingState.tsx`.
-- النصوص والحالات: نفذ الأساس البرمجي؛ التطبيق على Supabase واختبار الهاتف معلقان.
+- النصوص والحالات: الغلاف اليدوي مسار النشر؛ اعتمده المالك بعد تجربة الهاتف.
 - الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
-- الأولوية: P1: الاستخدام اليومي. الحالة: **بانتظار اختبار الهاتف** في مسار RUI؛ لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md.
+- الأولوية: P1: الاستخدام اليومي. الحالة: **مغلقة** في مسار RUI؛ أكد المالك اختبار الدفعة على الهاتف وقبولها النهائي.
 
 ## مشتركة بحسب صلاحية الحساب — 6 صفحة
 
@@ -598,7 +649,7 @@
 
 - الدور: مشتركة بحسب صلاحية الحساب. المصدر: `src/app/notifications.tsx`؛ الوجهة: `/notifications`.
 - الوظيفة: قراءة إشعارات الحساب وفتح المرجع المسموح.
-- الوصول: جرس الترويسة والحساب وتفاعل Push. إشارات المصدر: `src/app/driver/account.tsx`، `src/app/home/account.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`، `src/components/navigation/AppHeader.tsx`، `src/lib/safe-back.ts`.
+- الوصول: جرس الترويسة والحساب وتفاعل Push. إشارات المصدر: `src/app/(customer)/home/account.tsx`، `src/app/driver/account.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`، `src/components/navigation/AppHeader.tsx`، `src/lib/safe-back.ts`.
 - التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
 - التفاصيل الموجودة/الناقصة: تنقل آمن إلى الطلب/المهمة/الفاتورة؛ لا صفحة إعدادات Push جديدة لازمة.
 - المكونات (وصول محافظ): `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/AppModal.tsx`، `src/components/ui/LiveStatus.tsx`، `src/components/ui/LoadingState.tsx`.
@@ -672,7 +723,7 @@
 
 - الدور: الدخول والتسجيل والانضمام. المصدر: `src/app/index.tsx`؛ الوجهة: `/`.
 - الوظيفة: تحديد الجلسة والدور وتوجيهه مع حالة بدء وخطأ.
-- الوصول: تشغيل التطبيق والمسار /. إشارات المصدر: `src/app/financial-invoice.tsx`، `src/app/notifications.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/account/SettingsScreen.tsx`، `src/hooks/useSafeBack.ts`، `src/lib/merchant-product-create.ts`، `src/lib/merchant-product-edit.ts`.
+- الوصول: تشغيل التطبيق والمسار /. إشارات المصدر: `src/app/financial-invoice.tsx`، `src/app/notifications.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/account/SettingsScreen.tsx`، `src/hooks/useSafeBack.ts`، `src/lib/customer-home-ads.ts`، `src/lib/merchant-product-create.ts`، `src/lib/merchant-product-edit.ts`.
 - التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
 - التفاصيل الموجودة/الناقصة: توجيه فعلي مع واجهة انتظار/إعادة محاولة؛ ليس Redirect صرفًا.
 - المكونات (وصول محافظ): `src/components/brand/BrandMark.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/LoadingState.tsx`.
@@ -684,7 +735,7 @@
 
 - الدور: الدخول والتسجيل والانضمام. المصدر: `src/app/login.tsx`؛ الوجهة: `/login`.
 - الوظيفة: تسجيل الدخول واستعادة الوصول.
-- الوصول: بوابة البدء وروابط التسجيل. إشارات المصدر: `src/app/application-status.tsx`، `src/app/driver/index.tsx`، `src/app/driver/orders.tsx`، `src/app/home/account.tsx`، `src/app/index.tsx`، `src/app/notifications.tsx`، `src/app/reset-password.tsx`، `src/app/verify-email.tsx`، `src/components/account/SharedAccountParts.tsx`، `src/components/auth/RoleRouteGuard.tsx`، `src/components/finance/FinanceScreen.tsx`، `src/components/finance/InvoiceScreen.tsx`، `src/components/signup/ProfessionalApplicationScreen.tsx`، `src/hooks/useOnboardingExit.ts`، `src/hooks/useSafeBack.ts`.
+- الوصول: بوابة البدء وروابط التسجيل. إشارات المصدر: `src/app/(customer)/home/account.tsx`، `src/app/application-status.tsx`، `src/app/driver/index.tsx`، `src/app/driver/orders.tsx`، `src/app/index.tsx`، `src/app/notifications.tsx`، `src/app/reset-password.tsx`، `src/app/verify-email.tsx`، `src/components/account/SharedAccountParts.tsx`، `src/components/auth/RoleRouteGuard.tsx`، `src/components/finance/FinanceScreen.tsx`، `src/components/finance/InvoiceScreen.tsx`، `src/components/signup/ProfessionalApplicationScreen.tsx`، `src/hooks/useOnboardingExit.ts`، `src/hooks/useSafeBack.ts`.
 - التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
 - التفاصيل الموجودة/الناقصة: ForgotPasswordSection وreset-password وsignup.
 - المكونات (وصول محافظ): `src/components/brand/BrandMark.tsx`، `src/components/login/ForgotPasswordSection.tsx`، `src/components/login/LoginFooter.tsx`، `src/components/login/LoginForm.tsx`، `src/components/login/LoginHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/AppModal.tsx`، `src/components/ui/AppTextField.tsx`، `src/components/ui/KeyboardAwareScrollView.tsx`، `src/components/ui/LoadingState.tsx`.
@@ -806,6 +857,7 @@
 
 لا تعاد إحياء المالية القديمة بسبب وجود اسم مسار. التحويلات أدناه تبقى توافقًا إلى النظام الحالي. `admin/requests` اسم بديل للطلبات؛ لا يمثل شاشة أخرى.
 
+- `src/app/(customer)/_layout.tsx` — layout → `expo-router`.
 - `src/app/_layout.tsx` — layout → `@/context/ToastContext`.
 - `src/app/admin/_layout.tsx` — layout → `expo-router`.
 - `src/app/admin/cash-movement-report.tsx` — redirect → `expo-router`.
@@ -838,7 +890,6 @@
 - `src/app/admin/subscriptions.tsx` — redirect → `expo-router`.
 - `src/app/admin/treasury.tsx` — redirect → `expo-router`.
 - `src/app/driver/_layout.tsx` — layout → `@/context/ThemeContext`.
-- `src/app/home/_layout.tsx` — layout → `expo-router`.
 - `src/app/merchant/_layout.tsx` — layout → `expo-router`.
 - `src/app/merchant/financial-ledger-details.tsx` — redirect → `expo-router`.
 - `src/app/merchant/financial-ledger.tsx` — redirect → `expo-router`.

@@ -41,6 +41,10 @@ async function main() {
       values ('${ad}','store','${store}','video','${base}.mp4',now()-interval '1 hour',now()+interval '1 hour');
     `);
     await db.exec(migration("20261126000100_customer_home_ad_thumbnails.sql"));
+    const triggers = await db.query("select tgname from pg_trigger where tgrelid = 'public.customer_home_ads'::regclass and not tgisinternal order by tgname");
+    assert.deepEqual(triggers.rows.map(row => row.tgname), [
+      "customer_home_ad_updated", "validate_customer_home_ad", "validate_customer_home_ad_thumbnail",
+    ]);
     assert.equal((await db.query("select thumbnail_path from public.customer_home_ads")).rows[0].thumbnail_path, null);
     await assert.rejects(db.exec(`update public.customer_home_ads set thumbnail_path = '${other}'`), /thumbnail_matches_video/);
     await db.exec(`delete from storage.objects where name = '${base}.jpg'`);
@@ -75,7 +79,7 @@ async function main() {
     await db.exec("update public.customer_home_ads set starts_at=now()-interval '2 hours', ends_at=now()-interval '1 hour'");
     assert.deepEqual((await client("anon")).media, []);
     assert.deepEqual((await client("anon")).ads, []);
-    console.log("PASS PostgreSQL fixture: legacy ad upgrade, exact JPEG pairing, private RLS, linked deletion protection and unchanged target/schedule rules");
+    console.log("PASS PostgreSQL fixture: legacy ad upgrade, exact JPEG pairing, private RLS, linked deletion protection, unchanged target/schedule rules and no notification trigger");
   } finally { await db.close(); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

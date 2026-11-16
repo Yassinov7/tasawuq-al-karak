@@ -1,533 +1,165 @@
-import { formatSypNumber } from "@/lib/money";
-import { useRouter } from "expo-router";
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useMemo } from "react";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
-import { AppHeader } from "@/components/navigation/AppHeader";
-import { AppIcon } from "@/components/ui/AppIcon";
 import { CustomerCatalogStatus } from "@/components/marketplace/CustomerCatalogStatus";
-import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
+import { ProductCard } from "@/components/marketplace/ProductCard";
+import { AppHeader } from "@/components/navigation/AppHeader";
+import { AppEmptyState } from "@/components/ui/AppEmptyState";
+import { AppIcon } from "@/components/ui/AppIcon";
+import { FontSizes, Fonts, LayoutSpacing, Radius, RtlText, Spacing } from "@/constants/theme";
+import { useAppDialog } from "@/context/AppDialogContext";
+import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useTheme } from "@/context/ThemeContext";
-import { useAppDialog } from "@/context/AppDialogContext";
+
+const scrollOffsets = new Map<string, number>();
 
 export default function FavoritesScreen() {
   const router = useRouter();
   const { confirm } = useAppDialog();
   const { colors } = useTheme();
+  const { user } = useAuth();
+  const { width, fontScale } = useWindowDimensions();
   const { itemCount } = useCart();
-  const { categories, products, stores } = useCustomerCatalog();
-
-  const { favoriteIds, removeFavorite, clearFavorites } = useFavorites();
-
-  const favoriteProducts = products.filter((product) =>
-    favoriteIds.includes(product.id),
+  const { error, loading, products, refreshing, refresh, revalidate } = useCustomerCatalog();
+  const { favoriteIds, persistenceError, ready, removeFavorite, clearFavorites } = useFavorites();
+  const scope = user?.id ?? "guest";
+  const columns = width < 340 || fontScale > 1.3 ? 1 : 2;
+  const cardWidth = columns === 1
+    ? width - LayoutSpacing.pageGutter * 2
+    : (width - LayoutSpacing.pageGutter * 2 - LayoutSpacing.cardGap) / 2;
+  const favoriteSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
+  const favoriteProducts = useMemo(
+    () => products.filter((product) => favoriteSet.has(product.id)),
+    [favoriteSet, products],
   );
 
-  const handleClearFavorites = () => {
-    void confirm({ title: "تفريغ المفضلة", message: "هل تريد إزالة جميع المنتجات من المفضلة؟", confirmText: "تفريغ", cancelText: "إلغاء", destructive: true }).then(accepted => { if (accepted) clearFavorites(); });
-  };
+  useFocusEffect(useCallback(() => {
+    void revalidate();
+  }, [revalidate]));
+
+  const handleClearFavorites = useCallback(() => {
+    void confirm({
+      title: "تفريغ المفضلة",
+      message: "هل تريد إزالة جميع المنتجات من المفضلة؟",
+      confirmText: "تفريغ",
+      cancelText: "إلغاء",
+      destructive: true,
+    }).then((accepted) => {
+      if (accepted) clearFavorites();
+    });
+  }, [clearFavorites, confirm]);
+
+  const openProduct = useCallback((id: string) => {
+    router.push({ pathname: "/product-details", params: { id } });
+  }, [router]);
+
+  const hasUnavailableFavorites = ready && favoriteIds.length > favoriteProducts.length;
+  const showInitialLoading = !ready || (loading && favoriteIds.length > 0 && products.length === 0);
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: colors.background,
-        },
-      ]}
-    >
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppHeader title="المفضلة" showBack cartCount={itemCount} mode="customer" />
 
-      {favoriteProducts.length === 0 ? (
-        <>
-        <CustomerCatalogStatus />
-        <EmptyFavorites onContinue={() => router.push("/home")} />
-        </>
+      {showInitialLoading ? (
+        <View style={styles.loading} accessibilityRole="progressbar" accessibilityLabel="جارٍ تحميل المفضلة">
+          <ActivityIndicator color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>جارٍ تجهيز منتجاتك المحفوظة…</Text>
+        </View>
+      ) : favoriteIds.length === 0 ? (
+        <AppEmptyState icon="heart-outline" title="المفضلة فارغة"
+          description="احفظ المنتجات التي تهمك لتجدها هنا بسهولة."
+          buttonText="تصفح المنتجات" onButtonPress={() => router.push("/products")} />
+      ) : favoriteProducts.length === 0 ? (
+        <View style={styles.emptyArea}>
+          <CustomerCatalogStatus />
+          {!error ? <AppEmptyState icon="heart-dislike-outline" title="المنتجات المحفوظة غير متاحة"
+            description="قد تكون المنتجات أوقفت مؤقتًا أو لم تعد منشورة. يمكنك إبقاء القائمة أو تفريغها."
+            buttonText="تصفح المنتجات" onButtonPress={() => router.push("/products")} /> : null}
+        </View>
       ) : (
-        <ScrollView
+        <FlatList
+          key={columns}
+          data={favoriteProducts}
+          keyExtractor={(product) => product.id}
+          numColumns={columns}
+          initialNumToRender={8}
+          windowSize={7}
           showsVerticalScrollIndicator={false}
+          contentOffset={{ x: 0, y: scrollOffsets.get(scope) ?? 0 }}
+          onScroll={(event) => scrollOffsets.set(scope, event.nativeEvent.contentOffset.y)}
+          scrollEventThrottle={120}
           contentContainerStyle={styles.content}
-        >
-          <View style={styles.summaryHeader}>
-            <View style={styles.summaryInfo}>
-              <Text
-                style={[
-                  styles.title,
-                  {
-                    color: colors.text,
-                  },
-                ]}
-              >
-                منتجاتك المفضلة
-              </Text>
-
-              <Text
-                style={[
-                  styles.subtitle,
-                  {
-                    color: colors.textMuted,
-                  },
-                ]}
-              >
+          columnWrapperStyle={columns === 2 ? styles.row : undefined}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={colors.primary} />}
+          ListHeaderComponent={<View style={styles.headerArea}>
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summary, { color: colors.textSecondary }]}>
                 {favoriteProducts.length} منتج محفوظ
               </Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="تفريغ المفضلة" onPress={handleClearFavorites}
+                style={({ pressed }) => [styles.clearButton, pressed && styles.pressed]}>
+                <AppIcon name="trash-outline" size={18} color={colors.error} />
+                <Text style={[styles.clearText, { color: colors.error }]}>تفريغ</Text>
+              </Pressable>
             </View>
-
-            <Pressable
-              onPress={handleClearFavorites}
-              style={({ pressed }) => [
-                styles.clearButton,
-                pressed && styles.pressed,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="تفريغ المفضلة"
-            >
-              <AppIcon name="trash-outline" size={17} color={colors.error} />
-
-              <Text
-                style={[
-                  styles.clearText,
-                  {
-                    color: colors.error,
-                  },
-                ]}
-              >
-                تفريغ
-              </Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.itemsList}>
-            {favoriteProducts.map((product) => {
-              const category = categories.find(
-                (item) => item.id === product.categoryId,
-              );
-
-              const store = stores.find((item) => item.id === product.storeId);
-
-              return (
-                <Pressable
-                  key={product.id}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/product-details",
-                      params: {
-                        id: product.id,
-                      },
-                    })
-                  }
-                  style={({ pressed }) => [
-                    styles.itemCard,
-                    {
-                      borderColor: colors.border,
-                      backgroundColor: colors.surface,
-                    },
-                    pressed && styles.pressed,
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel={product.name}
-                >
-                  <View style={styles.itemTop}>
-                    <View
-                      style={[
-                        styles.itemVisual,
-                        {
-                          backgroundColor: colors.primaryLight,
-                        },
-                      ]}
-                    >
-                      <AppIcon
-                        name={category?.icon ?? "cube-outline"}
-                        size={30}
-                        color={colors.primary}
-                      />
-                    </View>
-
-                    <View style={styles.itemInfo}>
-                      <Text
-                        style={[
-                          styles.itemName,
-                          {
-                            color: colors.text,
-                          },
-                        ]}
-                        numberOfLines={2}
-                      >
-                        {product.name}
-                      </Text>
-
-                      <Text
-                        style={[
-                          styles.storeName,
-                          {
-                            color: colors.primary,
-                          },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {store?.name ?? "متجر"}
-                      </Text>
-
-                      <Text
-                        style={[
-                          styles.itemUnit,
-                          {
-                            color: colors.textMuted,
-                          },
-                        ]}
-                      >
-                        {product.unit}
-                      </Text>
-                    </View>
-
-                    <Pressable
-                      onPress={(event) => {
-                        event.stopPropagation();
-                        removeFavorite(product.id);
-                      }}
-                      style={({ pressed }) => [
-                        styles.removeButton,
-                        pressed && styles.pressed,
-                      ]}
-                      hitSlop={8}
-                      accessibilityRole="button"
-                      accessibilityLabel={`إزالة ${product.name} من المفضلة`}
-                    >
-                      <AppIcon name="heart" size={23} color={colors.error} />
-                    </Pressable>
-                  </View>
-
-                  <View
-                    style={[
-                      styles.itemBottom,
-                      {
-                        borderTopColor: colors.border,
-                      },
-                    ]}
-                  >
-                    <View style={styles.priceContainer}>
-                      <Text
-                        style={[
-                          styles.price,
-                          {
-                            color: colors.text,
-                          },
-                        ]}
-                      >
-                        {formatSypNumber(product.price)}
-                      </Text>
-
-                      <Text
-                        style={[
-                          styles.currency,
-                          {
-                            color: colors.textSecondary,
-                          },
-                        ]}
-                      >
-                        ل.س
-                      </Text>
-                    </View>
-
-                    <View style={styles.openDetails}>
-                      <Text
-                        style={[
-                          styles.openDetailsText,
-                          {
-                            color: colors.primary,
-                          },
-                        ]}
-                      >
-                        عرض التفاصيل
-                      </Text>
-
-                      <AppIcon
-                        name="chevron-back-outline"
-                        size={17}
-                        color={colors.primary}
-                      />
-                    </View>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        </ScrollView>
+            {hasUnavailableFavorites ? <Text style={[styles.notice, {
+              color: colors.warningForeground, backgroundColor: colors.warningSurface,
+            }]}>بعض المنتجات المحفوظة غير متاحة حاليًا.</Text> : null}
+            {persistenceError ? <Text accessibilityLiveRegion="polite" style={[styles.notice, {
+              color: colors.error, backgroundColor: colors.errorSurface,
+            }]}>{persistenceError}</Text> : null}
+            {error ? <CustomerCatalogStatus /> : null}
+          </View>}
+          renderItem={({ item }) => <ProductCard product={item} compact cardWidth={cardWidth} showOffer
+            favorite onFavoritePress={() => removeFavorite(item.id)} onPress={() => openProduct(item.id)} />}
+        />
       )}
     </View>
   );
 }
 
-type EmptyFavoritesProps = {
-  onContinue: () => void;
-};
-
-function EmptyFavorites({ onContinue }: EmptyFavoritesProps) {
-  const { colors } = useTheme();
-
-  return (
-    <View style={styles.emptyContainer}>
-      <View
-        style={[
-          styles.emptyIcon,
-          {
-            backgroundColor: colors.primaryLight,
-          },
-        ]}
-      >
-        <AppIcon name="heart-outline" size={55} color={colors.primary} />
-      </View>
-
-      <Text
-        style={[
-          styles.emptyTitle,
-          {
-            color: colors.text,
-          },
-        ]}
-      >
-        المفضلة فارغة
-      </Text>
-
-      <Text
-        style={[
-          styles.emptyText,
-          {
-            color: colors.textSecondary,
-          },
-        ]}
-      >
-        لم تحفظ أي منتجات بعد. تصفح المتاجر واختر المنتجات التي تريد الرجوع
-        إليها لاحقاً.
-      </Text>
-
-      <Pressable
-        onPress={onContinue}
-        style={({ pressed }) => [
-          styles.browseButton,
-          {
-            backgroundColor: colors.primary,
-          },
-          pressed && styles.pressed,
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel="تصفح المتاجر"
-      >
-        <AppIcon name="storefront-outline" size={20} color={colors.surface} />
-
-        <Text
-          style={[
-            styles.browseText,
-            {
-              color: colors.surface,
-            },
-          ]}
-        >
-          تصفح المتاجر
-        </Text>
-      </Pressable>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-
+  container: { flex: 1 },
   content: {
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.five,
+    direction: "rtl",
+    paddingHorizontal: LayoutSpacing.pageGutter,
+    paddingTop: Spacing.three,
     paddingBottom: Spacing.ten,
+    gap: LayoutSpacing.cardGap,
   },
-
-  summaryHeader: {
-    flexDirection: "row-reverse",
+  row: { direction: "rtl", gap: LayoutSpacing.cardGap },
+  headerArea: { marginBottom: Spacing.four, gap: Spacing.two },
+  summaryRow: {
+    minHeight: 44,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: Spacing.four,
-  },
-
-  summaryInfo: {
-    alignItems: "flex-end",
-  },
-
-  title: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.xl,
-    textAlign: "right",
-  },
-
-  subtitle: {
-    marginTop: 2,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.xs,
-    textAlign: "right",
-  },
-
-  clearButton: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.two,
-  },
-
-  clearText: {
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.xs,
-  },
-
-  itemsList: {
     gap: Spacing.three,
   },
-
-  itemCard: {
-    padding: Spacing.four,
-    borderWidth: 1,
-    borderRadius: Radius.xl,
-  },
-
-  itemTop: {
-    flexDirection: "row-reverse",
-    alignItems: "flex-start",
-  },
-
-  itemVisual: {
-    width: 66,
-    height: 66,
+  summary: { flex: 1, fontFamily: Fonts.medium, fontSize: FontSizes.sm, ...RtlText },
+  clearButton: {
+    minWidth: 72,
+    minHeight: 44,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: Radius.lg,
+    gap: Spacing.one,
   },
-
-  itemInfo: {
-    flex: 1,
-    marginHorizontal: Spacing.three,
-    alignItems: "flex-end",
-  },
-
-  itemName: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.md,
-    lineHeight: 21,
-    textAlign: "right",
-  },
-
-  storeName: {
-    marginTop: 3,
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.xs,
-    textAlign: "right",
-  },
-
-  itemUnit: {
-    marginTop: 3,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.xs,
-    textAlign: "right",
-  },
-
-  removeButton: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.full,
-  },
-
-  itemBottom: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: Spacing.four,
-    paddingTop: Spacing.three,
-    borderTopWidth: 1,
-  },
-
-  priceContainer: {
-    flexDirection: "row-reverse",
-    alignItems: "baseline",
-    gap: 4,
-  },
-
-  price: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.lg,
-  },
-
-  currency: {
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.xs,
-  },
-
-  openDetails: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 3,
-  },
-
-  openDetailsText: {
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.xs,
-  },
-
-  emptyContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: Spacing.six,
-    paddingBottom: Spacing.ten,
-  },
-
-  emptyIcon: {
-    width: 96,
-    height: 96,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.full,
-  },
-
-  emptyTitle: {
-    marginTop: Spacing.five,
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.xl,
-  },
-
-  emptyText: {
-    maxWidth: 330,
-    marginTop: Spacing.two,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    lineHeight: 23,
-    textAlign: "center",
-  },
-
-  browseButton: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.two,
-    minHeight: 50,
-    marginTop: Spacing.five,
-    paddingHorizontal: Spacing.six,
+  clearText: { fontFamily: Fonts.semiBold, fontSize: FontSizes.sm, ...RtlText },
+  notice: {
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
     borderRadius: Radius.md,
+    fontFamily: Fonts.medium,
+    fontSize: FontSizes.xs,
+    ...RtlText,
   },
-
-  browseText: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.md,
-  },
-
-  pressed: {
-    opacity: 0.7,
-  },
+  loading: { flex: 1, alignItems: "center", justifyContent: "center", gap: Spacing.three, padding: Spacing.six },
+  loadingText: { fontFamily: Fonts.medium, fontSize: FontSizes.sm, textAlign: "center" },
+  emptyArea: { flex: 1, justifyContent: "center" },
+  pressed: { opacity: 0.7 },
 });

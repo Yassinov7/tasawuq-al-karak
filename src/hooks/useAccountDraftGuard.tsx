@@ -11,5 +11,5 @@ export function useAccountDraftGuard(dirty:boolean,busy:boolean,leave:()=>void,i
  usePreventRemove(dirty||busy,({data})=>request(()=>navigation.dispatch(data.action)));
  useFocusEffect(useCallback(()=>{const sub=BackHandler.addEventListener('hardwareBackPress',()=>{request(leave);return true;});return()=>sub.remove();},[request,leave]));
  const modal=<><AppConfirmModal design="refined" visible={confirm} title="تجاهل التعديلات؟" message="لم تُحفظ هذه التغييرات. هل تريد العودة دون حفظها؟" destructive onCancel={()=>{pending.current=null;setConfirm(false);}} onConfirm={()=>{if(busyRef.current||isLocked?.())return;allow.current=true;setConfirm(false);const action=pending.current;pending.current=null;action?.();}}/><AppConfirmModal design="refined" visible={waiting} title="العملية قيد التنفيذ" message="انتظر تأكيد النتيجة قبل مغادرة الصفحة." onCancel={()=>setWaiting(false)} onConfirm={()=>setWaiting(false)}/></>;
- return {back:()=>request(leave),modal};
+ return {back:()=>request(leave),leaveNow:()=>{allow.current=true;leave();},modal};
 }

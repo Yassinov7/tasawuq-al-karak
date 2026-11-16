@@ -29,7 +29,8 @@ SplashScreen.preventAutoHideAsync();
 
 const MAIN_ROUTES = [
   "/home",
-  "/home/search",
+  "/stores",
+  "/products",
   "/home/offers",
   "/home/account",
   "/merchant",

@@ -17,6 +17,7 @@ import {
   snapCatalogQuantity,
 } from "@/lib/catalog-quantity";
 import { calculateCustomerOffer } from "@/lib/customer-offers";
+import { isCartReadCurrent, updateOrderedCartItem } from "@/lib/cart-order";
 import { supabase } from "@/lib/supabase";
 import { purchaseAvailabilityMessage } from "@/lib/purchase-availability";
 
@@ -26,11 +27,13 @@ export type CartItem = {
 };
 
 type CartContextValue = {
+  scope: string | null;
   items: CartItem[];
   selectedOfferIds: string[];
   itemCount: number;
   subtotal: number;
 loading: boolean;
+  refreshing: boolean;
   syncError: string | null;
   addItem: (product: Product, quantity?: number) => Promise<boolean>;
   addOffer: (offerId: string) => Promise<boolean>;
@@ -42,8 +45,16 @@ loading: boolean;
   clearAfterOrder: () => void;
   flush: () => Promise<void>;
   retrySync: () => Promise<void>;
+  revalidate: () => Promise<void>;
   getQuantity: (productId: string) => number;
 };
+
+type CartReadReason =
+  | "initial"
+  | "stale-revalidate"
+  | "mutation"
+  | "mutation-rollback"
+  | "retry";
 
 const CartContext = createContext<CartContextValue | undefined>(undefined);
 
@@ -57,6 +68,7 @@ export function CartProvider({ children }: PropsWithChildren) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [selectedOfferIds, setSelectedOfferIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
   const cartIdRef = useRef<string | null>(null);
@@ -65,6 +77,9 @@ export function CartProvider({ children }: PropsWithChildren) {
   const queueRef = useRef<Promise<void>>(Promise.resolve());
   const writeErrorRef = useRef<unknown>(null);
   const userIdRef = useRef<string | null>(null);
+  const cartReadRef = useRef<{ userId: string; promise: Promise<void> } | null>(null);
+  const lastValidatedRef = useRef<{ userId: string; at: number } | null>(null);
+  const mutationVersionRef = useRef(0);
   const authReady = !authLoading && loadedUserId === (user?.id ?? null);
 
   const updateLocalItems = useCallback((nextItems: CartItem[]) => {
@@ -76,21 +91,25 @@ export function CartProvider({ children }: PropsWithChildren) {
     setSelectedOfferIds(nextOfferIds);
   }, []);
 
-  const loadCart = useCallback(async (userId: string) => {
-    if (userIdRef.current !== userId) return;
+  const readCart = useCallback(async (userId: string, readVersion: number) => {
+    const isCurrent = () =>
+      userIdRef.current === userId &&
+      isCartReadCurrent(readVersion, mutationVersionRef.current);
+    if (!isCurrent()) return false;
     const { data: cart, error: cartError } = await supabase
       .from("customer_carts")
       .select("id")
       .eq("customer_id", userId)
       .maybeSingle();
-    if (userIdRef.current !== userId) return;
+    if (!isCurrent()) return false;
     if (cartError) throw cartError;
 
     cartIdRef.current = cart?.id ?? null;
     if (!cart) {
+      if (!isCurrent()) return false;
       updateLocalItems([]);
       updateSelectedOffers([]);
-      return;
+      return true;
     }
 
     const [itemsResult, offersResult] = await Promise.all([
@@ -98,13 +117,16 @@ export function CartProvider({ children }: PropsWithChildren) {
         .from("customer_cart_items")
         .select("product_id,quantity")
         .eq("cart_id", cart.id)
-        .order("created_at", { ascending: true }),
+        .order("created_at", { ascending: true })
+        .order("product_id", { ascending: true }),
       supabase
         .from("customer_cart_offer_selections")
         .select("offer_id")
-        .eq("cart_id", cart.id),
+        .eq("cart_id", cart.id)
+        .order("created_at", { ascending: true })
+        .order("offer_id", { ascending: true }),
     ]);
-    if (userIdRef.current !== userId) return;
+    if (!isCurrent()) return false;
     if (itemsResult.error) throw itemsResult.error;
     if (offersResult.error) throw offersResult.error;
 
@@ -115,7 +137,23 @@ export function CartProvider({ children }: PropsWithChildren) {
       })),
     );
     updateSelectedOffers((offersResult.data ?? []).map((item) => item.offer_id));
+    return true;
   }, [updateLocalItems, updateSelectedOffers]);
+
+  const loadCart = useCallback((userId: string, _reason: CartReadReason) => {
+    if (cartReadRef.current?.userId === userId) return cartReadRef.current.promise;
+    const readVersion = mutationVersionRef.current;
+    const promise = (async () => {
+      const applied = await readCart(userId, readVersion);
+      if (applied && userIdRef.current === userId) {
+        lastValidatedRef.current = { userId, at: Date.now() };
+      }
+    })().finally(() => {
+      if (cartReadRef.current?.promise === promise) cartReadRef.current = null;
+    });
+    cartReadRef.current = { userId, promise };
+    return promise;
+  }, [readCart]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -125,16 +163,20 @@ export function CartProvider({ children }: PropsWithChildren) {
       userIdRef.current = userId;
       setLoadedUserId(userId);
       cartIdRef.current = null;
+      cartReadRef.current = null;
+      lastValidatedRef.current = null;
+      mutationVersionRef.current += 1;
       updateLocalItems([]);
       updateSelectedOffers([]);
       setSyncError(null);
+      setRefreshing(false);
       if (!userId) {
         setLoading(false);
         return;
       }
 
       setLoading(true);
-      void loadCart(userId)
+      void loadCart(userId, "initial")
         .catch((error: unknown) => {
           if (alive) setSyncError(errorMessage(error));
         })
@@ -148,6 +190,26 @@ export function CartProvider({ children }: PropsWithChildren) {
       clearTimeout(timer);
     };
   }, [authLoading, user?.id, loadCart, updateLocalItems, updateSelectedOffers]);
+
+  const revalidate = useCallback(async () => {
+    if (!authReady) return;
+    const userId = userIdRef.current;
+    if (!userId) return;
+    const validated = lastValidatedRef.current;
+    if (validated?.userId === userId && Date.now() - validated.at < 30_000) return;
+    setRefreshing(true);
+    try {
+      await queueRef.current;
+      await loadCart(userId, "stale-revalidate");
+      writeErrorRef.current = null;
+      setSyncError(null);
+    } catch (error) {
+      writeErrorRef.current = error;
+      setSyncError(errorMessage(error));
+    } finally {
+      if (userIdRef.current === userId) setRefreshing(false);
+    }
+  }, [authReady, loadCart]);
 
   const ensureCart = useCallback(async (userId: string) => {
     if (userIdRef.current !== userId) {
@@ -169,14 +231,22 @@ export function CartProvider({ children }: PropsWithChildren) {
     return data.id;
   }, []);
 
-  const enqueueWrite = useCallback((userId: string, write: () => Promise<void>) => {
+  const enqueueWrite = useCallback((
+    userId: string,
+    write: () => Promise<void>,
+    options: { reconcileOnSuccess?: boolean } = {},
+  ) => {
     const task = queueRef.current.then(async () => {
       try {
         if (userIdRef.current !== userId) {
           throw new Error("تغير الحساب؛ أعد تحميل السلة قبل المتابعة.");
         }
         await write();
-        await loadCart(userId);
+        if (options.reconcileOnSuccess !== false) {
+          await loadCart(userId, "mutation");
+        } else if (userIdRef.current === userId) {
+          lastValidatedRef.current = { userId, at: Date.now() };
+        }
         writeErrorRef.current = null;
         setSyncError(null);
         return true;
@@ -186,7 +256,11 @@ export function CartProvider({ children }: PropsWithChildren) {
         if (purchaseAvailabilityMessage(error)) void refresh();
         if (userIdRef.current === userId) {
           try {
-            await loadCart(userId);
+            const pendingRead = cartReadRef.current?.userId === userId
+              ? cartReadRef.current.promise
+              : null;
+            if (pendingRead) await pendingRead.catch(() => undefined);
+            await loadCart(userId, "mutation-rollback");
           } catch (reloadError) {
             writeErrorRef.current = reloadError;
             setSyncError(errorMessage(reloadError));
@@ -209,8 +283,8 @@ export function CartProvider({ children }: PropsWithChildren) {
       setSyncError("سجّل الدخول أولًا لحفظ المنتجات في سلتك.");
       return Promise.resolve(false);
     }
-    const nextItems = itemsRef.current.filter((item) => item.productId !== productId);
-    if (quantity > 0) nextItems.push({ productId, quantity });
+    mutationVersionRef.current += 1;
+    const nextItems = updateOrderedCartItem(itemsRef.current, productId, quantity);
     updateLocalItems(nextItems);
 
     return enqueueWrite(userId, async () => {
@@ -224,7 +298,7 @@ export function CartProvider({ children }: PropsWithChildren) {
             .eq("cart_id", cartId)
             .eq("product_id", productId);
       if (result.error) throw result.error;
-    });
+    }, { reconcileOnSuccess: false });
   }, [authReady, enqueueWrite, ensureCart, updateLocalItems]);
 
   const addItem = useCallback(async (product: Product, quantity?: number) => {
@@ -274,6 +348,7 @@ export function CartProvider({ children }: PropsWithChildren) {
       return false;
     }
 
+    mutationVersionRef.current += 1;
     updateSelectedOffers([...selectedOfferIdsRef.current, offerId]);
     return enqueueWrite(userId, async () => {
       const { error } = await supabase.rpc("add_customer_cart_offer", {
@@ -293,6 +368,7 @@ export function CartProvider({ children }: PropsWithChildren) {
       setSyncError("سجّل الدخول أولًا لمزامنة السلة.");
       return;
     }
+    mutationVersionRef.current += 1;
     updateSelectedOffers(selectedOfferIdsRef.current.filter((id) => id !== offerId));
     await enqueueWrite(userId, async () => {
       const { error } = await supabase.rpc("remove_customer_cart_offer", {
@@ -340,6 +416,7 @@ export function CartProvider({ children }: PropsWithChildren) {
       return;
     }
     const offerIds = [...selectedOfferIdsRef.current];
+    mutationVersionRef.current += 1;
     updateLocalItems([]);
     updateSelectedOffers([]);
     await enqueueWrite(userId, async () => {
@@ -360,6 +437,7 @@ export function CartProvider({ children }: PropsWithChildren) {
   }, [authReady, enqueueWrite, ensureCart, updateLocalItems, updateSelectedOffers]);
 
   const clearAfterOrder = useCallback(() => {
+    mutationVersionRef.current += 1;
     updateLocalItems([]);
     updateSelectedOffers([]);
     setSyncError(null);
@@ -387,7 +465,7 @@ export function CartProvider({ children }: PropsWithChildren) {
     }
     const task = queueRef.current.then(async () => {
       if (userIdRef.current !== userId) return;
-      await loadCart(userId);
+      await loadCart(userId, "retry");
       writeErrorRef.current = null;
       setSyncError(null);
     });
@@ -427,11 +505,13 @@ const subtotal = useMemo(() => {
   const cartReady = authReady && !loading;
 
   const value = useMemo<CartContextValue>(() => ({
+    scope: loadedUserId,
     items: cartReady ? items : [],
     selectedOfferIds: cartReady ? selectedOfferIds : [],
     itemCount: cartReady ? itemCount : 0,
     subtotal: cartReady ? subtotal : 0,
 loading: !cartReady,
+    refreshing,
     syncError,
     addItem,
     addOffer,
@@ -443,18 +523,21 @@ loading: !cartReady,
     clearAfterOrder,
     flush,
     retrySync,
+    revalidate,
     getQuantity: (productId) =>
       cartReady
         ? items.find((item) => item.productId === productId)?.quantity ?? 0
         : 0,
   }), [
     cartReady,
+    loadedUserId,
     items,
     selectedOfferIds,
     itemCount,
     subtotal,
 
     syncError,
+    refreshing,
     addItem,
     addOffer,
     removeOffer,
@@ -465,6 +548,7 @@ loading: !cartReady,
     clearAfterOrder,
     flush,
     retrySync,
+    revalidate,
   ]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

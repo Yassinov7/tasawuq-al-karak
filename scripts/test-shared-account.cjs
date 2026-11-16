@@ -236,7 +236,7 @@ async function main(){
   assert.equal(navigation('/merchant/settings').parent,'/merchant/account');
  });
  await test('shared logout cancels, locks duplicate confirms, reports failure and routes success for all roles',async()=>{
-  const consumers={merchant:'src/components/merchant/MerchantAccountScreens.tsx',customer:'src/app/home/account.tsx',driver:'src/app/driver/account.tsx',admin:'src/app/admin/more.tsx'};
+  const consumers={merchant:'src/components/merchant/MerchantAccountScreens.tsx',customer:'src/app/(customer)/home/account.tsx',driver:'src/app/driver/account.tsx',admin:'src/app/admin/more.tsx'};
   for(const [role,file] of Object.entries(consumers)){
    assert.match(fs.readFileSync(file,'utf8'),/<AccountLogout\b/);
    const hooks=hookHarness(),paths=[];let calls=0,finish;

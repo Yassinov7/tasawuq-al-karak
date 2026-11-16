@@ -8,7 +8,7 @@ import { ProductCard } from "@/components/marketplace/ProductCard";
 import { StoreCard } from "@/components/marketplace/StoreCard";
 import { useAuth } from "@/context/AuthContext";
 import { CustomerHomeSponsored } from "@/components/home/CustomerHomeSponsored";
-import { AppHeader } from "@/components/navigation/AppHeader";
+import { CustomerMarketHeader } from "@/components/navigation/CustomerMarketHeader";
 import { AppEmptyState } from "@/components/ui/AppEmptyState";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { AppSectionHeader } from "@/components/ui/AppSectionHeader";
@@ -103,28 +103,25 @@ function HomeContent() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <AppHeader cartCount={itemCount} mode="customer" />
+      <CustomerMarketHeader title="الرئيسية" cartCount={itemCount} mode="customer" />
       <ScrollView showsVerticalScrollIndicator={false}
         maintainVisibleContentPosition={Platform.OS === "web" ? undefined : { minIndexForVisible: 0, autoscrollToTopThreshold: 0 }}
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={pulling} onRefresh={() => void reload()} tintColor={colors.primary} />}>
-        <View style={[styles.searchArea, { backgroundColor: colors.primaryLight }]}>
-          <Text accessibilityRole="header" style={[styles.heading, { color: colors.text }]}>تسوّق من الكرك الشرقي</Text>
-          <Pressable {...webDirection} accessibilityRole="link" accessibilityLabel="ابحث في السوق" onPress={() => router.push("/home/search")}
-            style={({ pressed }) => [styles.search, { backgroundColor: pressed ? colors.surfacePressed : colors.surface }]}>
-            <Text style={[styles.searchLabel, { color: colors.primary }]}>ابحث</Text>
-            <AppIcon name="search-outline" size={20} color={colors.primary} />
-          </Pressable>
-        </View>
+        <Pressable {...webDirection} accessibilityRole="link" accessibilityLabel="ابحث في السوق" onPress={() => router.push({ pathname: "/home/search", params: { focus: "1" } })}
+          style={({ pressed }) => [styles.search, { backgroundColor: pressed ? colors.surfacePressed : colors.surface, borderColor: colors.border }]}>
+          <AppIcon name="search-outline" size={20} color={colors.primary} />
+          <Text style={[styles.searchLabel, { color: colors.text }]}>ابحث في السوق</Text>
+        </Pressable>
 
         <CustomerHomeSponsored ads={ads} onOpen={ad => router.push({ pathname: homeAdDestinations[ad.target_kind], params: { id: ad.target_id } })} />
 
-        {featuredCategories.length || categoryRead !== "ready" ? <Shelf title="تسوّق حسب التصنيف" reserve={reserve(48)} placeholderWidth={110} loading={categoryRead === "loading" && !featuredCategories.length} failed={categoryRead === "error"} onRetry={() => void refresh()} onAll={() => router.push("/home/search")}>
+        {featuredCategories.length || categoryRead !== "ready" ? <Shelf title="تسوّق حسب التصنيف" reserve={reserve(56)} placeholderWidth={110} loading={categoryRead === "loading" && !featuredCategories.length} failed={categoryRead === "error"} onRetry={() => void refresh()} onAll={() => router.push("/home/search")}>
           {featuredCategories.map(category => <CategoryChip key={category.id} tile label={category.name} icon={category.icon}
             onPress={() => router.push({ pathname: "/home/search", params: { categoryId: category.id } })} />)}
         </Shelf> : null}
 
-        {featuredStores.length || !storeShelf || storeShelf.failed ? <Shelf title="متاجر الكرك" reserve={reserve(113)} placeholderWidth={cardWidth} loading={!storeShelf} failed={storeShelf?.failed} onRetry={() => void refreshDiscovery("manual")} onAll={() => router.push("/stores")}>
+        {featuredStores.length || !storeShelf || storeShelf.failed ? <Shelf title="متاجر الكرك" reserve={reserve(113)} placeholderWidth={cardWidth} loading={!storeShelf} failed={storeShelf?.failed} onRetry={() => void refreshDiscovery("manual")} onAll={() => router.navigate("/stores")}>
           {featuredStores.map(store => <StoreCard key={store.id} store={store} shelfWidth={cardWidth} logo={logos.get(store.id)}
             onPress={() => router.push({ pathname: "/store-details", params: { id: store.id } })} />)}
         </Shelf> : null}
@@ -135,8 +132,8 @@ function HomeContent() {
             onPress={() => router.push({ pathname: "/offer-details", params: { id: offer.id } })} />)}
         </Shelf> : null}
 
-        {featuredProducts.length || !productShelf || productShelf.failed ? <Shelf title="منتجات من السوق" reserve={reserve(188)} placeholderWidth={cardWidth} loading={!productShelf} failed={productShelf?.failed} onRetry={() => void refreshDiscovery("manual")} onAll={() => router.push("/home/search")}>
-          {featuredProducts.map(product => <ProductCard key={product.id} product={product} cardWidth={cardWidth}
+        {featuredProducts.length || !productShelf || productShelf.failed ? <Shelf title="منتجات من السوق" reserve={reserve(156)} placeholderWidth={cardWidth} loading={!productShelf} failed={productShelf?.failed} onRetry={() => void refreshDiscovery("manual")} onAll={() => router.navigate("/products")}>
+          {featuredProducts.map(product => <ProductCard key={product.id} product={product} cardWidth={cardWidth} showOffer
             storeName={storeNames.get(product.storeId)}
             onPress={() => router.push({ pathname: "/product-details", params: { id: product.id } })} />)}
         </Shelf> : null}
@@ -152,9 +149,7 @@ function HomeContent() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { gap: Spacing.five, paddingBottom: Spacing.six, width: "100%", maxWidth: 760, alignSelf: "center" },
-  searchArea: { gap: Spacing.two, padding: Spacing.four, marginHorizontal: Spacing.four, marginTop: Spacing.two, borderRadius: Radius.xl },
-  heading: { fontFamily: Fonts.bold, fontSize: FontSizes.lg, textAlign: "right" },
-  search: { direction: "rtl", flexDirection: "row", alignSelf: "flex-end", gap: Spacing.two, minHeight: 48, alignItems: "center", paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, borderRadius: Radius.lg },
+  search: { direction: "rtl", flexDirection: "row", marginHorizontal: Spacing.four, marginTop: Spacing.two, borderWidth: 1, gap: Spacing.two, minHeight: 48, alignItems: "center", paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, borderRadius: Radius.lg },
   searchLabel: { fontFamily: Fonts.medium, fontSize: FontSizes.sm, flexShrink: 1, textAlign: "right" },
   rtl: Platform.OS === "web" ? {} : { direction: "rtl" },
   rail: { flexDirection: "row", gap: Spacing.two, paddingHorizontal: Spacing.four, paddingBottom: Spacing.one },

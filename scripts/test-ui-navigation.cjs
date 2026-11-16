@@ -19,7 +19,7 @@ for (const [path,account,expected] of [
 async function main(){
  let owner='A',history=false,loading=false,resolve,fail=false,back=0;
  const routes=[],refs=[],stackActions=[];let cursor=0,cleanup;
- const router={canGoBack:()=>history,back:()=>back++,replace:r=>routes.push(r),push:r=>stackActions.push(["push",r]),dismissTo:r=>stackActions.push(["dismissTo",r])};
+ const router={canGoBack:()=>history,back:()=>back++,replace:r=>routes.push(r),navigate:r=>stackActions.push(["navigate",r])};
  const hook=load('src/hooks/useSafeBack.ts',{
   react:{useRef:v=>refs[cursor++]??(refs[cursor-1]={current:v}),useLayoutEffect:fn=>{cleanup=fn();}},
   'expo-router':{useRouter:()=>router,usePathname:()=>'/financial-invoice'},
@@ -51,12 +51,15 @@ async function main(){
  let items=tabs();assert.deepEqual(Array.from(items,x=>x.props.accessibilityLabel),['الرئيسية','توصيلاتي','المالية','حسابي']);
  assert.equal(items[2].props.accessibilityState.selected,true);items[2].props.onPress();assert.equal(routes.length,0);
  pathname='/driver';items=tabs();items[2].props.onPress();assert.equal(routes.pop(),'/driver/cash-account');
- for(let repeat=0;repeat<3;repeat++){
-   pathname='/home';tabs()[1].props.onPress();
-   pathname='/home/search';tabs()[0].props.onPress();
-   assert.deepEqual(stackActions.splice(0),[['push','/home/search'],['dismissTo','/home']]);
-   assert.equal(routes.length,0,'home/search round trip cannot replace the retained home route');
+ pathname='/home';
+ assert.deepEqual(Array.from(tabs(),x=>x.props.accessibilityLabel),['الرئيسية','المتاجر','المنتجات','العروض','حسابي']);
+ for(const [index, destination] of [[1,'/stores'],[2,'/products'],[3,'/home/offers'],[4,'/home/account'],[0,'/home']]){
+   tabs()[index].props.onPress();
+   assert.deepEqual(stackActions.splice(0),[['navigate',destination]]);
+   pathname=destination;
+   assert.equal(tabs()[index].props.accessibilityState.selected,true);
  }
+ assert.equal(routes.length,0,'switching customer tabs must preserve mounted routes');
  // Render the production role gate with controlled account reads (no database).
  let actor='admin-A',roleLoading=false,state=[],stateIndex=0,effect,dispose,accountResolve;
  const Gate=load('src/components/auth/RoleRouteGuard.tsx',{

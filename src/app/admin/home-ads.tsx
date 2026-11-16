@@ -11,7 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useDriverTaskRefresh } from "@/hooks/useDriverTaskRefresh";
 import { deleteHomeAd, listHomeAds, previewHomeAd, saveHomeAd, uploadHomeAd, type HomeAd, type HomeAdInput } from "@/lib/customer-home-ads";
-import { createHomeAdThumbnail, removeLocalAdThumbnail } from "@/lib/home-ad-thumbnail";
+import { removeLocalAdThumbnail, saveHomeAdCover } from "@/lib/home-ad-thumbnail";
 import { pickHomeAdMedia, type PickedHomeAdMedia } from "@/lib/home-ad-picker";
 import { localOfferEndInstant, localOfferFields } from "@/lib/offer-expiration";
 import { newIdempotencyKey } from "@/lib/request-key";
@@ -52,7 +52,6 @@ function HomeAds({ owner }: { owner: string }) {
   const [picked, setPicked] = useState<PickedHomeAdMedia>();
   const [preview, setPreview] = useState("");
   const [busy, setBusy] = useState(false);
-  const [extracting, setExtracting] = useState(false);
   const [error, setError] = useState("");
   const [listError, setListError] = useState("");
   const lock = useRef(false);
@@ -61,7 +60,7 @@ function HomeAds({ owner }: { owner: string }) {
     mounted.current = true;
     return () => { mounted.current = false; };
   }, []);
-  const thumbnail = picked?.thumbnailUri;
+  const thumbnail = picked?.ownsThumbnail ? picked.thumbnailUri : undefined;
   useEffect(() => () => removeLocalAdThumbnail(thumbnail), [thumbnail]);
   const load = useCallback(async (signal: AbortSignal) => {
     try {
@@ -83,23 +82,22 @@ function HomeAds({ owner }: { owner: string }) {
     setDraft(row ? { ...row, priority: String(row.priority), starts_at: localInput(row.starts_at), ends_at: localInput(row.ends_at) } : newDraft());
     setPicked(undefined); setPreview(""); setError("");
   };
-  const prepareThumbnail = async (media: PickedHomeAdMedia) => {
-    setExtracting(true);
-    try {
-      const thumbnailUri = await createHomeAdThumbnail(media.uri, media.duration);
-      if (!mounted.current) { removeLocalAdThumbnail(thumbnailUri); return; }
-      setPicked({ ...media, thumbnailUri });
-    } finally {
-      if (mounted.current) setExtracting(false);
-    }
-  };
   const pick = (kind: "images" | "videos") => run(async () => {
     const media = await pickHomeAdMedia(kind);
     if (!media || !mounted.current) return;
-    // Retain the validated file before decoding, so a failed thumbnail can be retried.
     setPicked(media);
     setPreview("");
-    if (media.mime === "video/mp4") await prepareThumbnail(media);
+  });
+  const pickCover = (video: PickedHomeAdMedia) => run(async () => {
+    const cover = await pickHomeAdMedia("images");
+    if (!cover || !mounted.current) return;
+    const ownsThumbnail = cover.mime !== "image/jpeg";
+    const thumbnailUri = ownsThumbnail ? await saveHomeAdCover(cover.uri, cover.width) : cover.uri;
+    if (!mounted.current) {
+      if (ownsThumbnail) removeLocalAdThumbnail(thumbnailUri);
+      return;
+    }
+    setPicked({ ...video, thumbnailUri, ownsThumbnail });
   });
   const save = () => run(async () => {
     if (!draft) return;
@@ -109,7 +107,7 @@ function HomeAds({ owner }: { owner: string }) {
     if (Date.parse(endsAt) <= Date.parse(startsAt)) throw Error("يجب أن تكون النهاية بعد البداية.");
     const priority = latinDigits(draft.priority.trim());
     if (!/^\d{1,3}$/.test(priority)) throw Error("أدخل أولوية من 0 إلى 999.");
-    if (picked?.mime === "video/mp4" && !picked.thumbnailUri) throw Error("استخرج الصورة المصغرة للفيديو قبل الحفظ.");
+    if (picked?.mime === "video/mp4" && !picked.thumbnailUri) throw Error("اختر صورة غلاف قبل الحفظ.");
     if (!picked && !draft.media_path) throw Error("اختر صورة أو فيديو للإعلان.");
     const media = picked ? await uploadHomeAd(owner, draft.id, picked.uri, picked.mime, picked.thumbnailUri) : {
       media_kind: draft.media_kind, media_path: draft.media_path, thumbnail_path: draft.thumbnail_path ?? null,
@@ -166,10 +164,11 @@ function HomeAds({ owner }: { owner: string }) {
           onPress={() => void run(async () => setPreview(await previewHomeAd(owner, previewPath)))} /> : null}
       </View>
       {picked?.mime === "video/mp4" ? <Text style={text}>{picked.name || "الفيديو المحدد"}</Text> : null}
-      {picked?.mime === "video/mp4" && !extracting
-        ? <AppButton compact fullWidth={false} variant="outline" title="إعادة استخراج الصورة المصغرة"
-          disabled={busy} onPress={() => void run(() => prepareThumbnail(picked))} /> : null}
-      {extracting ? <Text accessibilityRole="progressbar" style={text}>جارٍ استخراج الصورة المصغرة من الفيديو…</Text> : null}
+      {picked?.mime === "video/mp4" && !picked.thumbnailUri
+        ? <Text style={text}>الفيديو محدد. اختر صورة غلاف لحفظ الإعلان.</Text> : null}
+      {picked?.mime === "video/mp4"
+        ? <AppButton compact fullWidth={false} variant="outline" title={picked.thumbnailUri ? "استبدال صورة الغلاف" : "اختيار صورة غلاف"}
+          disabled={busy} onPress={() => void pickCover(picked)} /> : null}
       {video && draft.media_path && !picked && !previewPath ? <Text style={text}>
         هذا الفيديو القديم بلا صورة مصغرة. أعد اختيار الفيديو لإضافتها.
       </Text> : null}

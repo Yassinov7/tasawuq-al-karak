@@ -27,7 +27,7 @@ export function MerchantOrderCard({order,expanded,toggle,busy,onStart,onReady,on
    <View style={styles.row}>
     <View style={styles.metadata}>
      <Text style={[styles.meta,{color:colors.textSecondary}]}>{date(order.created_at)}</Text>
-     <Text style={[styles.meta,{color:colors.textSecondary}]}>{order.store_order_items.length.toLocaleString("ar-SY")} بنود</Text>
+     <Text style={[styles.meta,{color:colors.textSecondary}]}>{order.store_order_items.length.toLocaleString("ar-SY")} عنصر</Text>
     </View>
     <View style={styles.amount}>
      <Text style={[styles.meta,{color:colors.textSecondary}]}>إجمالي متجرك</Text>

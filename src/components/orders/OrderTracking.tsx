@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { ShoppingCardImage } from "@/components/marketplace/ShoppingCardImage";
+import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
-import type { CustomerDeliveryTask, CustomerOrderView } from "@/lib/customer-orders";
+import { formatCurrency, type CustomerDeliveryTask, type CustomerOrderView } from "@/lib/customer-orders";
+import { groupOrderItems } from "@/lib/order-item-groups";
 
 type StoreOrder = CustomerOrderView["stores"][number];
 
@@ -26,6 +29,142 @@ const deliveryLabels: Record<CustomerDeliveryTask["status"], string> = {
   delivered: "تم تسليم الطلب",
   cancelled: "أُلغيت مهمة التوصيل",
 };
+
+const progressSteps = ["awaiting_review", "preparing", "ready_for_pickup", "handed_to_driver", "delivered"] as const;
+
+function statusTone(status: StoreOrder["storeOrder"]["status"], colors: ReturnType<typeof useTheme>["colors"]) {
+  if (["rejected", "cancelled"].includes(status)) return { foreground: colors.error, background: `${colors.error}18` };
+  if (["ready_for_pickup", "handed_to_driver", "delivered"].includes(status)) return { foreground: colors.primary, background: colors.primaryLight };
+  return { foreground: colors.accent, background: colors.accentLight };
+}
+
+export function OrderSuborderTracking({
+  stores,
+  selectedId,
+  onSelect,
+  logos,
+  refreshing,
+  onRefresh,
+}: {
+  stores: StoreOrder[];
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  logos: Map<string, { url: string; key: string }>;
+  refreshing: boolean;
+  onRefresh: () => void;
+}) {
+  const { colors } = useTheme();
+
+  return (
+    <View style={styles.trackingSection}>
+      <View style={styles.sectionHeader}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>طلبات المتاجر</Text>
+        <AppButton title="تحديث" accessibilityLabel="تحديث الطلب" icon="refresh-outline" variant="outline" compact fullWidth={false} loading={refreshing} disabled={refreshing} onPress={onRefresh} />
+      </View>
+      <View style={styles.suborderList}>
+        {stores.map((store) => {
+          const expanded = stores.length === 1 || store.storeOrder.id === selectedId;
+          return <SuborderCard key={store.storeOrder.id} store={store} logo={logos.get(store.storeOrder.store_id)} expanded={expanded} collapsible={stores.length > 1}
+            onPress={() => stores.length > 1 && onSelect(expanded ? null : store.storeOrder.id)} />;
+        })}
+      </View>
+    </View>
+  );
+}
+
+function SuborderCard({ store, logo, expanded, collapsible, onPress }: {
+  store: StoreOrder;
+  logo?: { url: string; key: string };
+  expanded: boolean;
+  collapsible: boolean;
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
+  const status = store.storeOrder.status;
+  const tone = statusTone(status, colors);
+  const groups = groupOrderItems(store.items);
+  const terminal = status === "rejected" || status === "cancelled";
+  const eventsByStatus = new Map(store.statusHistory.map((event) => [event.to_status, event]));
+  const visibleSteps = progressSteps.filter((step) => eventsByStatus.has(step) || step === status);
+  const terminalEvent = terminal ? eventsByStatus.get(status) : null;
+
+  return (
+    <View style={[styles.suborder, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <Pressable disabled={!collapsible} onPress={onPress} accessibilityRole={collapsible ? "button" : undefined} accessibilityState={collapsible ? { expanded } : undefined}
+        accessibilityLabel={`${store.storeName}، ${storeStatusLabels[status]}`} style={({ pressed }) => [styles.identityRow, pressed && styles.pressed]}>
+        <View style={[styles.logo, { backgroundColor: colors.primaryLight }]}>
+          <ShoppingCardImage uri={logo?.url} cacheKey={logo?.key} restricted fit="contain" icon="storefront-outline" />
+        </View>
+        <View style={styles.identityCopy}>
+          <Text style={[styles.storeName, { color: colors.text }]}>{store.storeName}</Text>
+          <View style={styles.headerMeta}>
+            <View style={[styles.currentStatus, { backgroundColor: tone.background }]}>
+              <Text style={[styles.currentStatusText, { color: tone.foreground }]}>{storeStatusLabels[status]}</Text>
+            </View>
+            <Text style={[styles.itemCount, { color: colors.textMuted }]}>{groups.length} بنود</Text>
+          </View>
+        </View>
+        {collapsible ? <AppIcon name={expanded ? "chevron-up" : "chevron-down"} size={19} color={colors.textMuted} /> : null}
+      </Pressable>
+
+      <View style={[styles.items, { borderTopColor: colors.border }]}>
+        {groups.map((group) => (
+          <View key={group.id} style={[styles.itemRow, { borderBottomColor: colors.border }]}>
+            <View style={styles.itemCopy}>
+              <Text numberOfLines={2} style={[styles.itemTitle, { color: colors.text }]}>{group.offerTitle ?? group.items[0].product_title_snapshot}</Text>
+              <Text style={[styles.itemMeta, { color: colors.textMuted }]}>
+                {group.offerDescription ?? `${group.items[0].quantity} ${group.items[0].selling_unit_snapshot}`}
+              </Text>
+              {group.offerTitle ? group.items.map((item) => (
+                <Text key={item.id} style={[styles.offerLine, { color: colors.textSecondary }]}>{item.product_title_snapshot} · {item.quantity} {item.selling_unit_snapshot}</Text>
+              )) : null}
+            </View>
+            <View style={styles.itemPriceColumn}>
+              <Text style={[styles.itemPrice, { color: colors.text }]}>{formatCurrency(group.finalTotal, group.currency)}</Text>
+              {group.originalTotal > group.finalTotal ? <Text style={[styles.originalPrice, { color: colors.textMuted }]}>{formatCurrency(group.originalTotal, group.currency)}</Text> : null}
+            </View>
+          </View>
+        ))}
+      </View>
+
+      {expanded ? <View style={[styles.progress, { borderTopColor: colors.border }]}>
+        <Text style={[styles.progressTitle, { color: colors.text }]}>متابعة حالة الطلب</Text>
+        {visibleSteps.map((step, index) => {
+          const event = eventsByStatus.get(step);
+          const current = step === status;
+          const complete = Boolean(event) && !current;
+          const muted = !event && !current;
+          return (
+            <View key={step} style={styles.progressRow}>
+              <View style={styles.progressMark}>
+                <View style={[styles.progressDot, { borderColor: current || complete ? colors.primary : colors.border, backgroundColor: complete ? colors.primary : colors.surface }]}>
+                  {complete ? <AppIcon name="checkmark" size={11} color={colors.surface} /> : null}
+                </View>
+                {index < visibleSteps.length - 1 ? <View style={[styles.progressLine, { backgroundColor: complete ? colors.primary : colors.border }]} /> : null}
+              </View>
+              <View style={styles.progressCopy}>
+                <Text style={[styles.progressLabel, { color: muted ? colors.textMuted : colors.text }, current && { color: colors.primary, fontFamily: Fonts.bold }]}>{storeStatusLabels[step]}</Text>
+                {event ? <Text style={[styles.eventDate, { color: colors.textMuted }]}>{new Date(event.created_at).toLocaleString("ar-SY")}</Text> : current && step === "awaiting_review" ? <Text style={[styles.eventDate, { color: colors.textMuted }]}>{new Date(store.storeOrder.created_at).toLocaleString("ar-SY")}</Text> : null}
+              </View>
+              {current ? <Text style={[styles.stepCurrentLabel, { color: colors.primary }]}>الحالية</Text> : null}
+            </View>
+          );
+        })}
+        {terminal ? (
+          <View style={[styles.terminal, { backgroundColor: tone.background }]}>
+            <AppIcon name="alert-circle-outline" size={18} color={tone.foreground} />
+            <View style={styles.progressCopy}>
+              <Text style={[styles.progressLabel, { color: tone.foreground }]}>{storeStatusLabels[status]}</Text>
+              {terminalEvent ? <Text style={[styles.eventDate, { color: colors.textSecondary }]}>{new Date(terminalEvent.created_at).toLocaleString("ar-SY")}</Text> : null}
+              {store.storeOrder.rejection_reason ? <Text style={[styles.note, { color: colors.textSecondary }]}>{store.storeOrder.rejection_reason}</Text> : null}
+            </View>
+          </View>
+        ) : null}
+        {!visibleSteps.length && !terminal ? <Text style={[styles.empty, { color: colors.textMuted }]}>الحالة الحالية: {storeStatusLabels[status]}</Text> : null}
+      </View> : null}
+    </View>
+  );
+}
 
 export function StoreStatusHistory({ store }: { store: StoreOrder }) {
   const { colors } = useTheme();
@@ -118,6 +257,39 @@ export function CustomerOrderTimeline({ order }: { order: CustomerOrderView }) {
 }
 
 const styles = StyleSheet.create({
+  trackingSection: { gap: Spacing.three },
+  sectionHeader: { alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between" },
+  sectionTitle: { fontFamily: Fonts.bold, fontSize: FontSizes.lg, textAlign: "right" },
+  suborderList: { gap: Spacing.two },
+  suborder: { borderRadius: Radius.lg, borderWidth: 1, overflow: "hidden" },
+  identityRow: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.two, minHeight: 68, padding: Spacing.three },
+  logo: { alignItems: "center", borderRadius: Radius.md, height: 48, justifyContent: "center", overflow: "hidden", width: 48 },
+  identityCopy: { alignItems: "flex-end", flex: 1, gap: Spacing.one, minWidth: 0 },
+  storeName: { fontFamily: Fonts.bold, fontSize: FontSizes.md, textAlign: "right" },
+  headerMeta: { alignItems: "center", flexDirection: "row-reverse", flexWrap: "wrap", gap: Spacing.two },
+  currentStatus: { borderRadius: Radius.full, paddingHorizontal: Spacing.two, paddingVertical: Spacing.half },
+  currentStatusText: { fontFamily: Fonts.medium, fontSize: FontSizes.xs },
+  itemCount: { fontFamily: Fonts.regular, fontSize: FontSizes.xs },
+  items: { borderTopWidth: StyleSheet.hairlineWidth },
+  itemRow: { alignItems: "flex-start", borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: "row-reverse", gap: Spacing.three, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
+  itemCopy: { alignItems: "flex-end", flex: 1, gap: Spacing.half, minWidth: 0 },
+  itemTitle: { fontFamily: Fonts.semiBold, fontSize: FontSizes.sm, textAlign: "right" },
+  itemMeta: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "right" },
+  offerLine: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "right" },
+  itemPriceColumn: { alignItems: "flex-start", flexShrink: 0 },
+  itemPrice: { fontFamily: Fonts.semiBold, fontSize: FontSizes.sm, textAlign: "left" },
+  originalPrice: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "left", textDecorationLine: "line-through" },
+  progress: { borderTopWidth: StyleSheet.hairlineWidth, padding: Spacing.three },
+  progressTitle: { fontFamily: Fonts.semiBold, fontSize: FontSizes.sm, marginBottom: Spacing.two, textAlign: "right" },
+  progressRow: { alignItems: "flex-start", flexDirection: "row-reverse", gap: Spacing.two, minHeight: 46 },
+  progressMark: { alignItems: "center", alignSelf: "stretch", width: 18 },
+  progressDot: { alignItems: "center", borderRadius: Radius.full, borderWidth: 2, height: 16, justifyContent: "center", width: 16 },
+  progressLine: { flex: 1, marginVertical: 2, width: 2 },
+  progressCopy: { alignItems: "flex-end", flex: 1, minWidth: 0 },
+  progressLabel: { fontFamily: Fonts.medium, fontSize: FontSizes.sm, textAlign: "right" },
+  stepCurrentLabel: { fontFamily: Fonts.medium, fontSize: FontSizes.xs },
+  terminal: { alignItems: "flex-start", borderRadius: Radius.md, flexDirection: "row-reverse", gap: Spacing.two, marginTop: Spacing.one, padding: Spacing.two },
+  pressed: { opacity: 0.72 },
   card: { borderTopWidth: 1, gap: Spacing.three, marginTop: Spacing.three, paddingTop: Spacing.three },
   historyHeader: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.two },
   historyTitleRow: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.two },

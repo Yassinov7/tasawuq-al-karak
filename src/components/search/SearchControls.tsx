@@ -1,215 +1,84 @@
-import type { Dispatch, SetStateAction } from "react";
-import { Keyboard, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { useState } from "react";
+import { Keyboard, Pressable, Text, TextInput, View } from "react-native";
 
-import { styles } from "@/components/search/searchStyles";
 import { AppIcon } from "@/components/ui/AppIcon";
+import { styles } from "@/components/search/searchStyles";
+import { useTheme } from "@/context/ThemeContext";
+import type { SearchFilter } from "@/lib/customer-search";
 
-type SearchFilter = "all" | "products" | "stores" | "categories";
-type ProductSort = "relevance" | "price-ascending" | "price-descending";
-type SearchControlsProps = {
-  colors: { surface: string; border: string; text: string; textMuted: string; primary: string; accent: string; surfaceSecondary: string; textSecondary: string };
-  searchText: string; filtersVisible: boolean; activeFilterCount: number; filter: SearchFilter;
-  filterCounts: Record<SearchFilter, number>; selectedCategoryId: string | null; productSort: ProductSort;
-  setSearchText: Dispatch<SetStateAction<string>>; setFiltersVisible: Dispatch<SetStateAction<boolean>>; setFilter: Dispatch<SetStateAction<SearchFilter>>;
-  setSelectedCategoryId: Dispatch<SetStateAction<string | null>>; setProductSort: Dispatch<SetStateAction<ProductSort>>;
-  onQueryChange: (value: string) => void; onSubmit: () => void;
-};
-
-const searchFilters: { id: SearchFilter; label: string; icon: React.ComponentProps<typeof AppIcon>["name"] }[] = [
-  { id: "all", label: "الكل", icon: "apps-outline" }, { id: "products", label: "المنتجات", icon: "cube-outline" },
-  { id: "stores", label: "المتاجر", icon: "storefront-outline" }, { id: "categories", label: "التصنيفات", icon: "grid-outline" },
+const filters: { id: SearchFilter; label: string }[] = [
+  { id: "products", label: "المنتجات" },
+  { id: "stores", label: "المتاجر" },
+  { id: "offers", label: "العروض" },
+  { id: "categories", label: "التصنيفات" },
 ];
 
-export function SearchControls(props: SearchControlsProps) {
-  const { colors, searchText, filtersVisible, activeFilterCount, filter, filterCounts, selectedCategoryId, productSort, setSearchText, setFiltersVisible, setFilter, setSelectedCategoryId, setProductSort, onQueryChange, onSubmit } = props;
-  return (<>
-        <View style={styles.searchRow}>
-          <View
-            style={[
-              styles.searchBox,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-              },
-            ]}
-          >
-            <AppIcon name="search-outline" size={19} color={colors.textMuted} />
+type Props = {
+  value: string;
+  onChange: (value: string) => void;
+  filter: SearchFilter;
+  onFilter: (filter: SearchFilter) => void;
+  focusOnEntry: boolean;
+  onBack: () => void;
+  onOpenRefinements: () => void;
+  filterCount: number;
+};
 
-            <TextInput
-              value={searchText}
-              onChangeText={onQueryChange}
-              placeholder="ابحث عن منتج أو متجر"
-              placeholderTextColor={colors.textMuted}
-              style={[
-                styles.input,
-                {
-                  color: colors.text,
-                },
-              ]}
-              textAlign="right"
-              returnKeyType="search"
-              onSubmitEditing={onSubmit}
-              autoFocus={false}
-            />
-
-            {searchText.length > 0 ? (
-              <Pressable
-                onPress={() => {
-                  setSearchText("");
-                  setSelectedCategoryId(null);
-                  setProductSort("relevance");
-                  setFilter("all");
-                }}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="مسح البحث"
-                style={({ pressed }) => [
-                  styles.clearButton,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <AppIcon name="close-circle" size={20} color={colors.textMuted} />
-              </Pressable>
-            ) : null}
-          </View>
-
-          <Pressable
-            onPress={() => {
-              Keyboard.dismiss();
-              setFiltersVisible((visible) => !visible);
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={filtersVisible ? "إخفاء الفلاتر" : "إظهار الفلاتر"}
-            accessibilityState={{ expanded: filtersVisible }}
-            style={({ pressed }) => [
-              styles.filterToggle,
-              {
-                backgroundColor: filtersVisible || activeFilterCount > 0
-                  ? colors.primary
-                  : colors.surface,
-                borderColor: filtersVisible || activeFilterCount > 0
-                  ? colors.primary
-                  : colors.border,
-              },
-              pressed && styles.pressed,
-            ]}
-          >
-            <AppIcon
-              name="options-outline"
-              size={19}
-              color={filtersVisible || activeFilterCount > 0 ? colors.surface : colors.primary}
-            />
-            {activeFilterCount > 0 ? (
-              <View
-                style={[
-                  styles.activeFilterBadge,
-                  {
-                    backgroundColor: colors.accent,
-                    borderColor: colors.surface,
-                  },
-                ]}
-              >
-                <Text style={[styles.activeFilterCount, { color: colors.surface }]}>
-                  {activeFilterCount}
-                </Text>
-              </View>
-            ) : null}
-          </Pressable>
-        </View>
-
-        {filtersVisible ? (
-          <View
-            style={[
-              styles.filterPanel,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-              },
-            ]}
-          >
-          <View style={styles.filterPanelHeader}>
-            <Text style={[styles.filterPanelTitle, { color: colors.text }]}>
-              تصفية البحث
-            </Text>
-            {filter !== "all" || selectedCategoryId || productSort !== "relevance" ? (
-              <Pressable
-                onPress={() => {
-                  setFilter("all");
-                  setSelectedCategoryId(null);
-                  setProductSort("relevance");
-                }}
-                accessibilityRole="button"
-                hitSlop={8}
-              >
-                <Text style={[styles.resetInlineText, { color: colors.primary }]}>
-                  مسح الفلاتر
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filters}
-          >
-            {searchFilters.map((item) => {
-              const selected = filter === item.id;
-              return (
-                <Pressable
-                  key={item.id}
-                  onPress={() => {
-                    setFilter(item.id);
-                    if (item.id !== "products") {
-                      setSelectedCategoryId(null);
-                      setProductSort("relevance");
-                    }
-                  }}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  style={[
-                    styles.filterChip,
-                    {
-                      backgroundColor: selected ? colors.primary : colors.surface,
-                      borderColor: selected ? colors.primary : colors.border,
-                    },
-                  ]}
-                >
-                  <AppIcon
-                    name={item.icon}
-                    size={15}
-                    color={selected ? colors.surface : colors.textSecondary}
-                  />
-                  <Text
-                    style={[
-                      styles.filterText,
-                      { color: selected ? colors.surface : colors.textSecondary },
-                    ]}
-                  >
-                    {item.label}
-                  </Text>
-                  {selected ? (
-                    <AppIcon name="checkmark" size={14} color={colors.surface} />
-                  ) : null}
-                  <Text
-                    style={[
-                      styles.filterCount,
-                      {
-                        color: selected ? colors.primary : colors.textMuted,
-                        backgroundColor: selected ? colors.surface : colors.surfaceSecondary,
-                      },
-                    ]}
-                  >
-                    {filterCounts[item.id]}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-          <Text style={[styles.filterHint, { color: colors.textMuted }]}>
-            اختر نوع النتائج، أو اكتب كلمة للبحث داخلها
-          </Text>
-          </View>
-        ) : null}
-
-  </>);
+export function SearchControls({
+  value, onChange, filter, onFilter, focusOnEntry, onBack,
+  onOpenRefinements, filterCount,
+}: Props) {
+  const { colors } = useTheme();
+  const [typesOpen, setTypesOpen] = useState(false);
+  const activeLabel = filters.find(item => item.id === filter)?.label ?? "المنتجات";
+  const canRefine = filter === "products" || filter === "stores";
+  const label = filter === "products" ? "ابحث عن منتج" : "ابحث في السوق";
+  return <View style={styles.controls}>
+    <View style={styles.row}>
+      <Pressable accessibilityRole="button" accessibilityLabel="رجوع" onPress={onBack} style={styles.iconButton}>
+        <AppIcon name="arrow-forward" size={22} color={colors.text} />
+      </Pressable>
+      <View style={[styles.row, styles.searchBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <AppIcon name="search-outline" size={20} color={colors.primary} />
+        <TextInput value={value} onChangeText={onChange} onFocus={() => setTypesOpen(false)} accessibilityLabel={label} placeholder={label}
+          placeholderTextColor={colors.textMuted} returnKeyType="search" onSubmitEditing={Keyboard.dismiss}
+          autoFocus={focusOnEntry} autoCorrect={false} style={[styles.input, { color: colors.text }]} />
+        {value ? <Pressable accessibilityRole="button" accessibilityLabel="مسح البحث"
+          onPress={() => onChange("")} style={styles.iconButton}>
+          <AppIcon name="close-circle" size={20} color={colors.textMuted} />
+        </Pressable> : null}
+      </View>
+    </View>
+    <View style={[styles.row, styles.context]}>
+      <Pressable accessibilityRole="button" accessibilityLabel={"نوع النتائج · " + activeLabel}
+        accessibilityState={{ expanded: typesOpen }} onPress={() => { Keyboard.dismiss(); setTypesOpen(open => !open); }}
+        style={[styles.tool, styles.row, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+        <Text style={[styles.selectedText, { color: colors.text }]}>{activeLabel}</Text>
+        <AppIcon name={typesOpen ? "chevron-up" : "chevron-down"} size={16} color={colors.textMuted} />
+      </Pressable>
+      {canRefine ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="تصفية وترتيب"
+          accessibilityHint={filterCount ? "خيارات مفعلة: " + filterCount : undefined}
+          onPress={() => { Keyboard.dismiss(); setTypesOpen(false); onOpenRefinements(); }}
+          style={[styles.tool, styles.row, { backgroundColor: filterCount ? colors.primaryLight : colors.surface,
+            borderColor: filterCount ? colors.primary : colors.border }]}>
+          <AppIcon name="options-outline" size={18} color={colors.primary} />
+          <Text style={[styles.text, { color: colors.text }]}>تصفية وترتيب</Text>
+          {filterCount ? <Text style={[styles.selectedText, { color: colors.primary }]}>{filterCount}</Text> : null}
+        </Pressable>
+      ) : null}
+    </View>
+    {typesOpen ? <View accessibilityRole="radiogroup" accessibilityLabel="نوع النتائج"
+      style={[styles.typeMenu, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+      {filters.map(({ id, label: text }) => {
+        const selected = id === filter;
+        return <Pressable key={id} accessibilityRole="radio" aria-checked={selected}
+          accessibilityState={{ checked: selected }} onPress={() => { setTypesOpen(false); onFilter(id); }}
+          style={[styles.type, { backgroundColor: selected ? colors.primaryLight : colors.surface }]}>
+          <Text style={[selected ? styles.selectedText : styles.text,
+            { color: selected ? colors.primary : colors.text }]}>{text}</Text>
+        </Pressable>;
+      })}
+    </View> : null}
+  </View>;
 }

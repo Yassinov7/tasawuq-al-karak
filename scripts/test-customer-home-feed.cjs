@@ -17,7 +17,7 @@ async function checkCatalogSections() {
     from(table) {
       queryLog.push(table);
       const query = {};
-      for (const method of ["select", "eq", "in", "order", "lte", "or"]) query[method] = () => query;
+      for (const method of ["select", "eq", "in", "order", "range", "lte", "or"]) query[method] = () => query;
       query.then = (resolve, reject) => (table === "product_media" ? media : Promise.resolve({ data: data[table] }))
         .then(resolve, reject);
       return query;
@@ -43,6 +43,41 @@ async function checkCatalogSections() {
   assert.equal((await inflight).productMedia[0].id, "image");
 }
 
+async function checkCatalogBeyondServerLimit() {
+  const stores = Array.from({ length: 1001 }, (_, index) => ({ id: String(index) }));
+  const products = stores.map(store => ({ id: "p" + store.id, store_id: store.id, created_at: "2026-01-01" }));
+  const storeRanges = [];
+  const supabase = {
+    auth: { getSession: async () => ({ data: { session: null } }) },
+    from(table) {
+      let rows = table === "stores" ? stores : table === "products" ? products : [];
+      const query = {
+        select: () => query, eq: () => query, order: () => query, lte: () => query, or: () => query,
+        in(column, ids) {
+          assert.ok(ids.length <= 100);
+          rows = rows.filter(row => ids.includes(row[column]));
+          return query;
+        },
+        range(from, to) {
+          if (table === "stores") storeRanges.push([from, to]);
+          return Promise.resolve({ data: rows.slice(from, to + 1) });
+        },
+      };
+      return query;
+    },
+  };
+  const { getPublicCatalog } = load("src/lib/public-catalog.ts", {
+    "@/lib/supabase": { supabase },
+    "@/lib/local-cache": { writeLocalCache: async () => {} },
+    "@/lib/catalog-categories": { readSelectableCategories: async () => [] },
+  });
+  const catalog = await getPublicCatalog(null);
+  assert.equal(catalog.stores.length, 1001);
+  assert.equal(catalog.products.length, 1001);
+  assert.equal(new Set(catalog.products.map(row => row.id)).size, 1001);
+  assert.deepEqual(storeRanges, [[0, 499], [500, 999], [1000, 1499]]);
+}
+
 async function main() {
   let owner = "customer";
   let failMedia = false;
@@ -62,7 +97,7 @@ async function main() {
   };
   const query = data => {
     const result = {};
-    for (const method of ["select", "eq", "in", "order"]) result[method] = () => result;
+    for (const method of ["select", "eq", "in", "order", "range"]) result[method] = () => result;
     result.abortSignal = async () => ({ data, error: null });
     return result;
   };
@@ -146,6 +181,8 @@ async function main() {
   switchOwner = true;
   await assert.rejects(readCustomerHomeAds(owner, signal), /تغير الحساب/);
   await checkCatalogSections();
+  await checkCatalogBeyondServerLimit();
+  console.log("PASS directory and product catalog beyond the 1000-row server limit");
   console.log("PASS independent category and offer reads, batched offer items, server ordering, isolated shelf failures, progressive media, cancelled owner reads, ad version and routing");
 }
 

@@ -8,7 +8,9 @@ export type PickedHomeAdMedia = {
   mime: "image/jpeg" | "image/png" | "image/webp" | "video/mp4";
   name?: string | null;
   duration?: number | null;
+  width?: number;
   thumbnailUri?: string;
+  ownsThumbnail?: boolean;
 };
 
 export async function pickHomeAdMedia(kind: "images" | "videos"): Promise<PickedHomeAdMedia | undefined> {
@@ -71,5 +73,5 @@ export async function pickHomeAdMedia(kind: "images" | "videos"): Promise<Picked
   catch { throw Error(kind === "videos" ? "اختر فيديو صالحًا بحجم لا يتجاوز 50 ميغابايت."
     : "اختر صورة صالحة بحجم لا يتجاوز 4 ميغابايت."); }
 
-  return { uri: asset.uri, name: asset.fileName, duration: asset.duration, mime };
+  return { uri: asset.uri, name: asset.fileName, duration: asset.duration, width: asset.width, mime };
 }

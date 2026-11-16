@@ -6,7 +6,7 @@ import{useTheme}from'@/context/ThemeContext';
 import{Radius,Spacing,Typography}from'@/constants/theme';
 import{formatCompactOfferDate,keepsSavedOfferEnd,localOfferEndInstant,localOfferFields,moveOfferMonth,offerCalendarCells,parseOfferDay,validateLocalOfferEnd}from'@/lib/offer-expiration';
 type Selection={mode:'keep'|'none'}|{mode:'new';date:string;time:string;instant:string};
-type Props={mode:'keep'|'none'|'new';original:string|null;date:string;time:string;selectedInstant?:string;now:number;startsAt?:string;disabled:boolean;error?:string;onSelect:(value:Selection)=>void};
+type Props={kind?:'start'|'end';mode:'keep'|'none'|'new';original:string|null;date:string;time:string;selectedInstant?:string;now:number;startsAt?:string;disabled:boolean;error?:string;allowNone?:boolean;onSelect:(value:Selection)=>void};
 type Draft={date:string;hour:number|null;minute:number|null;year:number;month:number;yearPage:number;panel:'calendar'|'months'|'years'|'hours'|'minutes'};
 const pad=(value:number)=>String(value).padStart(2,'0');
 const arabic=(value:number)=>value.toLocaleString('ar-SY',{useGrouping:false});
@@ -23,17 +23,18 @@ function seed(props:Props):Draft{
 }
 export function OfferExpirationPicker(props:Props){
  const{colors}=useTheme();const[open,setOpen]=useState(false);
+ const isStart=props.kind==='start';
  let displayed:string|null=null;
  if(props.mode==='keep')displayed=props.original;
  else if(props.mode==='new'){try{displayed=props.selectedInstant??localOfferEndInstant(props.date,props.time);}catch{/* Validation is shown alongside the field. */}}
  return<View style={styles.stack}>
-  <Text style={[styles.strong,{color:colors.text}]}>موعد انتهاء العرض</Text>
-  <Text style={[styles.body,displayed&&styles.date,{color:colors.text}]}>{props.mode==='none'?'بدون تاريخ انتهاء':displayed?formatCompactOfferDate(displayed):'لم يُحدَّد موعد كامل بعد'}</Text>
-  {props.original&&Date.parse(props.original)<=props.now?<Text style={[styles.body,{color:colors.warningForeground}]}>الموعد المحفوظ منتهٍ. اختر موعدًا مستقبليًا جديدًا أو «بدون تاريخ انتهاء» صراحةً.</Text>:null}
+  <Text style={[styles.strong,{color:colors.text}]}>{isStart?'موعد بداية العرض':'موعد انتهاء العرض'}</Text>
+  <Text style={[styles.body,displayed&&styles.date,{color:colors.text}]}>{props.mode==='none'?(isStart?'يبدأ الآن':'بدون تاريخ انتهاء'):displayed?formatCompactOfferDate(displayed):'لم يُحدَّد موعد كامل بعد'}</Text>
+  {!isStart&&props.original&&Date.parse(props.original)<=props.now?<Text style={[styles.body,{color:colors.warningForeground}]}>الموعد المحفوظ منتهٍ. اختر موعدًا مستقبليًا جديدًا أو أوقف العرض.</Text>:null}
   {props.mode==='new'&&props.original?<Text style={[styles.body,{color:colors.textSecondary}]}>المحفوظ سابقًا: {formatCompactOfferDate(props.original)}</Text>:null}
-  <AppButton design="refined" title={displayed?'تعديل الموعد':'اختيار موعد الانتهاء'} variant="outline" disabled={props.disabled} onPress={()=>setOpen(true)}/>
+  <AppButton design="refined" title={displayed?'تعديل الموعد':isStart?'اختيار موعد بداية مستقبلي':'اختيار موعد الانتهاء'} variant="outline" disabled={props.disabled} onPress={()=>setOpen(true)}/>
   <View style={styles.row}>
-   <Choice label="بدون تاريخ انتهاء" selected={props.mode==='none'} disabled={props.disabled} onPress={()=>props.onSelect({mode:'none'})}/>
+   {props.allowNone!==false?<Choice label={isStart?'يبدأ الآن':'بدون تاريخ انتهاء'} selected={props.mode==='none'} disabled={props.disabled} onPress={()=>props.onSelect({mode:'none'})}/>:null}
    {props.original?<Choice label="إبقاء الموعد المحفوظ" selected={props.mode==='keep'} disabled={props.disabled} onPress={()=>props.onSelect({mode:'keep'})}/>:null}
   </View>
   {props.error?<Text accessibilityLiveRegion="polite" style={[styles.body,{color:colors.errorForeground}]}>{props.error}</Text>:null}
@@ -42,6 +43,7 @@ export function OfferExpirationPicker(props:Props){
 }
 function ExpirationDialog(props:Props&{close:()=>void;commit:(value:Selection)=>void}){
  const{colors}=useTheme();
+ const isStart=props.kind==='start';
  // Dialog is mounted on open; parent rerenders never reset the in-progress selection.
  const[draft,setDraft]=useState(()=>seed(props)),[error,setError]=useState('');
  const update=(patch:Partial<Draft>)=>{setDraft(previous=>({...previous,...patch}));setError('');};
@@ -59,7 +61,7 @@ function ExpirationDialog(props:Props&{close:()=>void;commit:(value:Selection)=>
    if(draft.hour===null||draft.minute===null)throw new Error('اختر الساعة والدقيقة لإكمال موعد الانتهاء.');
    const time=`${pad(draft.hour)}:${pad(draft.minute)}`;
    if(props.mode==='keep'&&keepsSavedOfferEnd(props.original,draft.date,time)){
-    if(!props.original||Date.parse(props.original)<=Date.now())throw new Error('الموعد المحفوظ مضى؛ اختر موعدًا مستقبليًا أو بدون تاريخ انتهاء.');
+    if(!props.original||(!isStart&&Date.parse(props.original)<=Date.now()))throw new Error('الموعد المحفوظ لم يعد صالحًا؛ اختر موعدًا جديدًا.');
     if(props.startsAt&&Date.parse(props.original)<=Date.parse(props.startsAt))throw new Error('يجب أن يكون الموعد بعد بداية العرض.');
     props.commit({mode:'keep'});return;
    }
@@ -70,7 +72,7 @@ function ExpirationDialog(props:Props&{close:()=>void;commit:(value:Selection)=>
  const panelValues=draft.panel==='months'?Array.from({length:12},(_,index)=>index+1):draft.panel==='years'?Array.from({length:Math.min(12,10000-draft.yearPage)},(_,index)=>draft.yearPage+index):Array.from({length:draft.panel==='hours'?24:60},(_,index)=>index);
  let selectedDay:number|null=null;
  try{const parts=parseOfferDay(draft.date);if(parts.year===draft.year&&parts.month===draft.month)selectedDay=parts.day;}catch{/* Calendar has no selected date yet. */}
- return<AppModal design="refined" visible title="اختيار موعد الانتهاء" message="اختر اليوم من التقويم، ثم الساعة والدقيقة بتوقيت جهازك." confirmText="تأكيد الموعد" cancelText="إلغاء" onCancel={props.close} onConfirm={confirm}>
+ return<AppModal design="refined" visible title={isStart?'اختيار موعد البداية':'اختيار موعد الانتهاء'} message="اختر اليوم من التقويم، ثم الساعة والدقيقة بتوقيت جهازك." confirmText="تأكيد الموعد" cancelText="إلغاء" onCancel={props.close} onConfirm={confirm}>
   <View style={styles.stack}>
    <View style={styles.row}>
     <Choice label="الشهر السابق" disabled={props.disabled||(draft.year===1&&draft.month===1)} onPress={()=>changeMonth(-1)}/>

@@ -4,14 +4,19 @@
     "MER": 11,
     "DRV": 7,
     "ADM": 15,
-    "CUS": 15,
+    "CUS": 16,
     "SHR": 6,
     "AUTH": 8,
     "LEGAL": 3
   },
-  "page_count": 65,
-  "route_file_count": 114,
+  "page_count": 66,
+  "route_file_count": 115,
   "excluded": [
+    {
+      "path": "src/app/(customer)/_layout.tsx",
+      "kind": "layout",
+      "target": "expo-router"
+    },
     {
       "path": "src/app/_layout.tsx",
       "kind": "layout",
@@ -171,11 +176,6 @@
       "path": "src/app/driver/_layout.tsx",
       "kind": "layout",
       "target": "@/context/ThemeContext"
-    },
-    {
-      "path": "src/app/home/_layout.tsx",
-      "kind": "layout",
-      "target": "expo-router"
     },
     {
       "path": "src/app/merchant/_layout.tsx",
@@ -1920,7 +1920,7 @@
         "src/app/admin/more.tsx"
       ],
       "bottom_tab": false,
-      "children": "الرفع والمعاينة والتحرير داخل الصفحة؛ يتطلب ترحيل الإعلانات",
+      "children": "الرفع والمعاينة والتحرير داخل الصفحة؛ غلاف الفيديو من المعرض",
       "components": [
         "src/components/admin/HomeAdTargetPicker.tsx",
         "src/components/marketplace/ShoppingCardImage.tsx",
@@ -1939,6 +1939,7 @@
         "src/lib/dialog-queue.ts",
         "src/lib/driver-read-queue.ts",
         "src/lib/financial-transport.ts",
+        "src/lib/home-ad-picker.ts",
         "src/lib/home-ad-targets.ts",
         "src/lib/home-ad-thumbnail.ts",
         "src/lib/keyboard-visibility.ts",
@@ -1954,17 +1955,17 @@
         "src/lib/store-branding-contract.ts",
         "src/lib/supabase.ts"
       ],
-      "concerns": "نفذ الأساس البرمجي؛ التطبيق على Supabase واختبار الهاتف معلقان",
+      "concerns": "الغلاف اليدوي مسار النشر؛ اعتمده المالك بعد تجربة الهاتف",
       "priority": "P1: الاستخدام اليومي",
-      "status": "بانتظار اختبار الهاتف",
-      "phone": "لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md"
+      "status": "مغلقة",
+      "phone": "أكد المالك اختبار الدفعة على الهاتف وقبولها النهائي"
     },
     {
       "id": "RUI-CUS-01",
       "group": "CUS",
       "role": "العميل",
       "name": "الرئيسية",
-      "path": "src/app/home/index.tsx",
+      "path": "src/app/(customer)/home/index.tsx",
       "route": "/home",
       "function": "بدء التسوق وعرض المحتوى المحلي المتاح",
       "access": "تبويب الرئيسية",
@@ -1972,6 +1973,7 @@
         "src/app/_layout.tsx",
         "src/app/cart.tsx",
         "src/app/favorites.tsx",
+        "src/app/home/search.tsx",
         "src/components/navigation/AppBottomNav.tsx",
         "src/lib/account-routing.ts",
         "src/lib/notification-opening.ts",
@@ -1989,6 +1991,7 @@
         "src/components/marketplace/ShoppingCardImage.tsx",
         "src/components/marketplace/StoreCard.tsx",
         "src/components/navigation/AppHeader.tsx",
+        "src/components/navigation/CustomerMarketHeader.tsx",
         "src/components/ui/AppBadge.tsx",
         "src/components/ui/AppButton.tsx",
         "src/components/ui/AppEmptyState.tsx",
@@ -2026,10 +2029,10 @@
         "src/lib/safe-back.ts",
         "src/lib/supabase.ts"
       ],
-      "concerns": "حفظ حالة العودة من البحث، الإعلان العريض والفيديو الصامت والرفوف المدمجة. ينتظر ترحيل المصغرات واختبار الهاتف وقبول المالك",
+      "concerns": "بحث مدمج وشرائح أوضح وروابط للقوائم الثلاث؛ حفظ التمرير والفيديو الصامت. أغلقها المالك بعد تجربة الهاتف",
       "priority": "P1: الاستخدام اليومي",
-      "status": "بانتظار اختبار الهاتف",
-      "phone": "لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md"
+      "status": "مغلقة",
+      "phone": "أكد المالك اختبار الدفعة على الهاتف وقبولها النهائي"
     },
     {
       "id": "RUI-CUS-02",
@@ -2038,27 +2041,152 @@
       "name": "البحث",
       "path": "src/app/home/search.tsx",
       "route": "/home/search",
-      "function": "البحث في المنتجات والعروض وتنقيح النتائج",
-      "access": "تبويب البحث وروابط البحث",
+      "function": "البحث في السوق وقائمة المنتجات المخصصة mode=products",
+      "access": "شاشة مستقلة من الرئيسية وعرض كل المنتجات والروابط المباشرة",
       "reference_files": [
-        "src/app/_layout.tsx",
-        "src/app/home/index.tsx",
-        "src/components/navigation/AppBottomNav.tsx"
+        "src/app/(customer)/home/index.tsx"
       ],
-      "bottom_tab": true,
-      "children": "ProductRefinements وSearchControls/Results وproduct-details/offer-details",
+      "bottom_tab": false,
+      "children": "نتائج بقائمة افتراضية؛ product-details وstore-details وoffer-details",
       "components": [
         "src/components/marketplace/CategoryChip.tsx",
-        "src/components/marketplace/CustomerCatalogStatus.tsx",
+        "src/components/marketplace/OfferCard.tsx",
         "src/components/marketplace/ProductCard.tsx",
         "src/components/marketplace/RatingStars.tsx",
         "src/components/marketplace/ShoppingCardImage.tsx",
         "src/components/marketplace/StoreCard.tsx",
-        "src/components/navigation/AppHeader.tsx",
         "src/components/search/ProductRefinements.tsx",
         "src/components/search/SearchControls.tsx",
         "src/components/search/SearchEmptyState.tsx",
         "src/components/search/SearchResults.tsx",
+        "src/components/ui/AppBadge.tsx",
+        "src/components/ui/AppButton.tsx",
+        "src/components/ui/AppEmptyState.tsx",
+        "src/components/ui/AppIcon.tsx",
+        "src/components/ui/LoadingState.tsx"
+      ],
+      "services": [
+        "src/hooks/useCustomerStoreLogos.ts",
+        "src/hooks/useDriverTaskRefresh.ts",
+        "src/hooks/useLiveUpdates.ts",
+        "src/lib/catalog-categories.ts",
+        "src/lib/category-tree.ts",
+        "src/lib/customer-offers.ts",
+        "src/lib/customer-reviews.ts",
+        "src/lib/customer-search.ts",
+        "src/lib/customer-store-logos.ts",
+        "src/lib/driver-read-queue.ts",
+        "src/lib/live-diagnostics.ts",
+        "src/lib/live-updates.ts",
+        "src/lib/local-cache.ts",
+        "src/lib/merchant-store.ts",
+        "src/lib/money.ts",
+        "src/lib/offer-presentation.ts",
+        "src/lib/public-catalog.ts",
+        "src/lib/supabase.ts"
+      ],
+      "concerns": "اعتمد المالك نتائج الأنواع الأربعة والمنتجات الافتراضية بعد مراجعتها على الهاتف؛ دليل docs/rui-cus-02.ar.md",
+      "priority": "P1: الاستخدام اليومي",
+      "status": "مغلقة",
+      "phone": "أكد المالك القبول النهائي بعد مراجعة تعديلات الإغلاق على الهاتف"
+    },
+    {
+      "id": "RUI-CUS-03",
+      "group": "CUS",
+      "role": "العميل",
+      "name": "المتاجر",
+      "path": "src/app/(customer)/stores.tsx",
+      "route": "/stores",
+      "function": "دليل جميع المتاجر المؤهلة مع البحث والتصفية",
+      "access": "تبويب المتاجر وعرض الكل في الرئيسية",
+      "reference_files": [
+        "src/app/(customer)/home/index.tsx",
+        "src/app/_layout.tsx",
+        "src/app/store-details.tsx",
+        "src/app/store-reviews.tsx",
+        "src/components/navigation/AppBottomNav.tsx"
+      ],
+      "bottom_tab": true,
+      "children": "store-details عبر StoreCard",
+      "components": [
+        "src/components/marketplace/CategoryChip.tsx",
+        "src/components/marketplace/RatingStars.tsx",
+        "src/components/marketplace/ShoppingCardImage.tsx",
+        "src/components/marketplace/StoreCard.tsx",
+        "src/components/navigation/AppHeader.tsx",
+        "src/components/navigation/CustomerMarketHeader.tsx",
+        "src/components/ui/AppButton.tsx",
+        "src/components/ui/AppEmptyState.tsx",
+        "src/components/ui/AppIcon.tsx",
+        "src/components/ui/LoadingState.tsx"
+      ],
+      "services": [
+        "src/hooks/useCustomerStoreLogos.ts",
+        "src/hooks/useDriverTaskRefresh.ts",
+        "src/hooks/useLiveUpdates.ts",
+        "src/hooks/usePushRegistration.ts",
+        "src/hooks/useSafeBack.ts",
+        "src/hooks/useStoreDirectory.ts",
+        "src/lib/account-routing.ts",
+        "src/lib/catalog-categories.ts",
+        "src/lib/catalog-quantity.ts",
+        "src/lib/category-tree.ts",
+        "src/lib/customer-offers.ts",
+        "src/lib/customer-reviews.ts",
+        "src/lib/customer-search.ts",
+        "src/lib/customer-store-directory.ts",
+        "src/lib/customer-store-logos.ts",
+        "src/lib/driver-read-queue.ts",
+        "src/lib/financial-transport.ts",
+        "src/lib/live-diagnostics.ts",
+        "src/lib/live-updates.ts",
+        "src/lib/local-cache.ts",
+        "src/lib/merchant-store.ts",
+        "src/lib/money.ts",
+        "src/lib/public-catalog.ts",
+        "src/lib/purchase-availability.ts",
+        "src/lib/push-device.ts",
+        "src/lib/request-key.ts",
+        "src/lib/safe-back.ts",
+        "src/lib/supabase.ts"
+      ],
+      "concerns": "بحث داخل التبويب وترقيم خادمي وترتيب اكتشاف ثابت وشعارات منشورة؛ دليل docs/rui-cus-03.ar.md",
+      "priority": "P1: الاستخدام اليومي",
+      "status": "مغلقة",
+      "phone": "أكد المالك قبوله النهائي؛ قراءة دليل المتاجر نجحت على Supabase البعيدة"
+    },
+    {
+      "id": "RUI-CUS-04",
+      "group": "CUS",
+      "role": "العميل",
+      "name": "تفاصيل المتجر",
+      "path": "src/app/store-details.tsx",
+      "route": "/store-details",
+      "function": "عرض هوية المتجر والفيديو المنشور والعروض ثم المنتجات",
+      "access": "بطاقة المتجر",
+      "reference_files": [
+        "src/app/(customer)/home/index.tsx",
+        "src/app/(customer)/stores.tsx",
+        "src/app/home/search.tsx",
+        "src/app/offer-details.tsx",
+        "src/app/product-details.tsx",
+        "src/app/store-reviews.tsx",
+        "src/lib/customer-home-feed.ts",
+        "src/lib/notification-opening.ts"
+      ],
+      "bottom_tab": false,
+      "children": "store-reviews/product-details/offer-details",
+      "components": [
+        "src/components/brand/BrandMark.tsx",
+        "src/components/marketplace/CategoryChip.tsx",
+        "src/components/marketplace/OfferCard.tsx",
+        "src/components/marketplace/ProductCard.tsx",
+        "src/components/marketplace/RatingStars.tsx",
+        "src/components/marketplace/ShoppingCardImage.tsx",
+        "src/components/marketplace/StoreDetailsHero.tsx",
+        "src/components/marketplace/StorePromoVideo.tsx",
+        "src/components/navigation/AppHeader.tsx",
+        "src/components/navigation/CustomerMarketHeader.tsx",
         "src/components/ui/AppBadge.tsx",
         "src/components/ui/AppButton.tsx",
         "src/components/ui/AppEmptyState.tsx",
@@ -2078,128 +2206,9 @@
         "src/lib/customer-offers.ts",
         "src/lib/customer-reviews.ts",
         "src/lib/customer-search.ts",
+        "src/lib/customer-store-details.ts",
         "src/lib/customer-store-logos.ts",
         "src/lib/driver-read-queue.ts",
-        "src/lib/financial-transport.ts",
-        "src/lib/live-diagnostics.ts",
-        "src/lib/live-updates.ts",
-        "src/lib/local-cache.ts",
-        "src/lib/merchant-store.ts",
-        "src/lib/money.ts",
-        "src/lib/public-catalog.ts",
-        "src/lib/purchase-availability.ts",
-        "src/lib/push-device.ts",
-        "src/lib/request-key.ts",
-        "src/lib/safe-back.ts",
-        "src/lib/supabase.ts"
-      ],
-      "concerns": "تمييز الفراغ من فشل البحث؛ استخدام الشعار المنشور حيث تظهر هوية متجر عند تطوير النتائج",
-      "priority": "P1: الاستخدام اليومي",
-      "status": "لم تبدأ",
-      "phone": "لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md"
-    },
-    {
-      "id": "RUI-CUS-03",
-      "group": "CUS",
-      "role": "العميل",
-      "name": "المتاجر",
-      "path": "src/app/stores.tsx",
-      "route": "/stores",
-      "function": "استعراض المتاجر المتاحة للعميل",
-      "access": "الرئيسية وروابط السوق",
-      "reference_files": [
-        "src/app/home/index.tsx",
-        "src/app/store-details.tsx"
-      ],
-      "bottom_tab": false,
-      "children": "store-details عبر StoreCard",
-      "components": [
-        "src/components/marketplace/CategoryChip.tsx",
-        "src/components/marketplace/CustomerCatalogStatus.tsx",
-        "src/components/marketplace/RatingStars.tsx",
-        "src/components/marketplace/ShoppingCardImage.tsx",
-        "src/components/marketplace/StoreCard.tsx",
-        "src/components/navigation/AppHeader.tsx",
-        "src/components/ui/AppButton.tsx",
-        "src/components/ui/AppEmptyState.tsx",
-        "src/components/ui/AppIcon.tsx",
-        "src/components/ui/LoadingState.tsx"
-      ],
-      "services": [
-        "src/hooks/useLiveUpdates.ts",
-        "src/hooks/usePushRegistration.ts",
-        "src/hooks/useSafeBack.ts",
-        "src/lib/account-routing.ts",
-        "src/lib/catalog-categories.ts",
-        "src/lib/catalog-quantity.ts",
-        "src/lib/category-tree.ts",
-        "src/lib/customer-offers.ts",
-        "src/lib/customer-reviews.ts",
-        "src/lib/financial-transport.ts",
-        "src/lib/live-diagnostics.ts",
-        "src/lib/live-updates.ts",
-        "src/lib/local-cache.ts",
-        "src/lib/merchant-store.ts",
-        "src/lib/money.ts",
-        "src/lib/public-catalog.ts",
-        "src/lib/purchase-availability.ts",
-        "src/lib/push-device.ts",
-        "src/lib/request-key.ts",
-        "src/lib/safe-back.ts",
-        "src/lib/supabase.ts"
-      ],
-      "concerns": "الأهلية والتوفر من المصدر؛ استخدام الشعار المنشور عند تطوير القائمة",
-      "priority": "P1: الاستخدام اليومي",
-      "status": "لم تبدأ",
-      "phone": "لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md"
-    },
-    {
-      "id": "RUI-CUS-04",
-      "group": "CUS",
-      "role": "العميل",
-      "name": "تفاصيل المتجر",
-      "path": "src/app/store-details.tsx",
-      "route": "/store-details",
-      "function": "عرض المتجر وكتالوجه ومراجعاته",
-      "access": "بطاقة المتجر",
-      "reference_files": [
-        "src/app/home/index.tsx",
-        "src/app/home/search.tsx",
-        "src/app/offer-details.tsx",
-        "src/app/product-details.tsx",
-        "src/app/stores.tsx",
-        "src/lib/customer-home-feed.ts",
-        "src/lib/notification-opening.ts"
-      ],
-      "bottom_tab": false,
-      "children": "product-details/offer-details ومراجعات داخل RatingsSection",
-      "components": [
-        "src/components/marketplace/CategoryChip.tsx",
-        "src/components/marketplace/CustomerCatalogStatus.tsx",
-        "src/components/marketplace/OfferCard.tsx",
-        "src/components/marketplace/ProductCard.tsx",
-        "src/components/marketplace/RatingStars.tsx",
-        "src/components/marketplace/RatingsSection.tsx",
-        "src/components/marketplace/ReviewCard.tsx",
-        "src/components/marketplace/ReviewForm.tsx",
-        "src/components/marketplace/ShoppingCardImage.tsx",
-        "src/components/marketplace/StoreDetailsHero.tsx",
-        "src/components/navigation/AppHeader.tsx",
-        "src/components/ui/AppBadge.tsx",
-        "src/components/ui/AppButton.tsx",
-        "src/components/ui/AppIcon.tsx",
-        "src/components/ui/LoadingState.tsx"
-      ],
-      "services": [
-        "src/hooks/useLiveUpdates.ts",
-        "src/hooks/usePushRegistration.ts",
-        "src/hooks/useSafeBack.ts",
-        "src/lib/account-routing.ts",
-        "src/lib/catalog-categories.ts",
-        "src/lib/catalog-quantity.ts",
-        "src/lib/category-tree.ts",
-        "src/lib/customer-offers.ts",
-        "src/lib/customer-reviews.ts",
         "src/lib/financial-transport.ts",
         "src/lib/live-diagnostics.ts",
         "src/lib/live-updates.ts",
@@ -2214,10 +2223,65 @@
         "src/lib/safe-back.ts",
         "src/lib/supabase.ts"
       ],
-      "concerns": "استخدام الشعار المنشور؛ الفيديو المنشور عند الطلب مع إيقافه عند المغادرة وإخفاء قسمه عند غيابه؛ التنفيذ مؤجل لهذه الصفحة",
+      "concerns": "هوية وفيديو مدمجان، زر مراجعات، رف عروض، وشبكة منتجات بدفعات؛ دليل docs/rui-cus-04.ar.md",
       "priority": "P1: الاستخدام اليومي",
-      "status": "لم تبدأ",
-      "phone": "لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md"
+      "status": "بانتظار اختبار الهاتف",
+      "phone": "راجع المالك النسخة الأولى ووصفها بالجيدة؛ تفاصيل المتجر وصفحة مراجعاته تنتظران اختباره وقبوله على الهاتف"
+    },
+    {
+      "id": "RUI-CUS-04.01",
+      "group": "CUS",
+      "role": "العميل",
+      "name": "تقييمات ومراجعات المتجر",
+      "path": "src/app/store-reviews.tsx",
+      "route": "/store-reviews",
+      "function": "قراءة تقييمات المتجر وإضافة أو تعديل تقييم العميل المؤهل",
+      "access": "زر التقييمات داخل هوية المتجر",
+      "reference_files": [
+        "src/app/store-details.tsx"
+      ],
+      "bottom_tab": false,
+      "children": "RatingsSection داخل الصفحة؛ العودة إلى store-details",
+      "components": [
+        "src/components/marketplace/RatingStars.tsx",
+        "src/components/marketplace/RatingsSection.tsx",
+        "src/components/marketplace/ReviewCard.tsx",
+        "src/components/marketplace/ReviewForm.tsx",
+        "src/components/navigation/AppHeader.tsx",
+        "src/components/navigation/CustomerMarketHeader.tsx",
+        "src/components/ui/AppButton.tsx",
+        "src/components/ui/AppEmptyState.tsx",
+        "src/components/ui/AppIcon.tsx",
+        "src/components/ui/KeyboardAwareScrollView.tsx",
+        "src/components/ui/LoadingState.tsx"
+      ],
+      "services": [
+        "src/hooks/useLiveUpdates.ts",
+        "src/hooks/usePushRegistration.ts",
+        "src/hooks/useSafeBack.ts",
+        "src/lib/account-routing.ts",
+        "src/lib/catalog-categories.ts",
+        "src/lib/catalog-quantity.ts",
+        "src/lib/customer-offers.ts",
+        "src/lib/customer-reviews.ts",
+        "src/lib/financial-transport.ts",
+        "src/lib/keyboard-visibility.ts",
+        "src/lib/live-diagnostics.ts",
+        "src/lib/live-updates.ts",
+        "src/lib/local-cache.ts",
+        "src/lib/merchant-store.ts",
+        "src/lib/money.ts",
+        "src/lib/public-catalog.ts",
+        "src/lib/purchase-availability.ts",
+        "src/lib/push-device.ts",
+        "src/lib/request-key.ts",
+        "src/lib/safe-back.ts",
+        "src/lib/supabase.ts"
+      ],
+      "concerns": "ملخص ومراجعات عامة بلا هوية شخصية، وإجراء تقييم مقيد بطلب مسلّم؛ دليل docs/rui-cus-04.ar.md",
+      "priority": "P1: الاستخدام اليومي",
+      "status": "بانتظار اختبار الهاتف",
+      "phone": "راجع المالك النسخة الأولى ووصفها بالجيدة؛ تفاصيل المتجر وصفحة مراجعاته تنتظران اختباره وقبوله على الهاتف"
     },
     {
       "id": "RUI-CUS-05",
@@ -2229,8 +2293,8 @@
       "function": "اختيار المنتج والكمية وإضافته للسلة",
       "access": "بطاقات المنتجات والبحث والمتجر والمفضلة",
       "reference_files": [
+        "src/app/(customer)/home/index.tsx",
         "src/app/favorites.tsx",
-        "src/app/home/index.tsx",
         "src/app/home/search.tsx",
         "src/app/offer-details.tsx",
         "src/app/store-details.tsx",
@@ -2250,6 +2314,7 @@
         "src/components/marketplace/ReviewForm.tsx",
         "src/components/marketplace/ShoppingCardImage.tsx",
         "src/components/navigation/AppHeader.tsx",
+        "src/components/navigation/CustomerMarketHeader.tsx",
         "src/components/ui/AppBadge.tsx",
         "src/components/ui/AppButton.tsx",
         "src/components/ui/AppIcon.tsx",
@@ -2270,6 +2335,7 @@
         "src/lib/local-cache.ts",
         "src/lib/merchant-store.ts",
         "src/lib/money.ts",
+        "src/lib/offer-presentation.ts",
         "src/lib/public-catalog.ts",
         "src/lib/purchase-availability.ts",
         "src/lib/push-device.ts",
@@ -2287,13 +2353,13 @@
       "group": "CUS",
       "role": "العميل",
       "name": "العروض",
-      "path": "src/app/home/offers.tsx",
+      "path": "src/app/(customer)/home/offers.tsx",
       "route": "/home/offers",
       "function": "تصفح العروض المتاحة",
-      "access": "تبويب العروض",
+      "access": "تبويب العروض وعرض الكل في الرئيسية",
       "reference_files": [
+        "src/app/(customer)/home/index.tsx",
         "src/app/_layout.tsx",
-        "src/app/home/index.tsx",
         "src/app/offer-details.tsx",
         "src/components/navigation/AppBottomNav.tsx",
         "src/lib/notification-opening.ts",
@@ -2307,6 +2373,7 @@
         "src/components/marketplace/OfferCard.tsx",
         "src/components/marketplace/ShoppingCardImage.tsx",
         "src/components/navigation/AppHeader.tsx",
+        "src/components/navigation/CustomerMarketHeader.tsx",
         "src/components/ui/AppButton.tsx",
         "src/components/ui/AppEmptyState.tsx",
         "src/components/ui/AppIcon.tsx",
@@ -2351,8 +2418,9 @@
       "function": "مراجعة العرض ومكوناته وإضافته للسلة",
       "access": "بطاقة عرض",
       "reference_files": [
-        "src/app/home/index.tsx",
-        "src/app/home/offers.tsx",
+        "src/app/(customer)/home/index.tsx",
+        "src/app/(customer)/home/offers.tsx",
+        "src/app/home/search.tsx",
         "src/app/store-details.tsx",
         "src/lib/customer-home-feed.ts"
       ],
@@ -2361,6 +2429,7 @@
       "components": [
         "src/components/marketplace/CustomerCatalogStatus.tsx",
         "src/components/navigation/AppHeader.tsx",
+        "src/components/navigation/CustomerMarketHeader.tsx",
         "src/components/ui/AppButton.tsx",
         "src/components/ui/AppIcon.tsx",
         "src/components/ui/LoadingState.tsx"
@@ -2508,7 +2577,7 @@
       "function": "قائمة طلبات العميل ومتابعتها",
       "access": "حسابي وروابط الطلبات",
       "reference_files": [
-        "src/app/home/account.tsx",
+        "src/app/(customer)/home/account.tsx",
         "src/components/navigation/AppHeader.tsx",
         "src/lib/safe-back.ts"
       ],
@@ -2628,7 +2697,7 @@
       "function": "فاتورة مرتبطة بطلب أو مدخل المالية عند غياب id/orderId",
       "access": "تفاصيل طلب العميل وروابط الفاتورة",
       "reference_files": [
-        "src/app/home/account.tsx",
+        "src/app/(customer)/home/account.tsx",
         "src/app/order-details.tsx",
         "src/components/finance/FinanceScreen.tsx",
         "src/components/finance/InvoiceScreen.tsx",
@@ -2692,7 +2761,7 @@
       "function": "الوصول إلى المنتجات المفضلة",
       "access": "حساب العميل وروابط المفضلة",
       "reference_files": [
-        "src/app/home/account.tsx"
+        "src/app/(customer)/home/account.tsx"
       ],
       "bottom_tab": false,
       "children": "product-details",
@@ -2742,8 +2811,8 @@
       "function": "إدارة عناوين التوصيل",
       "access": "حسابي وتدفق إتمام الطلب",
       "reference_files": [
-        "src/app/checkout.tsx",
-        "src/app/home/account.tsx"
+        "src/app/(customer)/home/account.tsx",
+        "src/app/checkout.tsx"
       ],
       "bottom_tab": false,
       "children": "إضافة/تعديل العنوان ضمن الصفحة لا مسار مستقل",
@@ -2791,7 +2860,7 @@
       "group": "CUS",
       "role": "العميل",
       "name": "حساب العميل",
-      "path": "src/app/home/account.tsx",
+      "path": "src/app/(customer)/home/account.tsx",
       "route": "/home/account",
       "function": "حساب العميل وروابط الخدمات المشتركة",
       "access": "تبويب حسابي",
@@ -2856,8 +2925,8 @@
       "function": "قراءة إشعارات الحساب وفتح المرجع المسموح",
       "access": "جرس الترويسة والحساب وتفاعل Push",
       "reference_files": [
+        "src/app/(customer)/home/account.tsx",
         "src/app/driver/account.tsx",
-        "src/app/home/account.tsx",
         "src/components/merchant/MerchantAccountScreens.tsx",
         "src/components/navigation/AppHeader.tsx",
         "src/lib/safe-back.ts"
@@ -3205,6 +3274,7 @@
         "src/components/account/SecurityScreen.tsx",
         "src/components/account/SettingsScreen.tsx",
         "src/hooks/useSafeBack.ts",
+        "src/lib/customer-home-ads.ts",
         "src/lib/merchant-product-create.ts",
         "src/lib/merchant-product-edit.ts"
       ],
@@ -3235,10 +3305,10 @@
       "function": "تسجيل الدخول واستعادة الوصول",
       "access": "بوابة البدء وروابط التسجيل",
       "reference_files": [
+        "src/app/(customer)/home/account.tsx",
         "src/app/application-status.tsx",
         "src/app/driver/index.tsx",
         "src/app/driver/orders.tsx",
-        "src/app/home/account.tsx",
         "src/app/index.tsx",
         "src/app/notifications.tsx",
         "src/app/reset-password.tsx",
@@ -3727,9 +3797,9 @@
       ],
       "layout_reachability": [],
       "direct_consumers": [
+        "src/app/(customer)/home/account.tsx",
         "src/app/admin/more.tsx",
         "src/app/driver/account.tsx",
-        "src/app/home/account.tsx",
         "src/components/account/SharedAccountParts.tsx",
         "src/components/merchant/MerchantAccountScreens.tsx"
       ],
@@ -3789,9 +3859,9 @@
       ],
       "layout_reachability": [],
       "direct_consumers": [
+        "src/app/(customer)/home/account.tsx",
         "src/app/admin/more.tsx",
         "src/app/driver/account.tsx",
-        "src/app/home/account.tsx",
         "src/components/account/DriverProfessionalInfo.tsx",
         "src/components/account/PersonalInfoScreen.tsx",
         "src/components/account/SecurityScreen.tsx",
@@ -3825,10 +3895,10 @@
       ],
       "layout_reachability": [],
       "direct_consumers": [
+        "src/app/(customer)/home/account.tsx",
         "src/app/admin/more.tsx",
         "src/app/driver/account.tsx",
         "src/app/driver/credentials.tsx",
-        "src/app/home/account.tsx",
         "src/components/account/PersonalInfoScreen.tsx",
         "src/components/account/SecurityScreen.tsx",
         "src/components/merchant/MerchantAccountScreens.tsx"
@@ -3954,9 +4024,9 @@
       ],
       "layout_reachability": [],
       "direct_consumers": [
+        "src/app/(customer)/home/account.tsx",
         "src/app/admin/more.tsx",
         "src/app/driver/account.tsx",
-        "src/app/home/account.tsx",
         "src/components/account/PersonalInfoScreen.tsx",
         "src/components/account/SecurityScreen.tsx",
         "src/components/merchant/MerchantAccountScreens.tsx"
@@ -3987,9 +4057,9 @@
       ],
       "layout_reachability": [],
       "direct_consumers": [
+        "src/app/(customer)/home/account.tsx",
         "src/app/admin/more.tsx",
         "src/app/driver/account.tsx",
-        "src/app/home/account.tsx",
         "src/components/account/PersonalInfoScreen.tsx",
         "src/components/account/SecurityScreen.tsx",
         "src/components/merchant/MerchantAccountScreens.tsx"
@@ -4020,9 +4090,9 @@
       ],
       "layout_reachability": [],
       "direct_consumers": [
+        "src/app/(customer)/home/account.tsx",
         "src/app/admin/more.tsx",
         "src/app/driver/account.tsx",
-        "src/app/home/account.tsx",
         "src/components/account/PersonalInfoScreen.tsx",
         "src/components/account/SecurityScreen.tsx",
         "src/components/merchant/MerchantAccountScreens.tsx"
@@ -4053,9 +4123,9 @@
       ],
       "layout_reachability": [],
       "direct_consumers": [
+        "src/app/(customer)/home/account.tsx",
         "src/app/admin/more.tsx",
         "src/app/driver/account.tsx",
-        "src/app/home/account.tsx",
         "src/components/account/PersonalInfoScreen.tsx",
         "src/components/account/SecurityScreen.tsx",
         "src/components/merchant/MerchantAccountScreens.tsx"
@@ -4212,6 +4282,7 @@
       "path": "src/components/brand/BrandMark.tsx",
       "function": "الشعار والهوية",
       "page_reachability": [
+        "RUI-CUS-04",
         "RUI-AUTH-01",
         "RUI-AUTH-02",
         "RUI-AUTH-04",
@@ -4222,7 +4293,8 @@
         "src/app/index.tsx",
         "src/app/verify-email.tsx",
         "src/components/about/AboutHeader.tsx",
-        "src/components/login/LoginHeader.tsx"
+        "src/components/login/LoginHeader.tsx",
+        "src/components/marketplace/StorePromoVideo.tsx"
       ],
       "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
       "rtl": "لا دليل مباشر في الملف؛ افحص الوراثة والأيقونات",
@@ -4685,7 +4757,7 @@
       ],
       "layout_reachability": [],
       "direct_consumers": [
-        "src/app/home/index.tsx"
+        "src/app/(customer)/home/index.tsx"
       ],
       "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
       "rtl": "دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة",
@@ -4874,7 +4946,7 @@
     {
       "name": "CategoryChip",
       "path": "src/components/marketplace/CategoryChip.tsx",
-      "function": "اختيار فئة ضمن السوق",
+      "function": "شريحة تصنيف قابلة للتمرير وتراعي تكبير الخط",
       "page_reachability": [
         "RUI-CUS-01",
         "RUI-CUS-02",
@@ -4884,11 +4956,10 @@
       ],
       "layout_reachability": [],
       "direct_consumers": [
-        "src/app/home/index.tsx",
-        "src/app/home/offers.tsx",
+        "src/app/(customer)/home/index.tsx",
+        "src/app/(customer)/home/offers.tsx",
+        "src/app/(customer)/stores.tsx",
         "src/app/store-details.tsx",
-        "src/app/stores.tsx",
-        "src/components/search/ProductRefinements.tsx",
         "src/components/search/SearchResults.tsx"
       ],
       "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
@@ -4906,9 +4977,6 @@
       "path": "src/components/marketplace/CustomerCatalogStatus.tsx",
       "function": "حالات توفر/تحميل الكتالوج للعميل",
       "page_reachability": [
-        "RUI-CUS-02",
-        "RUI-CUS-03",
-        "RUI-CUS-04",
         "RUI-CUS-05",
         "RUI-CUS-06",
         "RUI-CUS-07",
@@ -4917,14 +4985,11 @@
       ],
       "layout_reachability": [],
       "direct_consumers": [
+        "src/app/(customer)/home/offers.tsx",
         "src/app/cart.tsx",
         "src/app/favorites.tsx",
-        "src/app/home/offers.tsx",
-        "src/app/home/search.tsx",
         "src/app/offer-details.tsx",
-        "src/app/product-details.tsx",
-        "src/app/store-details.tsx",
-        "src/app/stores.tsx"
+        "src/app/product-details.tsx"
       ],
       "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
       "rtl": "دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة",
@@ -4939,17 +5004,19 @@
     {
       "name": "OfferCard",
       "path": "src/components/marketplace/OfferCard.tsx",
-      "function": "بطاقة عرض وسعره وتوفره",
+      "function": "بطاقة عرض مشتركة بأيقونة نوع ثابتة وسعر بمحاذاة الأسفل؛ تحسين مؤجل من إغلاق RUI-CUS-01 ونُفذ مع أول استخدام لاحق في RUI-CUS-02",
       "page_reachability": [
         "RUI-CUS-01",
+        "RUI-CUS-02",
         "RUI-CUS-04",
         "RUI-CUS-06"
       ],
       "layout_reachability": [],
       "direct_consumers": [
-        "src/app/home/index.tsx",
-        "src/app/home/offers.tsx",
-        "src/app/store-details.tsx"
+        "src/app/(customer)/home/index.tsx",
+        "src/app/(customer)/home/offers.tsx",
+        "src/app/store-details.tsx",
+        "src/components/search/SearchResults.tsx"
       ],
       "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
       "rtl": "دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة",
@@ -4964,7 +5031,7 @@
     {
       "name": "ProductCard",
       "path": "src/components/marketplace/ProductCard.tsx",
-      "function": "بطاقة منتج وإجراءاته",
+      "function": "بطاقة منتج مدمجة تعرض السعر والوحدة والخصم المطبق ضمن عرض",
       "page_reachability": [
         "RUI-CUS-01",
         "RUI-CUS-02",
@@ -4973,7 +5040,7 @@
       ],
       "layout_reachability": [],
       "direct_consumers": [
-        "src/app/home/index.tsx",
+        "src/app/(customer)/home/index.tsx",
         "src/app/product-details.tsx",
         "src/app/store-details.tsx",
         "src/components/search/SearchResults.tsx"
@@ -5037,13 +5104,13 @@
       "path": "src/components/marketplace/RatingsSection.tsx",
       "function": "قائمة تقييمات وملخصها ونموذجها",
       "page_reachability": [
-        "RUI-CUS-04",
+        "RUI-CUS-04.01",
         "RUI-CUS-05"
       ],
       "layout_reachability": [],
       "direct_consumers": [
         "src/app/product-details.tsx",
-        "src/app/store-details.tsx"
+        "src/app/store-reviews.tsx"
       ],
       "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
       "rtl": "دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة",
@@ -5064,6 +5131,7 @@
         "RUI-CUS-02",
         "RUI-CUS-03",
         "RUI-CUS-04",
+        "RUI-CUS-04.01",
         "RUI-CUS-05"
       ],
       "layout_reachability": [],
@@ -5095,6 +5163,7 @@
         "RUI-CUS-02",
         "RUI-CUS-03",
         "RUI-CUS-04",
+        "RUI-CUS-04.01",
         "RUI-CUS-05"
       ],
       "layout_reachability": [],
@@ -5122,7 +5191,7 @@
       "path": "src/components/marketplace/ReviewCard.tsx",
       "function": "عرض تقييم ومحتواه",
       "page_reachability": [
-        "RUI-CUS-04",
+        "RUI-CUS-04.01",
         "RUI-CUS-05"
       ],
       "layout_reachability": [],
@@ -5144,7 +5213,7 @@
       "path": "src/components/marketplace/ReviewForm.tsx",
       "function": "نموذج كتابة تقييم",
       "page_reachability": [
-        "RUI-CUS-04",
+        "RUI-CUS-04.01",
         "RUI-CUS-05"
       ],
       "layout_reachability": [],
@@ -5181,7 +5250,8 @@
         "src/components/home/CustomerHomeSponsored.tsx",
         "src/components/marketplace/OfferCard.tsx",
         "src/components/marketplace/ProductCard.tsx",
-        "src/components/marketplace/StoreCard.tsx"
+        "src/components/marketplace/StoreCard.tsx",
+        "src/components/marketplace/StoreDetailsHero.tsx"
       ],
       "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
       "rtl": "لا دليل مباشر في الملف؛ افحص الوراثة والأيقونات",
@@ -5204,8 +5274,8 @@
       ],
       "layout_reachability": [],
       "direct_consumers": [
-        "src/app/home/index.tsx",
-        "src/app/stores.tsx",
+        "src/app/(customer)/home/index.tsx",
+        "src/app/(customer)/stores.tsx",
         "src/components/search/SearchResults.tsx"
       ],
       "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
@@ -5234,6 +5304,27 @@
       "states": {
         "loading": false,
         "error": false,
+        "disabled": false
+      },
+      "fixed_colors": [],
+      "assessment": "مرشح لإعادة الاستخدام ضمن اختصاصه؛ لا استبدال مقرر دون حاجة الصفحة واختبار props والمستهلكين"
+    },
+    {
+      "name": "StorePromoVideo",
+      "path": "src/components/marketplace/StorePromoVideo.tsx",
+      "function": "جزء متخصص؛ اقرأ عقد props قبل إعادة الاستخدام",
+      "page_reachability": [
+        "RUI-CUS-04"
+      ],
+      "layout_reachability": [],
+      "direct_consumers": [
+        "src/components/marketplace/StoreDetailsHero.tsx"
+      ],
+      "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
+      "rtl": "دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة",
+      "states": {
+        "loading": true,
+        "error": true,
         "disabled": false
       },
       "fixed_colors": [],
@@ -5620,9 +5711,9 @@
         "RUI-DRV-04.02",
         "RUI-ADM-06",
         "RUI-CUS-01",
-        "RUI-CUS-02",
         "RUI-CUS-03",
         "RUI-CUS-04",
+        "RUI-CUS-04.01",
         "RUI-CUS-05",
         "RUI-CUS-06",
         "RUI-CUS-07",
@@ -5646,6 +5737,7 @@
         "src/app/merchant/_layout.tsx"
       ],
       "direct_consumers": [
+        "src/app/(customer)/home/account.tsx",
         "src/app/addresses.tsx",
         "src/app/admin/_layout.tsx",
         "src/app/cart.tsx",
@@ -5658,30 +5750,56 @@
         "src/app/driver/task-details.tsx",
         "src/app/favorites.tsx",
         "src/app/financial-invoice.tsx",
-        "src/app/home/account.tsx",
-        "src/app/home/index.tsx",
-        "src/app/home/offers.tsx",
-        "src/app/home/search.tsx",
         "src/app/merchant/_layout.tsx",
         "src/app/notifications.tsx",
-        "src/app/offer-details.tsx",
         "src/app/order-details.tsx",
         "src/app/orders.tsx",
-        "src/app/product-details.tsx",
-        "src/app/store-details.tsx",
-        "src/app/stores.tsx",
         "src/components/account/PersonalInfoScreen.tsx",
         "src/components/account/SecurityScreen.tsx",
         "src/components/account/SettingsScreen.tsx",
         "src/components/finance/FinanceScreen.tsx",
         "src/components/finance/InvoiceScreen.tsx",
-        "src/components/finance/MerchantInvoiceScreen.tsx"
+        "src/components/finance/MerchantInvoiceScreen.tsx",
+        "src/components/navigation/CustomerMarketHeader.tsx"
       ],
       "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
       "rtl": "دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة",
       "states": {
         "loading": false,
         "error": true,
+        "disabled": false
+      },
+      "fixed_colors": [],
+      "assessment": "مرشح لإعادة الاستخدام ضمن اختصاصه؛ لا استبدال مقرر دون حاجة الصفحة واختبار props والمستهلكين"
+    },
+    {
+      "name": "CustomerMarketHeader",
+      "path": "src/components/navigation/CustomerMarketHeader.tsx",
+      "function": "عنوان موحد للترويسة والتنقل والمتصفح في مسارات السوق",
+      "page_reachability": [
+        "RUI-CUS-01",
+        "RUI-CUS-03",
+        "RUI-CUS-04",
+        "RUI-CUS-04.01",
+        "RUI-CUS-05",
+        "RUI-CUS-06",
+        "RUI-CUS-07"
+      ],
+      "layout_reachability": [],
+      "direct_consumers": [
+        "src/app/(customer)/home/index.tsx",
+        "src/app/(customer)/home/offers.tsx",
+        "src/app/(customer)/stores.tsx",
+        "src/app/offer-details.tsx",
+        "src/app/product-details.tsx",
+        "src/app/store-details.tsx",
+        "src/app/store-reviews.tsx"
+      ],
+      "theme": "لا استدعاء ثيم مباشر؛ افحص الألوان الممررة/المكون الأب، لا يثبت غياب الدعم",
+      "rtl": "لا دليل مباشر في الملف؛ افحص الوراثة والأيقونات",
+      "states": {
+        "loading": false,
+        "error": false,
         "disabled": false
       },
       "fixed_colors": [],
@@ -5816,7 +5934,7 @@
     {
       "name": "ProductRefinements",
       "path": "src/components/search/ProductRefinements.tsx",
-      "function": "خيارات تنقيح نتائج المنتجات",
+      "function": "لوحة تصفية بسجل اختيارات ومسار تصنيف تدريجي وترتيب المنتجات",
       "page_reachability": [
         "RUI-CUS-02"
       ],
@@ -5837,7 +5955,7 @@
     {
       "name": "SearchControls",
       "path": "src/components/search/SearchControls.tsx",
-      "function": "حقل البحث وتحكماته",
+      "function": "حقل البحث والرجوع ومحدد الأنواع عند الطلب",
       "page_reachability": [
         "RUI-CUS-02"
       ],
@@ -5846,7 +5964,7 @@
         "src/app/home/search.tsx"
       ],
       "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
-      "rtl": "دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة",
+      "rtl": "لا دليل مباشر في الملف؛ افحص الوراثة والأيقونات",
       "states": {
         "loading": false,
         "error": false,
@@ -5866,7 +5984,7 @@
       "direct_consumers": [
         "src/app/home/search.tsx"
       ],
-      "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
+      "theme": "لا استدعاء ثيم مباشر؛ افحص الألوان الممررة/المكون الأب، لا يثبت غياب الدعم",
       "rtl": "لا دليل مباشر في الملف؛ افحص الوراثة والأيقونات",
       "states": {
         "loading": false,
@@ -6163,6 +6281,7 @@
         "RUI-CUS-02",
         "RUI-CUS-03",
         "RUI-CUS-04",
+        "RUI-CUS-04.01",
         "RUI-CUS-05",
         "RUI-CUS-06",
         "RUI-CUS-07",
@@ -6194,6 +6313,7 @@
         "src/app/merchant/_layout.tsx"
       ],
       "direct_consumers": [
+        "src/app/(customer)/stores.tsx",
         "src/app/addresses.tsx",
         "src/app/admin/application-details.tsx",
         "src/app/admin/applications.tsx",
@@ -6215,6 +6335,7 @@
         "src/app/driver/orders.tsx",
         "src/app/driver/task-details.tsx",
         "src/app/financial-invoice.tsx",
+        "src/app/home/search.tsx",
         "src/app/index.tsx",
         "src/app/merchant/index.tsx",
         "src/app/merchant/orders.tsx",
@@ -6225,6 +6346,8 @@
         "src/app/product-details.tsx",
         "src/app/reset-password.tsx",
         "src/app/signup.tsx",
+        "src/app/store-details.tsx",
+        "src/app/store-reviews.tsx",
         "src/app/verify-email.tsx",
         "src/components/account/DriverProfessionalInfo.tsx",
         "src/components/account/PersonalInfoScreen.tsx",
@@ -6244,6 +6367,8 @@
         "src/components/finance/PendingMoneyCard.tsx",
         "src/components/login/LoginForm.tsx",
         "src/components/marketplace/CustomerCatalogStatus.tsx",
+        "src/components/marketplace/RatingsSection.tsx",
+        "src/components/marketplace/StorePromoVideo.tsx",
         "src/components/merchant/MerchantAccountScreens.tsx",
         "src/components/merchant/MerchantAddProduct.tsx",
         "src/components/merchant/MerchantCatalogPanel.tsx",
@@ -6256,6 +6381,8 @@
         "src/components/merchant/MerchantStoreInfo.tsx",
         "src/components/merchant/OfferExpirationPicker.tsx",
         "src/components/orders/MerchantOrderCard.tsx",
+        "src/components/search/ProductRefinements.tsx",
+        "src/components/search/SearchEmptyState.tsx",
         "src/components/signup/MerchantPlanChoice.tsx",
         "src/components/signup/ProfessionalApplicationFields.tsx",
         "src/components/signup/ProfessionalApplicationScreen.tsx",
@@ -6282,13 +6409,17 @@
         "RUI-CUS-01",
         "RUI-CUS-02",
         "RUI-CUS-03",
+        "RUI-CUS-04",
+        "RUI-CUS-04.01",
         "RUI-CUS-06"
       ],
       "layout_reachability": [],
       "direct_consumers": [
-        "src/app/home/index.tsx",
-        "src/app/home/offers.tsx",
-        "src/app/stores.tsx",
+        "src/app/(customer)/home/index.tsx",
+        "src/app/(customer)/home/offers.tsx",
+        "src/app/(customer)/stores.tsx",
+        "src/app/store-details.tsx",
+        "src/app/store-reviews.tsx",
         "src/components/search/SearchEmptyState.tsx"
       ],
       "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
@@ -6343,6 +6474,7 @@
         "RUI-CUS-02",
         "RUI-CUS-03",
         "RUI-CUS-04",
+        "RUI-CUS-04.01",
         "RUI-CUS-05",
         "RUI-CUS-06",
         "RUI-CUS-07",
@@ -6379,6 +6511,9 @@
         "src/app/merchant/_layout.tsx"
       ],
       "direct_consumers": [
+        "src/app/(customer)/home/index.tsx",
+        "src/app/(customer)/home/offers.tsx",
+        "src/app/(customer)/stores.tsx",
         "src/app/about.tsx",
         "src/app/addresses.tsx",
         "src/app/admin/applications.tsx",
@@ -6393,9 +6528,6 @@
         "src/app/driver/index.tsx",
         "src/app/driver/orders.tsx",
         "src/app/favorites.tsx",
-        "src/app/home/index.tsx",
-        "src/app/home/offers.tsx",
-        "src/app/home/search.tsx",
         "src/app/merchant/catalog.tsx",
         "src/app/merchant/index.tsx",
         "src/app/merchant/orders.tsx",
@@ -6405,7 +6537,6 @@
         "src/app/orders.tsx",
         "src/app/product-details.tsx",
         "src/app/store-details.tsx",
-        "src/app/stores.tsx",
         "src/components/about/AboutContent.tsx",
         "src/components/about/AboutFeatureList.tsx",
         "src/components/account/AccountMenuItem.tsx",
@@ -6440,8 +6571,6 @@
         "src/components/orders/OrderTracking.tsx",
         "src/components/search/ProductRefinements.tsx",
         "src/components/search/SearchControls.tsx",
-        "src/components/search/SearchEmptyState.tsx",
-        "src/components/search/SearchResults.tsx",
         "src/components/signup/SignupProgress.tsx",
         "src/components/signup/SignupReviewStep.tsx",
         "src/components/signup/SignupRoleStep.tsx",
@@ -6714,7 +6843,7 @@
       ],
       "layout_reachability": [],
       "direct_consumers": [
-        "src/app/home/index.tsx"
+        "src/app/(customer)/home/index.tsx"
       ],
       "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
       "rtl": "دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة",
@@ -6902,6 +7031,7 @@
         "RUI-ADM-13",
         "RUI-ADM-14",
         "RUI-ADM-15",
+        "RUI-CUS-04.01",
         "RUI-CUS-09",
         "RUI-CUS-12",
         "RUI-CUS-14",
@@ -6923,6 +7053,7 @@
         "src/app/driver/orders.tsx",
         "src/app/reset-password.tsx",
         "src/app/signup.tsx",
+        "src/app/store-reviews.tsx",
         "src/components/account/PersonalInfoScreen.tsx",
         "src/components/account/SecurityScreen.tsx",
         "src/components/finance/FinanceScreen.tsx",
@@ -7031,6 +7162,7 @@
         "RUI-CUS-02",
         "RUI-CUS-03",
         "RUI-CUS-04",
+        "RUI-CUS-04.01",
         "RUI-CUS-05",
         "RUI-CUS-06",
         "RUI-CUS-07",
@@ -7130,6 +7262,7 @@
         "RUI-CUS-02",
         "RUI-CUS-03",
         "RUI-CUS-04",
+        "RUI-CUS-04.01",
         "RUI-CUS-05",
         "RUI-CUS-06",
         "RUI-CUS-07",
@@ -7313,9 +7446,70 @@
       "assessment": "أساس مشترك قائم قابل للإبقاء؛ تحقق سلوكي بصري في الصفحة الحالية، لا مبرر لاستبداله الشامل من المصدر وحده"
     }
   ],
-  "component_module_count": 102,
-  "component_export_record_count": 120,
+  "component_module_count": 104,
+  "component_export_record_count": 122,
   "import_graph": {
+    "src/app/(customer)/_layout.tsx": [],
+    "src/app/(customer)/home/account.tsx": [
+      "src/components/account/AccountMenuItem.tsx",
+      "src/components/account/AccountSection.tsx",
+      "src/components/account/AccountShell.tsx",
+      "src/components/account/SharedAccountParts.tsx",
+      "src/components/navigation/AppHeader.tsx",
+      "src/context/AuthContext.tsx",
+      "src/context/CartContext.tsx"
+    ],
+    "src/app/(customer)/home/index.tsx": [
+      "src/components/home/CustomerHomeSponsored.tsx",
+      "src/components/marketplace/CategoryChip.tsx",
+      "src/components/marketplace/OfferCard.tsx",
+      "src/components/marketplace/ProductCard.tsx",
+      "src/components/marketplace/StoreCard.tsx",
+      "src/components/navigation/CustomerMarketHeader.tsx",
+      "src/components/ui/AppEmptyState.tsx",
+      "src/components/ui/AppIcon.tsx",
+      "src/components/ui/AppSectionHeader.tsx",
+      "src/constants/theme.ts",
+      "src/context/AuthContext.tsx",
+      "src/context/CartContext.tsx",
+      "src/context/CustomerCatalogContext.tsx",
+      "src/context/ThemeContext.tsx",
+      "src/hooks/useCustomerHomeFeed.ts",
+      "src/hooks/useCustomerStoreLogos.ts",
+      "src/hooks/useDriverTaskRefresh.ts",
+      "src/lib/customer-home-feed.ts",
+      "src/lib/supabase.ts"
+    ],
+    "src/app/(customer)/home/offers.tsx": [
+      "src/components/marketplace/CategoryChip.tsx",
+      "src/components/marketplace/CustomerCatalogStatus.tsx",
+      "src/components/marketplace/OfferCard.tsx",
+      "src/components/navigation/CustomerMarketHeader.tsx",
+      "src/components/ui/AppEmptyState.tsx",
+      "src/components/ui/AppIcon.tsx",
+      "src/constants/theme.ts",
+      "src/context/CartContext.tsx",
+      "src/context/CustomerCatalogContext.tsx",
+      "src/context/ThemeContext.tsx",
+      "src/lib/category-tree.ts"
+    ],
+    "src/app/(customer)/stores.tsx": [
+      "src/components/marketplace/CategoryChip.tsx",
+      "src/components/marketplace/StoreCard.tsx",
+      "src/components/navigation/CustomerMarketHeader.tsx",
+      "src/components/ui/AppButton.tsx",
+      "src/components/ui/AppEmptyState.tsx",
+      "src/components/ui/AppIcon.tsx",
+      "src/constants/theme.ts",
+      "src/context/AuthContext.tsx",
+      "src/context/CartContext.tsx",
+      "src/context/CustomerCatalogContext.tsx",
+      "src/context/ThemeContext.tsx",
+      "src/hooks/useCustomerStoreLogos.ts",
+      "src/hooks/useStoreDirectory.ts",
+      "src/lib/category-tree.ts",
+      "src/types/catalog.ts"
+    ],
     "src/app/_layout.tsx": [
       "src/components/navigation/AppBottomNav.tsx",
       "src/components/notifications/PushBridge.tsx",
@@ -7423,11 +7617,11 @@
       "src/context/ThemeContext.tsx",
       "src/hooks/useDriverTaskRefresh.ts",
       "src/lib/customer-home-ads.ts",
+      "src/lib/home-ad-picker.ts",
       "src/lib/home-ad-thumbnail.ts",
       "src/lib/offer-expiration.ts",
       "src/lib/request-key.ts",
-      "src/lib/signup-data.ts",
-      "src/lib/store-branding-contract.ts"
+      "src/lib/signup-data.ts"
     ],
     "src/app/admin/index.tsx": [
       "src/components/home/HomeSummary.tsx",
@@ -7689,62 +7883,17 @@
       "src/context/ThemeContext.tsx",
       "src/lib/account-routing.ts"
     ],
-    "src/app/home/_layout.tsx": [],
-    "src/app/home/account.tsx": [
-      "src/components/account/AccountMenuItem.tsx",
-      "src/components/account/AccountSection.tsx",
-      "src/components/account/AccountShell.tsx",
-      "src/components/account/SharedAccountParts.tsx",
-      "src/components/navigation/AppHeader.tsx",
-      "src/context/AuthContext.tsx",
-      "src/context/CartContext.tsx"
-    ],
-    "src/app/home/index.tsx": [
-      "src/components/home/CustomerHomeSponsored.tsx",
-      "src/components/marketplace/CategoryChip.tsx",
-      "src/components/marketplace/OfferCard.tsx",
-      "src/components/marketplace/ProductCard.tsx",
-      "src/components/marketplace/StoreCard.tsx",
-      "src/components/navigation/AppHeader.tsx",
-      "src/components/ui/AppEmptyState.tsx",
-      "src/components/ui/AppIcon.tsx",
-      "src/components/ui/AppSectionHeader.tsx",
-      "src/constants/theme.ts",
-      "src/context/AuthContext.tsx",
-      "src/context/CartContext.tsx",
-      "src/context/CustomerCatalogContext.tsx",
-      "src/context/ThemeContext.tsx",
-      "src/hooks/useCustomerHomeFeed.ts",
-      "src/hooks/useCustomerStoreLogos.ts",
-      "src/hooks/useDriverTaskRefresh.ts",
-      "src/lib/customer-home-feed.ts",
-      "src/lib/supabase.ts"
-    ],
-    "src/app/home/offers.tsx": [
-      "src/components/marketplace/CategoryChip.tsx",
-      "src/components/marketplace/CustomerCatalogStatus.tsx",
-      "src/components/marketplace/OfferCard.tsx",
-      "src/components/navigation/AppHeader.tsx",
-      "src/components/ui/AppEmptyState.tsx",
-      "src/components/ui/AppIcon.tsx",
-      "src/constants/theme.ts",
-      "src/context/CartContext.tsx",
-      "src/context/CustomerCatalogContext.tsx",
-      "src/context/ThemeContext.tsx",
-      "src/lib/category-tree.ts"
-    ],
     "src/app/home/search.tsx": [
-      "src/components/marketplace/CustomerCatalogStatus.tsx",
-      "src/components/navigation/AppHeader.tsx",
       "src/components/search/ProductRefinements.tsx",
       "src/components/search/SearchControls.tsx",
       "src/components/search/SearchEmptyState.tsx",
       "src/components/search/SearchResults.tsx",
       "src/components/search/searchStyles.ts",
-      "src/components/ui/AppIcon.tsx",
-      "src/context/CartContext.tsx",
+      "src/components/ui/AppButton.tsx",
+      "src/context/AuthContext.tsx",
       "src/context/CustomerCatalogContext.tsx",
       "src/context/ThemeContext.tsx",
+      "src/lib/category-tree.ts",
       "src/lib/customer-search.ts"
     ],
     "src/app/index.tsx": [
@@ -7881,7 +8030,7 @@
     ],
     "src/app/offer-details.tsx": [
       "src/components/marketplace/CustomerCatalogStatus.tsx",
-      "src/components/navigation/AppHeader.tsx",
+      "src/components/navigation/CustomerMarketHeader.tsx",
       "src/components/ui/AppButton.tsx",
       "src/components/ui/AppIcon.tsx",
       "src/constants/theme.ts",
@@ -7937,7 +8086,7 @@
       "src/components/marketplace/ProductMediaGallery.tsx",
       "src/components/marketplace/RatingStars.tsx",
       "src/components/marketplace/RatingsSection.tsx",
-      "src/components/navigation/AppHeader.tsx",
+      "src/components/navigation/CustomerMarketHeader.tsx",
       "src/components/ui/AppButton.tsx",
       "src/components/ui/AppIcon.tsx",
       "src/constants/theme.ts",
@@ -7982,32 +8131,36 @@
     ],
     "src/app/store-details.tsx": [
       "src/components/marketplace/CategoryChip.tsx",
-      "src/components/marketplace/CustomerCatalogStatus.tsx",
       "src/components/marketplace/OfferCard.tsx",
       "src/components/marketplace/ProductCard.tsx",
-      "src/components/marketplace/RatingsSection.tsx",
       "src/components/marketplace/StoreDetailsHero.tsx",
-      "src/components/navigation/AppHeader.tsx",
-      "src/components/ui/AppIcon.tsx",
-      "src/constants/theme.ts",
-      "src/context/CartContext.tsx",
-      "src/context/CustomerCatalogContext.tsx",
-      "src/context/ThemeContext.tsx",
-      "src/lib/category-tree.ts",
-      "src/types/catalog.ts"
-    ],
-    "src/app/stores.tsx": [
-      "src/components/marketplace/CategoryChip.tsx",
-      "src/components/marketplace/CustomerCatalogStatus.tsx",
-      "src/components/marketplace/StoreCard.tsx",
-      "src/components/navigation/AppHeader.tsx",
+      "src/components/navigation/CustomerMarketHeader.tsx",
+      "src/components/ui/AppButton.tsx",
       "src/components/ui/AppEmptyState.tsx",
       "src/components/ui/AppIcon.tsx",
       "src/constants/theme.ts",
+      "src/context/AuthContext.tsx",
       "src/context/CartContext.tsx",
       "src/context/CustomerCatalogContext.tsx",
       "src/context/ThemeContext.tsx",
-      "src/lib/category-tree.ts"
+      "src/hooks/useCustomerStoreLogos.ts",
+      "src/hooks/useDriverTaskRefresh.ts",
+      "src/lib/category-tree.ts",
+      "src/lib/customer-search.ts",
+      "src/lib/customer-store-details.ts",
+      "src/types/catalog.ts"
+    ],
+    "src/app/store-reviews.tsx": [
+      "src/components/marketplace/RatingsSection.tsx",
+      "src/components/navigation/CustomerMarketHeader.tsx",
+      "src/components/ui/AppButton.tsx",
+      "src/components/ui/AppEmptyState.tsx",
+      "src/components/ui/KeyboardAwareScrollView.tsx",
+      "src/constants/theme.ts",
+      "src/context/AuthContext.tsx",
+      "src/context/CartContext.tsx",
+      "src/context/CustomerCatalogContext.tsx",
+      "src/context/ThemeContext.tsx"
     ],
     "src/app/terms.tsx": [
       "src/components/legal/LegalPageLayout.tsx"
@@ -8388,6 +8541,7 @@
       "src/context/CustomerCatalogContext.tsx",
       "src/context/ThemeContext.tsx",
       "src/lib/money.ts",
+      "src/lib/offer-presentation.ts",
       "src/types/catalog.ts"
     ],
     "src/components/marketplace/ProductMediaGallery.tsx": [
@@ -8407,6 +8561,7 @@
       "src/components/marketplace/RatingStars.tsx",
       "src/components/marketplace/ReviewCard.tsx",
       "src/components/marketplace/ReviewForm.tsx",
+      "src/components/ui/AppButton.tsx",
       "src/constants/theme.ts",
       "src/context/ThemeContext.tsx",
       "src/lib/customer-reviews.ts"
@@ -8444,11 +8599,21 @@
     ],
     "src/components/marketplace/StoreDetailsHero.tsx": [
       "src/components/marketplace/RatingStars.tsx",
+      "src/components/marketplace/ShoppingCardImage.tsx",
+      "src/components/marketplace/StorePromoVideo.tsx",
       "src/components/ui/AppIcon.tsx",
       "src/constants/theme.ts",
       "src/context/CustomerCatalogContext.tsx",
       "src/context/ThemeContext.tsx",
+      "src/lib/customer-store-details.ts",
       "src/types/catalog.ts"
+    ],
+    "src/components/marketplace/StorePromoVideo.tsx": [
+      "src/components/brand/BrandMark.tsx",
+      "src/components/ui/AppButton.tsx",
+      "src/constants/theme.ts",
+      "src/context/ThemeContext.tsx",
+      "src/lib/customer-store-details.ts"
     ],
     "src/components/merchant/MerchantAccountScreens.tsx": [
       "src/components/account/AccountMenuItem.tsx",
@@ -8615,6 +8780,9 @@
       "src/context/ThemeContext.tsx",
       "src/hooks/useSafeBack.ts"
     ],
+    "src/components/navigation/CustomerMarketHeader.tsx": [
+      "src/components/navigation/AppHeader.tsx"
+    ],
     "src/components/notifications/PushBridge.tsx": [
       "src/context/AppDialogContext.tsx",
       "src/context/AuthContext.tsx",
@@ -8646,28 +8814,38 @@
       "src/lib/customer-orders.ts"
     ],
     "src/components/search/ProductRefinements.tsx": [
-      "src/components/marketplace/CategoryChip.tsx",
       "src/components/search/searchStyles.ts",
+      "src/components/ui/AppButton.tsx",
       "src/components/ui/AppIcon.tsx",
+      "src/constants/theme.ts",
+      "src/context/ThemeContext.tsx",
       "src/lib/category-tree.ts",
+      "src/lib/customer-search.ts",
       "src/types/catalog.ts"
     ],
     "src/components/search/SearchControls.tsx": [
       "src/components/search/searchStyles.ts",
-      "src/components/ui/AppIcon.tsx"
+      "src/components/ui/AppIcon.tsx",
+      "src/context/ThemeContext.tsx",
+      "src/lib/customer-search.ts"
     ],
     "src/components/search/SearchEmptyState.tsx": [
       "src/components/search/searchStyles.ts",
-      "src/components/ui/AppEmptyState.tsx",
-      "src/components/ui/AppIcon.tsx"
+      "src/components/ui/AppButton.tsx",
+      "src/components/ui/AppEmptyState.tsx"
     ],
     "src/components/search/SearchResults.tsx": [
       "src/components/marketplace/CategoryChip.tsx",
+      "src/components/marketplace/OfferCard.tsx",
       "src/components/marketplace/ProductCard.tsx",
       "src/components/marketplace/StoreCard.tsx",
       "src/components/search/searchStyles.ts",
-      "src/components/ui/AppIcon.tsx",
+      "src/constants/theme.ts",
+      "src/context/ThemeContext.tsx",
       "src/hooks/useCustomerStoreLogos.ts",
+      "src/lib/category-tree.ts",
+      "src/lib/customer-offers.ts",
+      "src/lib/customer-search.ts",
       "src/types/catalog.ts"
     ],
     "src/components/search/searchStyles.ts": [
@@ -8931,6 +9109,12 @@
       "src/lib/signup-data.ts",
       "src/lib/supabase.ts"
     ],
+    "src/hooks/useStoreDirectory.ts": [
+      "src/lib/customer-search.ts",
+      "src/lib/customer-store-directory.ts",
+      "src/lib/request-key.ts",
+      "src/types/catalog.ts"
+    ],
     "src/lib/account-routing.ts": [
       "src/lib/supabase.ts"
     ],
@@ -9006,6 +9190,16 @@
     ],
     "src/lib/customer-search.ts": [
       "src/lib/category-tree.ts",
+      "src/lib/customer-offers.ts",
+      "src/types/catalog.ts"
+    ],
+    "src/lib/customer-store-details.ts": [
+      "src/lib/public-catalog.ts",
+      "src/lib/supabase.ts"
+    ],
+    "src/lib/customer-store-directory.ts": [
+      "src/lib/public-catalog.ts",
+      "src/lib/supabase.ts",
       "src/types/catalog.ts"
     ],
     "src/lib/customer-store-logos.ts": [
@@ -9036,6 +9230,9 @@
     "src/lib/driver-read-queue.ts": [],
     "src/lib/financial-transport.ts": [],
     "src/lib/home-ad-carousel.ts": [],
+    "src/lib/home-ad-picker.ts": [
+      "src/lib/store-branding-contract.ts"
+    ],
     "src/lib/home-ad-targets.ts": [
       "src/lib/customer-home-ads.ts",
       "src/lib/merchant-store.ts",

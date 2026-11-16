@@ -5,7 +5,7 @@ import {createOfferSaver,offerUnits,type OfferAttempt,type OfferLoaded,type Offe
 const offerColumns="id,store_id,title,description,offer_type,discount_method,discount_value,bundle_price,starts_at,ends_at,is_active,updated_at";
 const productColumns="id,title,price,selling_unit,minimum_quantity,quantity_step,is_available";
 export const offerProductsPageSize=30;
-export const offerAttemptKey=(ownerId:string,storeId:string,offerId:string|null)=>`@tasawuq/offer-editor/syp-v1/${ownerId}/${storeId}/${offerId??'new'}`;
+export const offerAttemptKey=(ownerId:string,storeId:string,offerId:string|null)=>`@tasawuq/offer-editor/syp-v2/${ownerId}/${storeId}/${offerId??'new'}`;
 export async function readOfferProducts(storeId:string,search:string,cursor:string|null,signal?:AbortSignal){
  let query=supabase.from('products').select(productColumns).eq('store_id',storeId).eq('is_available',true).order('id').limit(offerProductsPageSize);
  if(search.trim())query=query.ilike('title',`%${search.trim().replace(/[\\%_]/g,'\\$&')}%`);
@@ -35,10 +35,10 @@ export async function readMerchantOffer(storeId:string,id:string,signal?:AbortSi
 export async function readOfferAttempt(ownerId:string,storeId:string,offerId:string|null):Promise<OfferAttempt|null>{
  const text=await AsyncStorage.getItem(offerAttemptKey(ownerId,storeId,offerId));if(!text)return null;
  const attempt=JSON.parse(text) as OfferAttempt;
- if(attempt.version!==1||attempt.ownerId!==ownerId||attempt.storeId!==storeId||attempt.offerId!==offerId||!['sending','unknown','known'].includes(attempt.status)||!attempt.form||!attempt.args||attempt.args.selected_offer!==offerId||!Array.isArray(attempt.args.input_items)||!Array.isArray(attempt.form.items)||typeof attempt.args.input_title!=='string'||typeof attempt.args.input_description!=='string'||!['discount','bundle','buy_x_get_y'].includes(attempt.args.input_type)||typeof attempt.args.input_is_active!=='boolean'||!(attempt.args.input_ends_at===null||typeof attempt.args.input_ends_at==='string'))throw new Error('Invalid recovery record');
+ if(attempt.version!==2||attempt.ownerId!==ownerId||attempt.storeId!==storeId||attempt.offerId!==offerId||!['sending','unknown','known'].includes(attempt.status)||!attempt.form||!attempt.args||attempt.args.selected_offer!==offerId||!Array.isArray(attempt.args.input_items)||!Array.isArray(attempt.form.items)||typeof attempt.args.input_title!=='string'||typeof attempt.args.input_description!=='string'||!['discount','bundle','buy_x_get_y'].includes(attempt.args.input_type)||typeof attempt.args.input_is_active!=='boolean'||typeof attempt.args.input_starts_at!=='string'||!Number.isFinite(Date.parse(attempt.args.input_starts_at))||!(attempt.args.input_ends_at===null||typeof attempt.args.input_ends_at==='string'))throw new Error('Invalid recovery record');
  const form=attempt.form;
  if(form.selectedEndInstant!==undefined&&(typeof form.selectedEndInstant!=='string'||!Number.isFinite(Date.parse(form.selectedEndInstant))))throw new Error('Invalid selected expiration instant');
- if(['title','description','discountValue','bundlePrice','endDate','endTime'].some(field=>typeof form[field as keyof typeof form]!=='string')||!['discount','bundle','buy_x_get_y'].includes(form.type)||!['percentage','fixed_amount'].includes(form.discountMethod)||!['keep','none','new'].includes(form.endMode)||typeof form.active!=='boolean'||!(form.originalEndsAt===null||typeof form.originalEndsAt==='string')||form.items.some(item=>typeof item.key!=='string'||typeof item.productId!=='string'||typeof item.quantity!=='string'||!['discounted','bundle','buy','reward'].includes(item.role)))throw new Error('Invalid recovery form');
+ if(['title','description','discountValue','bundlePrice','startDate','startTime','endDate','endTime'].some(field=>typeof form[field as keyof typeof form]!=='string')||!['discount','bundle','buy_x_get_y'].includes(form.type)||!['percentage','fixed_amount'].includes(form.discountMethod)||!['now','keep','scheduled'].includes(form.startMode)||!['keep','none','new'].includes(form.endMode)||typeof form.active!=='boolean'||!(form.originalStartsAt===null||typeof form.originalStartsAt==='string')||!(form.originalEndsAt===null||typeof form.originalEndsAt==='string')||form.items.some(item=>typeof item.key!=='string'||typeof item.productId!=='string'||typeof item.quantity!=='string'||!['discounted','bundle','buy','reward'].includes(item.role)))throw new Error('Invalid recovery form');
  for(const raw of attempt.args.input_items){if(!raw||typeof raw!=='object'||Array.isArray(raw)||typeof raw.product_id!=='string'||!['discounted','bundle','buy','reward'].includes(String(raw.item_role))||typeof raw.quantity!=='number')throw new Error('Invalid recovery items');offerUnits(String(raw.quantity),12,3);}
  if(offerId&&(!attempt.baseline||attempt.baseline.offer.id!==offerId||attempt.baseline.offer.store_id!==storeId))throw new Error('Invalid edit baseline');
  if(attempt.resultId!==null&&typeof attempt.resultId!=='string')throw new Error('Invalid result ID');
@@ -58,7 +58,7 @@ export function createOfferSaveApi(isCurrent:()=>boolean):OfferSaveApi{
   clear:clearOfferAttempt,
   async scope(attempt){current();const session=await supabase.auth.getSession();if(session.error||session.data.session?.user.id!==attempt.ownerId)throw new Error('Account changed');const store=await readProductIdentity(attempt.ownerId);current();if(store.id!==attempt.storeId)throw new Error('Store changed');},
   async read(storeId,id){current();const data=await readMerchantOffer(storeId,id);current();return data;},
-  async rpc(args){current();const result=await supabase.rpc('save_store_offer',args);return{data:result.data,error:result.error};},
+  async rpc(args){current();const result=await supabase.rpc('save_store_offer_v2',args);return{data:result.data,error:result.error};},
  };
 }
 export function createOfferEditorSession(){let active=false;return{saver:createOfferSaver(createOfferSaveApi(()=>active)),activate(){active=true;},deactivate(){active=false;}};}

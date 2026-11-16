@@ -1,1336 +1,273 @@
-import { formatSypNumber } from "@/lib/money";
-import { Href, useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { CustomerCatalogStatus } from "@/components/marketplace/CustomerCatalogStatus";
+import { OfferCard } from "@/components/marketplace/OfferCard";
 import { ProductCard } from "@/components/marketplace/ProductCard";
 import { ProductMediaGallery } from "@/components/marketplace/ProductMediaGallery";
-import { RatingsSection } from "@/components/marketplace/RatingsSection";
 import { RatingSummary } from "@/components/marketplace/RatingStars";
-import { AppHeader } from "@/components/navigation/AppHeader";
+import { ShoppingCardImage } from "@/components/marketplace/ShoppingCardImage";
+import { CustomerMarketHeader } from "@/components/navigation/CustomerMarketHeader";
 import { AppButton } from "@/components/ui/AppButton";
+import { AppEmptyState } from "@/components/ui/AppEmptyState";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { CustomerCatalogStatus } from "@/components/marketplace/CustomerCatalogStatus";
-import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
+import { ControlSizes, FontSizes, Fonts, Radius, RtlText, Spacing } from "@/constants/theme";
+import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useTheme } from "@/context/ThemeContext";
-import { calculateCustomerOffer, describeCustomerOffer } from "@/lib/customer-offers";
-import type { CustomerOffer } from "@/lib/customer-offers";
-import {
-  normalizeCatalogQuantity,
-  snapCatalogQuantity,
-} from "@/lib/catalog-quantity";
+import { useCustomerStoreLogos } from "@/hooks/useCustomerStoreLogos";
+import { normalizeCatalogQuantity, snapCatalogQuantity } from "@/lib/catalog-quantity";
+import { formatSyp } from "@/lib/money";
 
 export default function ProductDetailsScreen() {
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { user, loading } = useAuth();
+  const productId = typeof id === "string" ? id : undefined;
+  const scope = JSON.stringify([productId, user?.id, user?.role, user?.app_metadata.role, user?.app_metadata.roles, loading]);
+  return <ProductDetails key={scope} id={productId} />;
+}
+
+function ProductDetails({ id }: { id?: string }) {
   const router = useRouter();
   const { colors } = useTheme();
-  const { width: screenWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const { categories, error, loading, products, stores, offers, productRatings } = useCustomerCatalog();
-
-  const {
-    itemCount,
-    addItem,
-    addOffer,
-    getQuantity,
-    selectedOfferIds,
-    syncError,
-  } = useCart();
-
+  const { itemCount, addItem, addOffer, getQuantity, selectedOfferIds, syncError } = useCart();
   const { isFavorite, toggleFavorite } = useFavorites();
-
-  const { id } = useLocalSearchParams<{
-    id?: string;
-  }>();
-
   const [quantity, setQuantity] = useState(1);
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
+  const [adding, setAdding] = useState(false);
+  const [addingOffer, setAddingOffer] = useState<string>();
 
-  const product = useMemo(() => products.find((item) => item.id === id), [id, products]);
-
-  const category = useMemo(
-    () => categories.find((item) => item.id === product?.categoryId),
-    [categories, product?.categoryId],
-  );
-
-  const store = useMemo(
-    () => stores.find((item) => item.id === product?.storeId),
-    [product?.storeId, stores],
-  );
+  const product = products.find(item => item.id === id);
+  const category = categories.find(item => item.id === product?.categoryId);
+  const store = stores.find(item => item.id === product?.storeId);
   const productRating = product ? productRatings.get(product.id) : undefined;
+  const matchingOffers = product ? offers.filter(offer => offer.items.some(item => item.product.id === product.id)) : [];
+  const relatedProducts = product ? products.filter(item => item.id !== product.id && item.storeId === product.storeId &&
+    item.categoryId === product.categoryId && item.available).slice(0, 6) : [];
+  const { logos } = useCustomerStoreLogos(store ? [store.id] : [], true);
+  const logo = store ? logos.get(store.id) : undefined;
 
-  const relatedProducts = useMemo(() => {
-    if (!product) {
-      return [];
-    }
+  const goBack = () => router.canGoBack() ? router.back() : router.replace("/products");
+  if (loading || error) return <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <CustomerMarketHeader title="المنتج" showBack onBack={goBack} cartCount={itemCount} mode="shared" />
+    <CustomerCatalogStatus />
+  </View>;
+  if (!product) return <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <CustomerMarketHeader title="المنتج" showBack onBack={goBack} cartCount={itemCount} mode="shared" />
+    <View style={styles.empty}><AppEmptyState icon="cube-outline" title="المنتج غير متاح"
+      description="ربما أزيل المنتج أو لم يعد منشورًا." buttonText="رجوع" onButtonPress={goBack} /></View>
+  </View>;
 
-    return products
-      .filter(
-        (item) =>
-          item.id !== product.id &&
-          item.storeId === product.storeId &&
-          item.categoryId === product.categoryId &&
-          item.available,
-      )
-      .slice(0, 4);
-  }, [product, products]);
+  const minimum = product.minimumQuantity ?? 1;
+  const step = product.quantityStep ?? 1;
+  const selectedQuantity = snapCatalogQuantity(quantity, minimum, step);
+  const lineTotal = Math.round(product.price * selectedQuantity * 100) / 100;
+  const cartQuantity = getQuantity(product.id);
+  const mediaWidth = Math.min(760, width) - Spacing.four * 2;
+  const mediaHeight = Math.max(210, Math.min(300, Math.round(mediaWidth * 0.68)));
 
-  const cartQuantity = product ? getQuantity(product.id) : 0;
-  const matchingOffers = product
-    ? offers.filter((offer) => offer.items.some((item) => item.product.id === product.id))
-    : [];
-  const mediaWidth = Math.max(260, screenWidth - Spacing.four * 2);
+  const addProduct = async () => {
+    if (!product.available || adding) return;
+    setAdding(true);
+    try { await addItem(product, selectedQuantity); }
+    finally { setAdding(false); }
+  };
+  const addSelectedOffer = async (offerId: string) => {
+    if (addingOffer) return;
+    setAddingOffer(offerId);
+    try { await addOffer(offerId); }
+    finally { setAddingOffer(undefined); }
+  };
 
-  const favorite = product ? isFavorite(product.id) : false;
-  if (loading || error) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <AppHeader title="المنتج" showBack cartCount={itemCount} />
-        <CustomerCatalogStatus />
+  return <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <CustomerMarketHeader title="تفاصيل المنتج" screenTitle={product.name} showBack onBack={goBack}
+      cartCount={itemCount} mode="shared" />
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ProductMediaGallery activeMediaIndex={activeMediaIndex} categoryIcon={category?.icon}
+        categoryLabel={category?.name}
+        favorite={isFavorite(product.id)} onSelectMedia={setActiveMediaIndex}
+        onToggleFavorite={() => toggleFavorite(product.id)} product={product} width={mediaWidth} height={mediaHeight} />
+
+      <View style={styles.summary}>
+        <View style={styles.chips}>
+          {!product.available ? <View style={[styles.chip, { backgroundColor: colors.errorSurface }]}>
+            <AppIcon name="alert-circle-outline" size={15} color={colors.errorForeground} />
+            <Text style={[styles.chipText, { color: colors.errorForeground }]}>غير متوفر</Text>
+          </View> : null}
+        </View>
+        <Text accessibilityRole="header" style={[styles.name, { color: colors.text }]}>{product.name}</Text>
+        <View style={[styles.priceBlock, { backgroundColor: colors.primaryLight }]}>
+          <Text style={[styles.price, { color: colors.primary }]}>{formatSyp(product.price)}</Text>
+          {product.unit ? <Text style={[styles.unit, { color: colors.textSecondary }]}>لكل {product.unit}</Text> : null}
+        </View>
+
+        {store ? <Pressable accessibilityRole="link" accessibilityLabel={`فتح متجر ${store.name}`}
+          onPress={() => router.push({ pathname: "/store-details", params: { id: store.id } })}
+          style={({ pressed }) => [styles.store, { opacity: pressed ? 0.72 : 1 }]}>
+          <View style={[styles.storeLogo, { backgroundColor: colors.primaryLight }]}>
+            <ShoppingCardImage uri={logo?.url} cacheKey={logo?.key} restricted fit="contain" icon="storefront-outline" />
+          </View>
+          <View style={styles.storeCopy}><Text style={[styles.eyebrow, { color: colors.textMuted }]}>يباع لدى</Text>
+            <Text style={[styles.storeName, { color: colors.text }]}>{store.name}</Text></View>
+          <AppIcon name="chevron-back" size={18} color={colors.textMuted} />
+        </Pressable> : null}
+
+        {product.description.trim() ? <View style={styles.descriptionBlock}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>عن المنتج</Text>
+          <Text style={[styles.description, { color: colors.textSecondary }]}>{product.description}</Text>
+        </View> : null}
+
+        <View style={[styles.facts, { borderColor: colors.border }]}>
+          <View style={styles.factPair}>
+            <Fact icon="cube-outline" label="وحدة البيع" value={product.unit || "غير محددة"} />
+            <Fact icon="analytics-outline" label="أقل كمية" value={`${minimum.toLocaleString("ar-SY", { maximumFractionDigits: 3 })} ${product.unit}`} />
+          </View>
+          <View style={[styles.stepHint, { backgroundColor: colors.surfaceSecondary }]}>
+            <AppIcon name="git-compare-outline" size={18} color={colors.primary} />
+            <Text style={[styles.helper, { color: colors.textSecondary }]}>كل ضغطة: ±{step.toLocaleString("ar-SY", { maximumFractionDigits: 3 })} {product.unit}</Text>
+          </View>
+        </View>
+
+        <Pressable accessibilityRole="link" accessibilityLabel="فتح تقييمات ومراجعات المنتج"
+          onPress={() => router.push({ pathname: "/product-reviews", params: { id: product.id } })}
+          style={({ pressed }) => [styles.reviewsLink, { borderColor: colors.border, opacity: pressed ? 0.72 : 1 }]}>
+          <View style={styles.reviewsCopy}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>التقييمات والمراجعات</Text>
+            {productRating?.averageRating !== null && productRating?.ratingCount ? <RatingSummary
+              averageRating={productRating.averageRating} ratingCount={productRating.ratingCount} />
+              : <Text style={[styles.helper, { color: colors.textMuted }]}>لا توجد تقييمات بعد</Text>}
+          </View>
+          <AppIcon name="chevron-back" size={18} color={colors.textMuted} />
+        </Pressable>
       </View>
-    );
-  }
 
-  if (!product) {
-    return (
-      <View
-        style={[
-          styles.container,
-          {
-            backgroundColor: colors.background,
-          },
-        ]}
-      >
-        <AppHeader title="المنتج" showBack cartCount={itemCount} />
-        <View style={styles.notFound}>
-          <View
-            style={[
-              styles.notFoundIcon,
-              {
-                backgroundColor: colors.primaryLight,
-              },
-            ]}
-          >
-            <AppIcon name="cube-outline" size={42} color={colors.primary} />
-          </View>
+      {matchingOffers.length ? <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>عروض مرتبطة بالمنتج</Text>
+        <Text style={[styles.helper, { color: colors.textMuted }]}>العرض لا يطبق تلقائيًا على المنتج؛ اختره لإضافته بسعره وشروطه.</Text>
+        {matchingOffers.map(offer => {
+          const added = selectedOfferIds.includes(offer.id);
+          return <View key={offer.id} style={styles.offerItem}>
+            <OfferCard offer={offer} expanded onPress={() => router.push({ pathname: "/offer-details", params: { id: offer.id } })} />
+            <AppButton compact title={added ? "العرض في السلة" : "إضافة العرض إلى السلة"}
+              icon={added ? "checkmark-circle-outline" : "cart-outline"} variant={added ? "secondary" : "outline"}
+              disabled={added || Boolean(addingOffer)} loading={addingOffer === offer.id}
+              onPress={() => void addSelectedOffer(offer.id)} />
+          </View>;
+        })}
+      </View> : null}
 
-          <Text
-            style={[
-              styles.notFoundTitle,
-              {
-                color: colors.text,
-              },
-            ]}
-          >
-            المنتج غير موجود
-          </Text>
+      {relatedProducts.length ? <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>منتجات مشابهة</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.related}>
+          {relatedProducts.map(item => <ProductCard key={item.id} product={item} showOffer
+            onPress={() => router.push({ pathname: "/product-details", params: { id: item.id } })} />)}
+        </ScrollView>
+      </View> : null}
 
-          <Text
-            style={[
-              styles.notFoundText,
-              {
-                color: colors.textSecondary,
-              },
-            ]}
-          >
-            يبدو أن هذا المنتج لم يعد متاحاً.
-          </Text>
+    </ScrollView>
 
-          <Pressable
-            onPress={() => router.back()}
-            style={({ pressed }) => [
-              styles.backButton,
-              {
-                backgroundColor: colors.primary,
-              },
-              pressed && styles.pressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="العودة"
-          >
-            <Text
-              style={[
-                styles.backButtonText,
-                {
-                  color: colors.surface,
-                },
-              ]}
-            >
-              العودة
-            </Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
-
-  const minimumQuantity = product.minimumQuantity ?? 1;
-  const quantityStep = product.quantityStep ?? 1;
-  const selectedQuantity = snapCatalogQuantity(quantity, minimumQuantity, quantityStep);
-  const totalPrice = Math.round(product.price * selectedQuantity * 100) / 100;
-
-  const handleIncrease = () => {
-    setQuantity(snapCatalogQuantity(
-      selectedQuantity + quantityStep,
-      minimumQuantity,
-      quantityStep,
-    ));
-  };
-
-  const handleDecrease = () => {
-    setQuantity(Math.max(
-      minimumQuantity,
-      normalizeCatalogQuantity(selectedQuantity - quantityStep),
-    ));
-  };
-
-  const handleAddToCart = () => {
-    if (!product.available) {
-      return;
-    }
-
-    void addItem(product, selectedQuantity);
-  };
-
-  const handleGoToCart = () => {
-    router.push("/cart");
-  };
-
-  const handleToggleFavorite = () => {
-    toggleFavorite(product.id);
-  };
-
-  const handleStorePress = () => {
-    router.push({
-      pathname: "/store-details",
-      params: {
-        id: product.storeId,
-      },
-    } as Href);
-  };
-
-  return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: colors.background,
-        },
-      ]}
-    >
-      <AppHeader
-        title="تفاصيل المنتج"
-        showBack
-        mode="shared"
-        cartCount={itemCount}
-      />
-      {syncError ? (
-        <Text accessibilityRole="alert" style={{ color: colors.error, textAlign: "center", paddingHorizontal: Spacing.four }}>
-          {syncError}
-        </Text>
-      ) : null}
-
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-      >
-        <ProductMediaGallery
-          activeMediaIndex={activeMediaIndex}
-          categoryIcon={category?.icon}
-          favorite={favorite}
-          onSelectMedia={setActiveMediaIndex}
-          onToggleFavorite={handleToggleFavorite}
-          product={product}
-          width={mediaWidth}
-        />
-
-        <View style={styles.productInfo}>
-          <View style={styles.categoryRow}>
-            {category ? (
-              <View
-                style={[
-                  styles.categoryBadge,
-                  {
-                    backgroundColor: colors.primaryLight,
-                  },
-                ]}
-              >
-                <AppIcon
-                  name={category.icon}
-                  size={14}
-                  color={colors.primary}
-                />
-
-                <Text
-                  style={[
-                    styles.categoryText,
-                    {
-                      color: colors.primary,
-                    },
-                  ]}
-                >
-                  {category.name}
-                </Text>
-              </View>
-            ) : null}
-
-            {product.popular ? (
-              <View
-                style={[
-                  styles.popularBadge,
-                  {
-                    backgroundColor: colors.accentLight,
-                  },
-                ]}
-              >
-                <AppIcon
-                  name="trending-up-outline"
-                  size={14}
-                  color={colors.accent}
-                />
-
-                <Text
-                  style={[
-                    styles.popularText,
-                    {
-                      color: colors.text,
-                    },
-                  ]}
-                >
-                  الأكثر طلباً
-                </Text>
-              </View>
-            ) : null}
-          </View>
-
-          <Text
-            style={[
-              styles.productName,
-              {
-                color: colors.text,
-              },
-            ]}
-          >
-            {product.name}
-          </Text>
-
-          {product.description ? <Text
-            style={[
-              styles.description,
-              {
-                color: colors.textSecondary,
-              },
-            ]}
-          >
-            {product.description}
-          </Text> : null}
-
-          <View style={styles.priceRow}>
-            <View style={styles.priceContainer}>
-              <Text
-                style={[
-                  styles.price,
-                  {
-                    color: colors.primary,
-                  },
-                ]}
-              >
-                {formatSypNumber(product.price)}
-              </Text>
-
-              <Text
-                style={[
-                  styles.currency,
-                  {
-                    color: colors.textSecondary,
-                  },
-                ]}
-              >
-                {"ل.س"}
-              </Text>
-            </View>
-
-            <Text
-              style={[
-                styles.unit,
-                {
-                  color: colors.textMuted,
-                },
-              ]}
-            >
-              {product.unit}
-            </Text>
-          </View>
-          {productRating ? <View style={styles.productRating}><RatingSummary averageRating={productRating.averageRating} ratingCount={productRating.ratingCount} /></View> : null}
-          {matchingOffers.length > 0 ? (
-            <Text style={{ color: colors.textMuted, fontFamily: Fonts.regular, fontSize: FontSizes.xs, lineHeight: 20, textAlign: "right" }}>
-              اختر العرض الذي تريده لإضافته إلى السلة؛ لا تُطبّق العروض تلقائيًا.
-            </Text>
-          ) : null}
-
-          {store ? (
-            <Pressable
-              onPress={handleStorePress}
-              accessibilityRole="button"
-              accessibilityLabel={`فتح متجر ${store.name}`}
-              style={({ pressed }) => [
-                styles.storeRow,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                },
-                pressed && styles.pressed,
-              ]}
-            >
-              <View
-                style={[
-                  styles.storeIcon,
-                  {
-                    backgroundColor: colors.primaryLight,
-                  },
-                ]}
-              >
-                <AppIcon
-                  name="storefront-outline"
-                  size={18}
-                  color={colors.primary}
-                />
-              </View>
-
-              <View style={styles.storeInfo}>
-                <Text
-                  style={[
-                    styles.storeLabel,
-                    {
-                      color: colors.textMuted,
-                    },
-                  ]}
-                >
-                  المتجر
-                </Text>
-
-                <Text
-                  style={[
-                    styles.storeName,
-                    {
-                      color: colors.text,
-                    },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {store.name}
-                </Text>
-              </View>
-
-              <AppIcon name="chevron-back" size={18} color={colors.textMuted} />
+    <View style={[styles.purchase, { backgroundColor: colors.surface, borderTopColor: colors.border,
+      paddingBottom: Math.max(insets.bottom, Spacing.two) }]}>
+      {syncError ? <Text accessibilityRole="alert" style={[styles.error, { color: colors.error }]}>{syncError}</Text> : null}
+      {product.available ? <>
+        <View style={styles.purchaseRow}>
+          <View style={[styles.quantity, { borderColor: colors.border, backgroundColor: colors.surfaceSecondary }]}>
+            <Pressable disabled={selectedQuantity <= minimum || adding} accessibilityRole="button" accessibilityLabel="تقليل الكمية"
+              accessibilityState={{ disabled: selectedQuantity <= minimum || adding }} onPress={() => setQuantity(Math.max(minimum,
+                normalizeCatalogQuantity(selectedQuantity - step)))} style={styles.quantityButton}>
+              <AppIcon name="remove" size={20} color={selectedQuantity <= minimum ? colors.disabledForeground : colors.primary} />
             </Pressable>
-          ) : null}
-        </View>
-
-        {matchingOffers.length > 0 ? (
-          <View style={{ gap: Spacing.three, marginTop: Spacing.four }}>
-            <Text style={{ color: colors.text, fontFamily: Fonts.bold, fontSize: FontSizes.lg, textAlign: "right" }}>
-              عروض هذا المنتج
-            </Text>
-            {matchingOffers.map((offer) => (
-              <CustomerOfferCard
-                key={offer.id}
-                offer={offer}
-                added={selectedOfferIds.includes(offer.id)}
-                onAdd={() => void addOffer(offer.id)}
-              />
-            ))}
-          </View>
-        ) : null}
-
-        <View
-          style={[
-            styles.divider,
-            {
-              backgroundColor: colors.border,
-            },
-          ]}
-        />
-
-        <View
-          style={[
-            styles.infoCard,
-            {
-              borderColor: colors.border,
-              backgroundColor: colors.surface,
-            },
-          ]}
-        >
-          <InfoRow icon="cube-outline" title="الوحدة" value={product.unit} />
-
-          <InfoRow
-            icon="checkmark-circle-outline"
-            title="التوفر"
-            value={product.available ? "متوفر حالياً" : "غير متوفر حالياً"}
-            valueColor={product.available ? colors.success : colors.error}
-          />
-
-          {category ? (
-            <InfoRow
-              icon={category.icon}
-              title="التصنيف"
-              value={category.name}
-            />
-          ) : null}
-        </View>
-
-        {product.available ? (
-          <>
-            <View style={styles.quantitySection}>
-              <Text
-                style={[
-                  styles.quantityTitle,
-                  {
-                    color: colors.text,
-                  },
-                ]}
-              >
-                الكمية
-              </Text>
-
-              <View
-                style={[
-                  styles.quantityControl,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.surface,
-                  },
-                ]}
-              >
-                <Pressable
-                  onPress={handleDecrease}
-                  accessibilityRole="button"
-                  accessibilityLabel="تقليل الكمية"
-                  style={({ pressed }) => [
-                    styles.quantityButton,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <AppIcon name="remove" size={19} color={colors.primary} />
-                </Pressable>
-
-                <Text
-                  style={[
-                    styles.quantityValue,
-                    {
-                      color: colors.text,
-                    },
-                  ]}
-                >
-                  {selectedQuantity.toLocaleString("en-US", { maximumFractionDigits: 3 })}
-                </Text>
-
-                <Pressable
-                  onPress={handleIncrease}
-                  accessibilityRole="button"
-                  accessibilityLabel="زيادة الكمية"
-                  style={({ pressed }) => [
-                    styles.quantityButton,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <AppIcon name="add" size={19} color={colors.primary} />
-                </Pressable>
-              </View>
-            </View>
-
-            <View
-              style={[
-                styles.totalCard,
-                {
-                  backgroundColor: colors.primaryLight,
-                },
-              ]}
-            >
-              <View>
-                <Text
-                  style={[
-                    styles.totalLabel,
-                    {
-                      color: colors.text,
-                    },
-                  ]}
-                >
-                  الإجمالي
-                </Text>
-
-                <Text
-                  style={[
-                    styles.totalHint,
-                    {
-                      color: colors.textSecondary,
-                    },
-                  ]}
-                >
-                  {selectedQuantity.toLocaleString("en-US", { maximumFractionDigits: 3 })} × {formatSypNumber(product.price)} {"ل.س"}
-                </Text>
-              </View>
-
-              <View style={styles.totalPrice}>
-                <Text
-                  style={[
-                    styles.totalAmount,
-                    {
-                      color: colors.primary,
-                    },
-                  ]}
-                >
-                  {formatSypNumber(totalPrice)}
-                </Text>
-
-                <Text
-                  style={[
-                    styles.totalCurrency,
-                    {
-                      color: colors.textSecondary,
-                    },
-                  ]}
-                >
-                  {"ل.س"}
-                </Text>
-              </View>
-            </View>
-
-            <Pressable
-              onPress={handleAddToCart}
-              accessibilityRole="button"
-              accessibilityLabel="إضافة المنتج إلى السلة"
-              style={({ pressed }) => [
-                styles.addButton,
-                {
-                  backgroundColor:
-                    cartQuantity > 0 ? colors.success : colors.primary,
-                },
-                pressed && styles.pressed,
-              ]}
-            >
-              <AppIcon
-                name={
-                  cartQuantity > 0 ? "checkmark-circle-outline" : "cart-outline"
-                }
-                size={22}
-                color={colors.surface}
-              />
-
-              <Text
-                style={[
-                  styles.addButtonText,
-                  {
-                    color: colors.surface,
-                  },
-                ]}
-              >
-                {cartQuantity > 0 ? "تمت الإضافة للسلة" : "إضافة إلى السلة"}
-              </Text>
+            <View style={styles.quantityValue}><Text style={[styles.quantityNumber, { color: colors.text }]}>
+              {selectedQuantity.toLocaleString("ar-SY", { maximumFractionDigits: 3 })}</Text>
+              <Text style={[styles.quantityUnit, { color: colors.textMuted }]}>{product.unit}</Text></View>
+            <Pressable disabled={adding} accessibilityRole="button" accessibilityLabel="زيادة الكمية"
+              onPress={() => setQuantity(snapCatalogQuantity(selectedQuantity + step, minimum, step))} style={styles.quantityButton}>
+              <AppIcon name="add" size={20} color={colors.primary} />
             </Pressable>
-
-            {cartQuantity > 0 ? (
-              <Pressable
-                onPress={handleGoToCart}
-                accessibilityRole="button"
-                accessibilityLabel="الانتقال إلى السلة"
-                style={({ pressed }) => [
-                  styles.cartButton,
-                  {
-                    borderColor: colors.primary,
-                    backgroundColor: colors.surface,
-                  },
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.cartButtonText,
-                    {
-                      color: colors.primary,
-                    },
-                  ]}
-                >
-                  الانتقال إلى السلة
-                </Text>
-
-                <AppIcon name="arrow-back" size={18} color={colors.primary} />
-              </Pressable>
-            ) : null}
-          </>
-        ) : (
-          <View
-            style={[
-              styles.unavailableCard,
-              {
-                borderColor: colors.border,
-                backgroundColor: colors.surface,
-              },
-            ]}
-          >
-            <AppIcon
-              name="alert-circle-outline"
-              size={25}
-              color={colors.error}
-            />
-
-            <View style={styles.unavailableInfo}>
-              <Text
-                style={[
-                  styles.unavailableTitle,
-                  {
-                    color: colors.error,
-                  },
-                ]}
-              >
-                المنتج غير متوفر حالياً
-              </Text>
-
-              <Text
-                style={[
-                  styles.unavailableText,
-                  {
-                    color: colors.textSecondary,
-                  },
-                ]}
-              >
-                يمكنك العودة للمتجر ومشاهدة منتجات أخرى.
-              </Text>
-            </View>
           </View>
-        )}
-
-        {relatedProducts.length > 0 ? (
-          <View style={styles.relatedSection}>
-            <View style={styles.sectionHeader}>
-              <View>
-                <Text
-                  style={[
-                    styles.sectionTitle,
-                    {
-                      color: colors.text,
-                    },
-                  ]}
-                >
-                  منتجات مشابهة
-                </Text>
-
-                <Text
-                  style={[
-                    styles.sectionSubtitle,
-                    {
-                      color: colors.textMuted,
-                    },
-                  ]}
-                >
-                  قد تناسب طلبك
-                </Text>
-              </View>
-
-              <AppIcon
-                name="sparkles-outline"
-                size={19}
-                color={colors.primary}
-              />
-            </View>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.relatedList}
-            >
-              {relatedProducts.map((relatedProduct) => (
-                <ProductCard
-                  key={relatedProduct.id}
-                  product={relatedProduct}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/product-details",
-                      params: {
-                        id: relatedProduct.id,
-                      },
-                    })
-                  }
-                />
-              ))}
-            </ScrollView>
-          </View>
-        ) : null}
-        <RatingsSection kind="product" storeId={product.storeId} productId={product.id} showSummary={false} />
-      </ScrollView>
+          <View style={styles.total}><Text style={[styles.eyebrow, { color: colors.textMuted }]}>الإجمالي</Text>
+            <Text style={[styles.totalPrice, { color: colors.primary }]}>{formatSyp(lineTotal)}</Text></View>
+        </View>
+        <AppButton title="إضافة إلى السلة" icon="cart-outline" loading={adding} disabled={adding}
+          onPress={() => void addProduct()} />
+        {cartQuantity > 0 ? <Pressable accessibilityRole="link" accessibilityLabel="فتح السلة"
+          onPress={() => router.push("/cart")} style={styles.cartStatus}>
+          <Text style={[styles.cartStatusText, { color: colors.primary }]}>في السلة: {cartQuantity.toLocaleString("ar-SY", { maximumFractionDigits: 3 })}</Text>
+          <AppIcon name="chevron-back" size={17} color={colors.primary} />
+        </Pressable> : null}
+      </> : <View style={styles.unavailable}>
+        <AppIcon name="alert-circle-outline" size={22} color={colors.error} />
+        <Text style={[styles.unavailableText, { color: colors.textSecondary }]}>هذا المنتج غير متوفر حاليًا ولا يمكن إضافته إلى السلة.</Text>
+      </View>}
     </View>
-  );
+  </View>;
 }
 
-type CustomerOfferCardProps = {
-  offer: CustomerOffer;
-  added: boolean;
-  onAdd: () => void;
-};
-
-function CustomerOfferCard({ offer, added, onAdd }: CustomerOfferCardProps) {
+function Fact({ icon, label, value }: { icon: React.ComponentProps<typeof AppIcon>["name"]; label: string; value: string }) {
   const { colors } = useTheme();
-  const calculation = calculateCustomerOffer(offer);
-  const currency = "ل.س";
-
-  return (
-    <View
-      style={{
-        backgroundColor: colors.surface,
-        borderColor: colors.accent,
-        borderRadius: Radius.lg,
-        borderWidth: 1,
-        gap: Spacing.three,
-        padding: Spacing.three,
-      }}
-    >
-      <View style={{ gap: Spacing.one }}>
-        <Text style={{ color: colors.text, fontFamily: Fonts.bold, fontSize: FontSizes.md, textAlign: "right" }}>
-          {offer.title}
-        </Text>
-        <Text style={{ color: colors.accent, fontFamily: Fonts.medium, fontSize: FontSizes.sm, textAlign: "right" }}>
-          {describeCustomerOffer(offer)}
-        </Text>
-        {offer.description ? (
-          <Text style={{ color: colors.textSecondary, fontFamily: Fonts.regular, fontSize: FontSizes.sm, lineHeight: 20, textAlign: "right" }}>
-            {offer.description}
-          </Text>
-        ) : null}
-      </View>
-      <View
-        style={{
-          backgroundColor: colors.surfaceSecondary,
-          borderRadius: Radius.md,
-          gap: Spacing.one,
-          padding: Spacing.three,
-        }}
-      >
-        <Text
-          style={{
-            color: colors.textMuted,
-            fontFamily: Fonts.medium,
-            fontSize: FontSizes.xs,
-            textAlign: "right",
-          }}
-        >
-          الباقة تتضمن
-        </Text>
-        {calculation.items.map((item) => (
-          <View
-            key={item.id}
-            style={{
-              alignItems: "center",
-              flexDirection: "row-reverse",
-              gap: Spacing.two,
-            }}
-          >
-            <AppIcon
-              name={item.itemRole === "reward" ? "gift-outline" : "checkmark-circle-outline"}
-              size={16}
-              color={item.itemRole === "reward" ? colors.accent : colors.primary}
-            />
-            <Text
-              style={{
-                color: colors.text,
-                flex: 1,
-                fontFamily: Fonts.regular,
-                fontSize: FontSizes.sm,
-                textAlign: "right",
-              }}
-            >
-              {item.product.name} · {item.quantity} {item.product.unit}
-              {item.itemRole === "reward" ? " (هدية)" : ""}
-            </Text>
-          </View>
-        ))}
-      </View>
-      <View style={{ borderTopColor: colors.border, borderTopWidth: 1, gap: Spacing.one, paddingTop: Spacing.two }}>
-        <View style={{ alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between" }}>
-          <Text style={{ color: colors.text, fontFamily: Fonts.semiBold }}>سعر الباقة كاملة</Text>
-          <Text style={{ color: colors.primary, fontFamily: Fonts.bold, fontSize: FontSizes.md }}>
-            {formatSypNumber(calculation.finalTotal)} {currency}
-          </Text>
-        </View>
-        {calculation.originalTotal > calculation.finalTotal ? (
-          <View style={{ alignItems: "center", flexDirection: "row-reverse", justifyContent: "space-between" }}>
-            <Text style={{ color: colors.textMuted, fontFamily: Fonts.regular, fontSize: FontSizes.xs }}>التوفير على الباقة</Text>
-            <Text style={{ color: colors.success, fontFamily: Fonts.medium, fontSize: FontSizes.xs }}>
-              {formatSypNumber((calculation.originalTotal - calculation.finalTotal))} {currency}
-            </Text>
-          </View>
-        ) : null}
-      </View>
-      <AppButton
-        title={added ? "العرض مضاف إلى السلة" : "أضف العرض إلى السلة"}
-        icon={added ? "checkmark-circle-outline" : "cart-outline"}
-        variant={added ? "secondary" : "primary"}
-        disabled={added}
-        onPress={onAdd}
-      />
-    </View>
-  );
-}
-
-type InfoRowProps = {
-  icon: React.ComponentProps<typeof AppIcon>["name"];
-  title: string;
-  value: string;
-  valueColor?: string;
-};
-
-function InfoRow({ icon, title, value, valueColor }: InfoRowProps) {
-  const { colors } = useTheme();
-
-  return (
-    <View style={styles.infoRow}>
-      <View
-        style={[
-          styles.infoIcon,
-          {
-            backgroundColor: colors.primaryLight,
-          },
-        ]}
-      >
-        <AppIcon name={icon} size={18} color={colors.primary} />
-      </View>
-
-      <Text
-        style={[
-          styles.infoTitle,
-          {
-            color: colors.textSecondary,
-          },
-        ]}
-      >
-        {title}
-      </Text>
-
-      <Text
-        style={[
-          styles.infoValue,
-          {
-            color: valueColor ?? colors.text,
-          },
-        ]}
-      >
-        {value}
-      </Text>
-    </View>
-  );
+  return <View style={styles.fact}><AppIcon name={icon} size={18} color={colors.primary} />
+    <View style={styles.factCopy}><Text style={[styles.eyebrow, { color: colors.textMuted }]}>{label}</Text>
+      <Text style={[styles.factValue, { color: colors.text }]}>{value}</Text></View></View>;
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-
-  content: {
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.ten,
-  },
-
-  productImage: {
-    height: 270,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.xl,
-    overflow: "hidden",
-    position: "relative",
-  },
-
-  favoriteButton: {
-    position: "absolute",
-    top: Spacing.three,
-    left: Spacing.three,
-    width: 46,
-    height: 46,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderRadius: Radius.full,
-  },
-
-  offerBadge: {
-    position: "absolute",
-    top: Spacing.three,
-    right: Spacing.three,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: 5,
-    borderRadius: Radius.full,
-  },
-
-  offerBadgeText: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.xs,
-  },
-
-  productInfo: {
-    marginTop: Spacing.five,
-  },
-
-  categoryRow: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: Spacing.two,
-  },
-
-  categoryBadge: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: 5,
-    borderRadius: Radius.full,
-  },
-
-  categoryText: {
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.xs,
-  },
-
-  popularBadge: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: 5,
-    borderRadius: Radius.full,
-  },
-
-  popularText: {
-    fontFamily: Fonts.medium,
-    fontSize: FontSizes.xs,
-  },
-
-  productName: {
-    marginTop: Spacing.three,
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.xxl,
-    lineHeight: 35,
-    textAlign: "right",
-  },
-
-  description: {
-    marginTop: Spacing.two,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    lineHeight: 23,
-    textAlign: "right",
-  },
-
-  priceRow: {
-    flexDirection: "row-reverse",
-    alignItems: "baseline",
-    justifyContent: "space-between",
-    marginTop: Spacing.four,
-  },
-
-  productRating: {
-    alignSelf: "flex-end",
-    marginTop: Spacing.two,
-  },
-
-  priceContainer: {
-    flexDirection: "row-reverse",
-    alignItems: "baseline",
-    gap: 4,
-  },
-
-  price: {
-    fontFamily: Fonts.bold,
-    fontSize: 26,
-  },
-
-  currency: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.sm,
-  },
-
-  unit: {
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-  },
-
-  storeRow: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: Spacing.three,
-    marginTop: Spacing.four,
-    padding: Spacing.three,
-    borderWidth: 1,
-    borderRadius: Radius.lg,
-  },
-
-  storeIcon: {
-    width: 38,
-    height: 38,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.md,
-  },
-
-  storeInfo: {
-    flex: 1,
-    alignItems: "flex-end",
-  },
-
-  storeLabel: {
-    fontFamily: Fonts.regular,
-    fontSize: 10,
-  },
-
-  storeName: {
-    marginTop: 1,
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.sm,
-  },
-
-  divider: {
-    height: 1,
-    marginVertical: Spacing.five,
-  },
-
-  infoCard: {
-    padding: Spacing.four,
-    borderWidth: 1,
-    borderRadius: Radius.xl,
-  },
-
-  infoRow: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    minHeight: 48,
-    gap: Spacing.two,
-  },
-
-  infoIcon: {
-    width: 34,
-    height: 34,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.md,
-  },
-
-  infoTitle: {
-    flex: 1,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    textAlign: "right",
-  },
-
-  infoValue: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.sm,
-    textAlign: "right",
-  },
-
-  quantitySection: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: Spacing.five,
-  },
-
-  quantityTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.md,
-  },
-
-  quantityControl: {
-    flexDirection: "row",
-    alignItems: "center",
-    minHeight: 48,
-    borderWidth: 1,
-    borderRadius: Radius.lg,
-  },
-
-  quantityButton: {
-    width: 46,
-    height: 46,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  quantityValue: {
-    minWidth: 34,
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.md,
-    textAlign: "center",
-  },
-
-  totalCard: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: Spacing.four,
-    padding: Spacing.four,
-    borderRadius: Radius.xl,
-  },
-
-  totalLabel: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.md,
-    textAlign: "right",
-  },
-
-  totalHint: {
-    marginTop: 2,
-    fontFamily: Fonts.regular,
-    fontSize: 10,
-    textAlign: "right",
-  },
-
-  totalPrice: {
-    flexDirection: "row-reverse",
-    alignItems: "baseline",
-    gap: 3,
-  },
-
-  totalAmount: {
-    fontFamily: Fonts.bold,
-    fontSize: 22,
-  },
-
-  totalCurrency: {
-    fontFamily: Fonts.semiBold,
-    fontSize: 10,
-  },
-
-  addButton: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.two,
-    minHeight: 54,
-    marginTop: Spacing.four,
-    borderRadius: Radius.lg,
-  },
-
-  addButtonText: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.md,
-  },
-
-  cartButton: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.two,
-    minHeight: 48,
-    marginTop: Spacing.two,
-    borderWidth: 1,
-    borderRadius: Radius.lg,
-  },
-
-  cartButtonText: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.sm,
-  },
-
-  unavailableCard: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: Spacing.three,
-    marginTop: Spacing.five,
-    padding: Spacing.four,
-    borderWidth: 1,
-    borderRadius: Radius.xl,
-  },
-
-  unavailableInfo: {
-    flex: 1,
-    alignItems: "flex-end",
-  },
-
-  unavailableTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.sm,
-    textAlign: "right",
-  },
-
-  unavailableText: {
-    marginTop: 2,
-    fontFamily: Fonts.regular,
-    fontSize: 10,
-    lineHeight: 18,
-    textAlign: "right",
-  },
-
-  relatedSection: {
-    marginTop: Spacing.seven,
-  },
-
-  sectionHeader: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: Spacing.three,
-  },
-
-  sectionTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.lg,
-    textAlign: "right",
-  },
-
-  sectionSubtitle: {
-    marginTop: 2,
-    fontFamily: Fonts.regular,
-    fontSize: 10,
-    textAlign: "right",
-  },
-
-  relatedList: {
-    flexDirection: "row-reverse",
-    gap: Spacing.three,
-    paddingBottom: Spacing.one,
-  },
-
-  notFound: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: Spacing.six,
-  },
-
-  notFoundIcon: {
-    width: 88,
-    height: 88,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: Radius.full,
-  },
-
-  notFoundTitle: {
-    marginTop: Spacing.four,
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.xl,
-    textAlign: "center",
-  },
-
-  notFoundText: {
-    marginTop: Spacing.one,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    textAlign: "center",
-  },
-
-  backButton: {
-    marginTop: Spacing.five,
-    paddingHorizontal: Spacing.six,
-    paddingVertical: Spacing.three,
-    borderRadius: Radius.full,
-  },
-
-  backButtonText: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.sm,
-  },
-
-  pressed: {
-    opacity: 0.72,
-  },
+  container: { flex: 1 },
+  empty: { flex: 1, justifyContent: "center", padding: Spacing.four },
+  content: { width: "100%", maxWidth: 760, alignSelf: "center", direction: "rtl",
+    paddingHorizontal: Spacing.four, paddingTop: Spacing.two, paddingBottom: Spacing.six, gap: Spacing.four },
+  summary: { gap: Spacing.three },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
+  chip: { minHeight: 32, flexDirection: "row", alignItems: "center", gap: Spacing.one,
+    borderRadius: Radius.full, paddingHorizontal: Spacing.three, paddingVertical: Spacing.one },
+  chipText: { fontFamily: Fonts.medium, fontSize: FontSizes.xs, ...RtlText },
+  name: { fontFamily: Fonts.bold, fontSize: FontSizes.xl, lineHeight: 34, ...RtlText },
+  priceBlock: { borderRadius: Radius.lg, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two,
+    flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", gap: Spacing.two },
+  price: { fontFamily: Fonts.bold, fontSize: FontSizes.xl, ...RtlText },
+  unit: { fontFamily: Fonts.medium, fontSize: FontSizes.sm, ...RtlText },
+  store: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: Spacing.two, paddingVertical: Spacing.one },
+  storeLogo: { width: 40, height: 40, borderRadius: Radius.md, overflow: "hidden",
+    alignItems: "center", justifyContent: "center" },
+  storeCopy: { flex: 1, minWidth: 0, alignItems: "stretch" },
+  eyebrow: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, ...RtlText },
+  storeName: { fontFamily: Fonts.semiBold, fontSize: FontSizes.sm, ...RtlText },
+  descriptionBlock: { gap: Spacing.one },
+  sectionTitle: { fontFamily: Fonts.bold, fontSize: FontSizes.md, ...RtlText },
+  description: { fontFamily: Fonts.regular, fontSize: FontSizes.sm, lineHeight: 24, ...RtlText },
+  facts: { borderTopWidth: 1, borderBottomWidth: 1, paddingVertical: Spacing.two, gap: Spacing.two },
+  factPair: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.two },
+  fact: { minHeight: 42, flex: 1, minWidth: 130, flexDirection: "row", alignItems: "center", gap: Spacing.two },
+  factCopy: { flex: 1, minWidth: 0, alignItems: "stretch" },
+  factValue: { fontFamily: Fonts.medium, fontSize: FontSizes.sm, ...RtlText },
+  stepHint: { minHeight: 42, flexDirection: "row", alignItems: "center", gap: Spacing.two,
+    borderRadius: Radius.md, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
+  reviewsLink: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: Spacing.two,
+    borderTopWidth: 1, borderBottomWidth: 1, paddingVertical: Spacing.two },
+  reviewsCopy: { flex: 1, minWidth: 0, alignItems: "stretch", gap: Spacing.one },
+  section: { gap: Spacing.two },
+  helper: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, lineHeight: 20, ...RtlText },
+  offerItem: { gap: Spacing.one },
+  related: { direction: "rtl", flexDirection: "row", gap: Spacing.two, paddingBottom: Spacing.one },
+  purchase: { borderTopWidth: 1, paddingHorizontal: Spacing.four, paddingTop: Spacing.two, gap: Spacing.two },
+  purchaseRow: { direction: "rtl", flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: Spacing.three },
+  quantity: { minHeight: ControlSizes.touch, flexDirection: "row", alignItems: "center", borderWidth: 1,
+    borderRadius: Radius.lg, overflow: "hidden" },
+  quantityButton: { width: ControlSizes.touch, minHeight: ControlSizes.touch, alignItems: "center", justifyContent: "center" },
+  quantityValue: { minWidth: 70, alignItems: "center", justifyContent: "center", paddingHorizontal: Spacing.one },
+  quantityNumber: { fontFamily: Fonts.bold, fontSize: FontSizes.md, writingDirection: "ltr" },
+  quantityUnit: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, ...RtlText },
+  total: { flex: 1, minWidth: 0, alignItems: "stretch" },
+  totalPrice: { fontFamily: Fonts.bold, fontSize: FontSizes.md, ...RtlText },
+  error: { fontFamily: Fonts.medium, fontSize: FontSizes.xs, textAlign: "center", writingDirection: "rtl" },
+  cartStatus: { minHeight: ControlSizes.touch, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: Spacing.one },
+  cartStatusText: { fontFamily: Fonts.semiBold, fontSize: FontSizes.sm, ...RtlText },
+  unavailable: { minHeight: 52, flexDirection: "row", alignItems: "center", gap: Spacing.two },
+  unavailableText: { flex: 1, fontFamily: Fonts.medium, fontSize: FontSizes.sm, ...RtlText },
 });

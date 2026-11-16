@@ -1,13 +1,14 @@
 import { formatSyp, formatSypNumber } from "@/lib/money";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
 import { AppModal } from "@/components/ui/AppModal";
-import { CustomerCatalogStatus } from "@/components/marketplace/CustomerCatalogStatus";
+import { ShoppingCardImage } from "@/components/marketplace/ShoppingCardImage";
 import type { Product } from "@/types/catalog";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { type CartItem, useCart } from "@/context/CartContext";
@@ -15,6 +16,7 @@ import { useCustomerCatalog } from "@/context/CustomerCatalogContext";
 import { useTheme } from "@/context/ThemeContext";
 import { calculateCustomerOffer, describeCustomerOffer } from "@/lib/customer-offers";
 import type { CustomerOffer } from "@/lib/customer-offers";
+import { useCustomerStoreLogos } from "@/hooks/useCustomerStoreLogos";
 
 type DeleteModal =
   | {
@@ -35,16 +37,18 @@ type DeleteModal =
 export default function CartScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { products, offers, loading: catalogLoading, refresh } = useCustomerCatalog();
-  useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
+  const insets = useSafeAreaInsets();
+  const { products, offers, loading: catalogLoading, refreshing: catalogRefreshing, error: catalogError, offerRead, refresh, revalidate: revalidateCatalog } = useCustomerCatalog();
 
   const {
+    scope: cartScope,
     items,
     selectedOfferIds,
     itemCount,
     subtotal,
 
     loading,
+    refreshing: cartRefreshing,
     syncError,
     increaseItem,
     decreaseItem,
@@ -52,9 +56,13 @@ export default function CartScreen() {
     removeOffer,
     clearCart,
     retrySync,
+    revalidate: revalidateCart,
   } = useCart();
+  useFocusEffect(useCallback(() => { void Promise.all([revalidateCart(), revalidateCatalog()]); }, [revalidateCart, revalidateCatalog]));
 
   const [deleteModal, setDeleteModal] = useState<DeleteModal>(null);
+  const [priceNotice, setPriceNotice] = useState<{ scope: string | null; text: string } | null>(null);
+  const verifiedPrices = useRef<{ scope: string | null; values: Map<string, number> } | null>(null);
 
   const cartProducts = items
     .map((item) => {
@@ -79,16 +87,22 @@ export default function CartScreen() {
         product: (typeof products)[number];
       } => Boolean(value),
     );
-  const unavailableItems = items.filter(
+  const unavailableItems = !catalogLoading && !catalogError ? items.filter(
     (item) => !products.some((product) => product.id === item.productId && product.available),
-  );
+  ) : [];
+  const unresolvedItems = catalogLoading || catalogError ? items.filter(
+    (item) => !products.some((product) => product.id === item.productId && product.available),
+  ) : [];
   const cartOffers = selectedOfferIds.flatMap((offerId) => {
     const offer = offers.find((candidate) => candidate.id === offerId);
     return offer ? [offer] : [];
   });
-  const unavailableOfferIds = selectedOfferIds.filter(
+  const unavailableOfferIds = offerRead === "ready" ? selectedOfferIds.filter(
     (offerId) => !offers.some((offer) => offer.id === offerId),
-  );
+  ) : [];
+  const unresolvedOfferIds = offerRead !== "ready" ? selectedOfferIds.filter(
+    (offerId) => !offers.some((offer) => offer.id === offerId),
+  ) : [];
 
   const storeIds = Array.from(
     new Set([
@@ -98,18 +112,33 @@ export default function CartScreen() {
   );
 
   const storeCount = storeIds.length;
+  const { logos } = useCustomerStoreLogos(storeIds, true, true);
   const isSharedCart = storeCount > 1;
 
   const total = subtotal;
-  const totalSavings = cartOffers.reduce((sum, offer) => {
-    const calculation = calculateCustomerOffer(offer);
-    return sum + calculation.originalTotal - calculation.finalTotal;
-  }, 0);
+  const hasCartRows = items.length > 0 || selectedOfferIds.length > 0;
+  const validating = cartRefreshing || catalogRefreshing;
+  const checkoutBlocked = loading || catalogLoading || validating || Boolean(syncError) || Boolean(catalogError) ||
+    unavailableItems.length > 0 || unavailableOfferIds.length > 0 || unresolvedItems.length > 0 || unresolvedOfferIds.length > 0;
   const cartItemsByStore = cartProducts.reduce<Map<string, typeof cartProducts>>((groups, entry) => {
     const key = entry.product.storeId;
     groups.set(key, [...(groups.get(key) ?? []), entry]);
     return groups;
   }, new Map());
+  const cartOffersByStore = cartOffers.reduce<Map<string, CustomerOffer[]>>((groups, offer) => {
+    groups.set(offer.store_id, [...(groups.get(offer.store_id) ?? []), offer]);
+    return groups;
+  }, new Map());
+  useEffect(() => {
+    if (catalogLoading || catalogRefreshing) return;
+    const next = new Map(cartProducts.map(({ product }) => [product.id, product.price]));
+    const previous = verifiedPrices.current?.scope === cartScope ? verifiedPrices.current.values : null;
+    if (previous) {
+      const changed = cartProducts.filter(({ product }) => previous.has(product.id) && previous.get(product.id) !== product.price);
+      if (changed.length) setPriceNotice({ scope: cartScope, text: changed.length === 1 ? `تم تحديث سعر «${changed[0].product.name}» وفق السعر الحالي للمتجر.` : `تم تحديث أسعار ${changed.length} منتجات وفق الأسعار الحالية للمتاجر.` });
+    }
+    verifiedPrices.current = { scope: cartScope, values: next };
+  }, [cartProducts, cartScope, catalogLoading, catalogRefreshing]);
 
   const handleClearCart = () => {
     if (items.length === 0 && selectedOfferIds.length === 0) {
@@ -172,8 +201,10 @@ export default function CartScreen() {
         },
       ]}
     >
-      <AppHeader title="السلة" showBack cartCount={itemCount} mode="customer" />
-      <CustomerCatalogStatus />
+      <AppHeader title="سلة التسوق" showBack cartCount={itemCount} mode="customer" />
+      {validating && hasCartRows ? <View accessibilityLiveRegion="polite" style={styles.backgroundStatus}><View style={[styles.backgroundDot, { backgroundColor: colors.primary }]} /><Text style={[styles.backgroundText, { color: colors.textSecondary }]}>جارٍ التحقق من الأسعار والتوفر…</Text></View> : null}
+      {catalogError && hasCartRows ? <View accessibilityLiveRegion="polite" style={styles.catalogError}><Text style={[styles.catalogErrorText, { color: colors.error }]}>تعذر التحقق من الأسعار والتوفر. بقيت محتويات السلة محفوظة.</Text><AppButton compact fullWidth={false} title="إعادة المحاولة" variant="outline" onPress={() => void refresh()} /></View> : null}
+      {priceNotice?.scope === cartScope ? <Pressable accessibilityRole="button" accessibilityLabel="إخفاء إشعار تحديث السعر" onPress={() => setPriceNotice(null)} style={[styles.priceNotice, { backgroundColor: colors.surfaceSelected, borderColor: colors.primary }]}><Text style={[styles.priceNoticeText, { color: colors.text }]}>{priceNotice.text}</Text><AppIcon name="close-outline" size={17} color={colors.textSecondary} /></Pressable> : null}
       {syncError ? (
         <View style={{ alignItems: "center", gap: Spacing.two, padding: Spacing.three }}>
           <Text style={{ color: colors.error, fontFamily: Fonts.regular, fontSize: FontSizes.sm, textAlign: "center" }}>{syncError}</Text>
@@ -185,43 +216,21 @@ export default function CartScreen() {
         </Text>
       ) : null}
 
-      {loading || catalogLoading ? (
-        <Text style={{ color: colors.textSecondary, fontFamily: Fonts.regular, fontSize: FontSizes.sm, textAlign: "center", padding: Spacing.three }}>
-          جارٍ تحميل بيانات السلة...
-        </Text>
-      ) : cartProducts.length === 0 && unavailableItems.length === 0 &&
-        cartOffers.length === 0 && unavailableOfferIds.length === 0 ? (
+      {(loading || catalogLoading) && !hasCartRows ? (
+        <CartInitialSkeleton />
+      ) : !hasCartRows ? (
         <EmptyCart onContinue={() => router.replace("/home")} />
       ) : (
         <ScrollView
+          style={styles.scroll}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.content}
         >
           <View style={styles.summaryHeader}>
-            <View>
-              <Text
-                style={[
-                  styles.title,
-                  {
-                    color: colors.text,
-                  },
-                ]}
-              >
-                سلة مشترياتك
-              </Text>
-
-              <Text
-                style={[
-                  styles.subtitle,
-                  {
-                    color: colors.textMuted,
-                  },
-                ]}
-              >
+            <Text style={[styles.subtitle, { color: colors.textMuted }]}>
                 {itemCount} عنصر • {storeCount}{" "}
                 {storeCount === 1 ? "متجر" : "متاجر"}
-              </Text>
-            </View>
+            </Text>
 
             <Pressable
               onPress={handleClearCart}
@@ -247,14 +256,10 @@ export default function CartScreen() {
             </Pressable>
           </View>
 
-          <CartTypeCard
-            isSharedCart={isSharedCart}
-            storeCount={storeCount}
-          />
-
-          {isSharedCart ? <SharedCartStores storeIds={storeIds} /> : null}
-
           <View style={styles.itemsList}>
+            {unresolvedItems.map((item) => (
+              <CartReadState key={item.productId} text={`جارٍ التحقق من المنتج والكمية ${item.quantity}…`} retry={refresh} />
+            ))}
             {unavailableItems.map((item) => (
               <View
                 key={item.productId}
@@ -276,26 +281,18 @@ export default function CartScreen() {
                 <AppButton title="حذف" variant="outline" onPress={() => void removeItem(item.productId)} />
               </View>
             ))}
-            {Array.from(cartItemsByStore.entries()).map(([storeId, storeItems]) => (
+            {storeIds.map((storeId) => (
               <CartStoreGroup
                 key={storeId}
                 storeId={storeId}
-                entries={storeItems}
+                entries={cartItemsByStore.get(storeId) ?? []}
+                offers={cartOffersByStore.get(storeId) ?? []}
+                logo={logos.get(storeId)}
                 isSharedCart={isSharedCart}
                 onIncrease={increaseItem}
                 onDecrease={decreaseItem}
                 onRemove={handleRemoveItem}
-              />
-            ))}
-            {cartOffers.map((offer) => (
-              <OfferCartCard
-                key={offer.id}
-                offer={offer}
-                onRemove={() => setDeleteModal({
-                  type: "offer",
-                  offerId: offer.id,
-                  offerTitle: offer.title,
-                })}
+                onRemoveOffer={(offer) => setDeleteModal({ type: "offer", offerId: offer.id, offerTitle: offer.title })}
               />
             ))}
             {unavailableOfferIds.map((offerId) => (
@@ -323,6 +320,9 @@ export default function CartScreen() {
                 />
               </View>
             ))}
+            {unresolvedOfferIds.map((offerId) => (
+              <CartReadState key={offerId} text="تعذر التحقق من أهلية هذا العرض بعد. لم نحذفه من سلتك." retry={refresh} />
+            ))}
           </View>
           {unavailableItems.length > 0 ? (
             <Text accessibilityRole="alert" style={{ color: colors.error, textAlign: "center" }}>
@@ -330,137 +330,17 @@ export default function CartScreen() {
             </Text>
           ) : null}
 
-          <DeliveryCard
-            isSharedCart={isSharedCart}
-          />
-
-          <View
-            style={[
-              styles.totalCard,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-              },
-            ]}
-          >
-            <Text
-              style={[
-                styles.totalTitle,
-                {
-                  color: colors.text,
-                },
-              ]}
-            >
-              ملخص الطلب
-            </Text>
-
-            <SummaryRow
-              label="المجموع الفرعي"
-              value={formatSyp(subtotal)}
-            />
-
-            {totalSavings > 0 ? (
-              <SummaryRow
-                label="وفرت من العروض"
-                value={formatSyp(totalSavings)}
-              />
-            ) : null}
-            <SummaryRow label="التوصيل" value="يُحسب حسب المنطقة في إتمام الطلب" />
-
-            <View
-              style={[
-                styles.totalDivider,
-                {
-                  backgroundColor: colors.border,
-                },
-              ]}
-            />
-
-            <View style={styles.grandTotalRow}>
-              <Text
-                style={[
-                  styles.grandTotalLabel,
-                  {
-                    color: colors.text,
-                  },
-                ]}
-              >
-                الإجمالي قبل التوصيل
-              </Text>
-
-              <View style={styles.grandTotalPrice}>
-                <Text
-                  style={[
-                    styles.grandTotalAmount,
-                    {
-                      color: colors.primary,
-                    },
-                  ]}
-                >
-                  {formatSypNumber(total)}
-                </Text>
-
-                <Text
-                  style={[
-                    styles.grandTotalCurrency,
-                    {
-                      color: colors.textSecondary,
-                    },
-                  ]}
-                >
-                  {"ل.س"}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <Pressable
-            disabled={
-              loading ||
-              unavailableItems.length > 0 ||
-              unavailableOfferIds.length > 0
-            }
-            onPress={() => router.push("/checkout")}
-            style={({ pressed }) => [
-              styles.checkoutButton,
-              {
-                backgroundColor: colors.primary,
-              },
-              isSharedCart && {
-                backgroundColor: colors.accent,
-              },
-              pressed && styles.pressed,
-              (loading || unavailableItems.length > 0 || unavailableOfferIds.length > 0) && { opacity: 0.5 },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="متابعة لإتمام الطلب"
-          >
-            <Text
-              style={[
-                styles.checkoutText,
-                {
-                  color: colors.surface,
-                },
-              ]}
-            >
-              متابعة لإتمام الطلب
-            </Text>
-
-            <AppIcon name="arrow-back" size={20} color={colors.surface} />
-          </Pressable>
-
-          <Text
-            style={[
-              styles.note,
-              {
-                color: colors.textMuted,
-              },
-            ]}
-          >
-            الدفع عند الاستلام متاح حالياً.
-          </Text>
         </ScrollView>
       )}
+
+      {hasCartRows && !loading ? <View style={[styles.purchaseBar, { backgroundColor: colors.surface, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, Spacing.two) }]}>
+        <View style={styles.purchaseTotal}>
+          <Text style={[styles.purchaseLabel, { color: colors.textSecondary }]}>الإجمالي قبل التوصيل</Text>
+          <Text style={[styles.purchaseAmount, { color: isSharedCart ? colors.accent : colors.primary }]}>{formatSypNumber(total)} <Text style={styles.purchaseCurrency}>ل.س</Text></Text>
+        </View>
+        <AppButton title="متابعة لإتمام الطلب" icon="arrow-back" disabled={checkoutBlocked} onPress={() => router.push("/checkout")} />
+        {checkoutBlocked ? <Text accessibilityRole="alert" style={[styles.purchaseHint, { color: colors.textSecondary }]}>أكمل التحقق من العناصر والمزامنة قبل المتابعة.</Text> : null}
+      </View> : null}
 
       <AppModal
         visible={deleteModal !== null}
@@ -482,7 +362,7 @@ type CartTypeCardProps = {
   storeCount: number;
 };
 
-function CartTypeCard({
+export function CartTypeCard({
   isSharedCart,
   storeCount,
 }: CartTypeCardProps) {
@@ -552,18 +432,7 @@ function CartTypeCard({
               },
             ]}
           >
-            جمعت منتجات من أكثر من متجر في طلب واحد.
-          </Text>
-
-          <Text
-            style={[
-              styles.sharedCartDelivery,
-              {
-                color: colors.text,
-              },
-            ]}
-          >
-            رسوم التوصيل تُحدد حسب المنطقة المختارة عند إتمام الطلب.
+            طلب واحد من عدة متاجر؛ يحسب التوصيل حسب المنطقة عند الإتمام.
           </Text>
         </View>
       </View>
@@ -611,18 +480,7 @@ function CartTypeCard({
             },
           ]}
         >
-          جميع المنتجات في هذه السلة من نفس المتجر.
-        </Text>
-
-        <Text
-          style={[
-            styles.singleCartDelivery,
-            {
-              color: colors.primaryDark,
-            },
-          ]}
-        >
-          رسوم التوصيل تُحدد حسب المنطقة المختارة عند إتمام الطلب.
+          يحسب التوصيل حسب المنطقة عند إتمام الطلب.
         </Text>
       </View>
     </View>
@@ -633,7 +491,7 @@ type SharedCartStoresProps = {
   storeIds: string[];
 };
 
-function SharedCartStores({ storeIds }: SharedCartStoresProps) {
+export function SharedCartStores({ storeIds }: SharedCartStoresProps) {
   const { colors } = useTheme();
   const { stores } = useCustomerCatalog();
 
@@ -741,29 +599,33 @@ type CartItemCardProps = {
   onIncrease: () => void;
   onDecrease: () => void;
   onRemove: () => void;
+  separated?: boolean;
 };
 
 type CartStoreGroupProps = {
   storeId: string;
   entries: { item: CartItem; product: Product }[];
+  offers: CustomerOffer[];
+  logo?: { url: string; key: string };
   isSharedCart: boolean;
   onIncrease: (productId: string) => Promise<void>;
   onDecrease: (productId: string) => Promise<void>;
   onRemove: (productId: string, productName: string) => void;
+  onRemoveOffer: (offer: CustomerOffer) => void;
 };
 
-function CartStoreGroup({ storeId, entries, isSharedCart, onIncrease, onDecrease, onRemove }: CartStoreGroupProps) {
+function CartStoreGroup({ storeId, entries, offers, logo, isSharedCart, onIncrease, onDecrease, onRemove, onRemoveOffer }: CartStoreGroupProps) {
   const { colors } = useTheme();
   const { stores } = useCustomerCatalog();
   const storeName = stores.find((store) => store.id === storeId)?.name ?? "متجر";
   return (
-    <View style={styles.storeGroup}>
+    <View style={[styles.storeGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={styles.storeGroupHeader}>
-        <View style={[styles.storeGroupIcon, { backgroundColor: colors.primaryLight }]}><AppIcon name="storefront-outline" size={17} color={colors.primary} /></View>
+        <View style={[styles.storeGroupIcon, { backgroundColor: colors.primaryLight }]}><ShoppingCardImage uri={logo?.url} cacheKey={logo?.key} icon="storefront-outline" fit="contain" /></View>
         <Text style={[styles.storeGroupTitle, { color: colors.text }]} numberOfLines={1}>{storeName}</Text>
-        <Text style={[styles.storeGroupCount, { color: colors.textMuted }]}>{entries.length} عناصر</Text>
+        <Text style={[styles.storeGroupCount, { color: colors.textMuted }]}>{entries.length + offers.length} عناصر</Text>
       </View>
-      {entries.map(({ item, product }) => (
+      {entries.map(({ item, product }, index) => (
         <CartItemCard
           key={product.id}
           product={product}
@@ -772,8 +634,10 @@ function CartStoreGroup({ storeId, entries, isSharedCart, onIncrease, onDecrease
           onIncrease={() => onIncrease(product.id)}
           onDecrease={() => onDecrease(product.id)}
           onRemove={() => onRemove(product.id, product.name)}
+          separated={index > 0}
         />
       ))}
+      {offers.map((offer, index) => <OfferCartCard key={offer.id} offer={offer} separated={entries.length > 0 || index > 0} onRemove={() => onRemoveOffer(offer)} />)}
     </View>
   );
 }
@@ -785,12 +649,10 @@ function CartItemCard({
   onIncrease,
   onDecrease,
   onRemove,
+  separated = false,
 }: CartItemCardProps) {
   const { colors } = useTheme();
-  const { stores } = useCustomerCatalog();
   const [updating, setUpdating] = useState(false);
-
-  const store = stores.find((item) => item.id === product.storeId);
 
   const itemTotal = product.price * quantity;
   const image = product.media?.find((media) => media.type === "image")?.uri;
@@ -808,20 +670,16 @@ function CartItemCard({
     <View
       style={[
         styles.itemCard,
+        separated && styles.invoiceSeparator,
         {
           borderColor: colors.border,
           backgroundColor: colors.surface,
-        },
-        isSharedCart && {
-          borderColor: colors.accent,
         },
       ]}
     >
       <View style={styles.itemTop}>
         <View style={[styles.itemVisual, { backgroundColor: colors.primaryLight }, isSharedCart && { backgroundColor: colors.accentLight }]}>
-          {image ? <Image source={{ uri: image }} style={styles.itemImage} resizeMode="cover" /> : (
-            <AppIcon name="cube-outline" size={31} color={isSharedCart ? colors.accent : colors.primary} />
-          )}
+          <ShoppingCardImage uri={image} cacheKey={product.id} icon="cube-outline" />
         </View>
 
         <View style={styles.itemInfo}>
@@ -839,28 +697,13 @@ function CartItemCard({
 
           <Text
             style={[
-              styles.storeName,
-              {
-                color: colors.primary,
-              },
-              isSharedCart && {
-                color: colors.accent,
-              },
-            ]}
-            numberOfLines={1}
-          >
-            {store?.name ?? "متجر"}
-          </Text>
-
-          <Text
-            style={[
               styles.itemUnit,
               {
                 color: colors.textMuted,
               },
             ]}
           >
-            {product.unit}
+            {formatSyp(product.price)} لكل {product.unit}
           </Text>
         </View>
 
@@ -902,30 +745,6 @@ function CartItemCard({
         >
           <Pressable
             disabled={updating}
-            onPress={() => void runUpdate(onDecrease)}
-            style={({ pressed }) => [
-              styles.quantityButton,
-              pressed && styles.pressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="إنقاص الكمية"
-          >
-            <AppIcon name="remove" size={17} color={colors.primary} />
-          </Pressable>
-
-          <Text
-            style={[
-              styles.quantity,
-              {
-                color: colors.text,
-              },
-            ]}
-          >
-            {quantity}
-          </Text>
-
-          <Pressable
-            disabled={updating}
             onPress={() => void runUpdate(onIncrease)}
             style={({ pressed }) => [
               styles.quantityButton,
@@ -934,7 +753,24 @@ function CartItemCard({
             accessibilityRole="button"
             accessibilityLabel="زيادة الكمية"
           >
-            <AppIcon name="add" size={17} color={colors.primary} />
+            <AppIcon name="add" size={16} color={colors.primary} />
+          </Pressable>
+
+          <View style={styles.quantityValue}>
+            <Text style={[styles.quantity, { color: colors.text }]} numberOfLines={1}>{quantity} <Text style={[styles.quantityUnit, { color: colors.textSecondary }]}>{product.unit}</Text></Text>
+          </View>
+
+          <Pressable
+            disabled={updating}
+            onPress={() => quantity <= (product.minimumQuantity ?? 1) ? onRemove() : void runUpdate(onDecrease)}
+            style={({ pressed }) => [
+              styles.quantityButton,
+              pressed && styles.pressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="إنقاص الكمية"
+          >
+            <AppIcon name="remove" size={16} color={colors.primary} />
           </Pressable>
         </View>
 
@@ -972,42 +808,37 @@ function CartItemCard({
 type OfferCartCardProps = {
   offer: CustomerOffer;
   onRemove: () => void;
+  separated?: boolean;
 };
 
-function OfferCartCard({ offer, onRemove }: OfferCartCardProps) {
+function OfferCartCard({ offer, onRemove, separated = false }: OfferCartCardProps) {
   const { colors } = useTheme();
   const calculation = calculateCustomerOffer(offer);
   const currencyLabel = "ل.س";
+  const offerType = offer.offer_type === "bundle" ? "باقة" : offer.offer_type === "buy_x_get_y" ? "هدية" : "خصم";
 
   return (
-    <View
-      style={{
-        backgroundColor: colors.surface,
-        borderColor: colors.accent,
-        borderRadius: Radius.lg,
-        borderWidth: 1,
-        gap: Spacing.three,
-        padding: Spacing.three,
-      }}
-    >
+    <View style={[styles.offerInvoiceRow, separated && styles.invoiceSeparator, { borderColor: colors.border }] }>
       <View style={{ alignItems: "flex-start", flexDirection: "row-reverse", gap: Spacing.two }}>
         <View style={{ flex: 1, gap: Spacing.one }}>
-          <Text style={{ color: colors.text, fontFamily: Fonts.bold, fontSize: FontSizes.md, textAlign: "right" }}>
-            {offer.title}
-          </Text>
-          <Text style={{ color: colors.warningForeground, fontFamily: Fonts.medium, fontSize: FontSizes.sm, textAlign: "right" }}>
+          <Text style={{ color: colors.accent, fontFamily: Fonts.medium, fontSize: FontSizes.xs, textAlign: "right" }}>{offerType}</Text>
+          <Text style={{ color: colors.text, fontFamily: Fonts.bold, fontSize: FontSizes.sm, textAlign: "right" }}>{offer.title}</Text>
+          <Text style={{ color: colors.warningForeground, fontFamily: Fonts.medium, fontSize: FontSizes.xs, textAlign: "right" }}>
             {describeCustomerOffer(offer)}
           </Text>
         </View>
-        <AppIcon name="pricetag-outline" size={21} color={colors.accent} />
+        <View style={styles.offerActions}>
+          <AppIcon name={offer.offer_type === "bundle" ? "layers-outline" : offer.offer_type === "buy_x_get_y" ? "gift-outline" : "pricetag-outline"} size={18} color={colors.accent} />
+          <Pressable accessibilityRole="button" accessibilityLabel={`إزالة عرض ${offer.title}`} hitSlop={8} onPress={onRemove} style={styles.offerRemove}><AppIcon name="trash-outline" size={18} color={colors.textMuted} /></Pressable>
+        </View>
       </View>
 
       <View
         style={{
           backgroundColor: colors.surfaceSecondary,
           borderRadius: Radius.md,
-          gap: Spacing.one,
-          padding: Spacing.three,
+          gap: 4,
+          padding: Spacing.two,
         }}
       >
         <Text
@@ -1018,9 +849,9 @@ function OfferCartCard({ offer, onRemove }: OfferCartCardProps) {
             textAlign: "right",
           }}
         >
-          محتويات الباقة
+          المحتويات
         </Text>
-        {calculation.items.map((item) => (
+        {calculation.items.slice(0, 2).map((item) => (
           <View
             key={item.id}
             style={{
@@ -1048,6 +879,7 @@ function OfferCartCard({ offer, onRemove }: OfferCartCardProps) {
             </Text>
           </View>
         ))}
+        {calculation.items.length > 2 ? <Text style={{ color: colors.textMuted, fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "right" }}>+ {calculation.items.length - 2} عناصر أخرى</Text> : null}
       </View>
 
       <View style={{ borderTopColor: colors.border, borderTopWidth: 1, gap: Spacing.one, paddingTop: Spacing.two }}>
@@ -1066,12 +898,6 @@ function OfferCartCard({ offer, onRemove }: OfferCartCardProps) {
           </View>
         ) : null}
       </View>
-      <AppButton
-        title="إزالة العرض"
-        icon="trash-outline"
-        variant="outline"
-        onPress={onRemove}
-      />
     </View>
   );
 }
@@ -1080,7 +906,7 @@ type DeliveryCardProps = {
   isSharedCart: boolean;
 };
 
-function DeliveryCard({ isSharedCart }: DeliveryCardProps) {
+export function DeliveryCard({ isSharedCart }: DeliveryCardProps) {
   const { colors } = useTheme();
 
   const title = isSharedCart ? "توصيل السلة المشتركة" : "توصيل الطلب";
@@ -1165,7 +991,7 @@ type SummaryRowProps = {
   value: string;
 };
 
-function SummaryRow({ label, value }: SummaryRowProps) {
+export function SummaryRow({ label, value }: SummaryRowProps) {
   const { colors } = useTheme();
 
   return (
@@ -1193,6 +1019,27 @@ function SummaryRow({ label, value }: SummaryRowProps) {
       </Text>
     </View>
   );
+}
+
+function CartReadState({ text, retry }: { text: string; retry: () => Promise<void> }) {
+  const { colors } = useTheme();
+  return <View style={[styles.readState, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+    <Text style={[styles.readStateText, { color: colors.textSecondary }]}>{text}</Text>
+    <AppButton compact fullWidth={false} title="إعادة المحاولة" variant="outline" onPress={() => void retry()} />
+  </View>;
+}
+
+function CartInitialSkeleton() {
+  const { colors } = useTheme();
+  return <View accessibilityLabel="جارٍ تحميل سلة التسوق" style={styles.skeletonWrap}>
+    {[0, 1].map(group => <View key={group} style={[styles.skeletonGroup, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={[styles.skeletonHeader, { backgroundColor: colors.surfaceSecondary }]} />
+      {[0, 1].map(row => <View key={row} style={[styles.skeletonRow, row > 0 && { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
+        <View style={[styles.skeletonImage, { backgroundColor: colors.surfaceSecondary }]} />
+        <View style={styles.skeletonLines}><View style={[styles.skeletonLineWide, { backgroundColor: colors.surfaceSecondary }]} /><View style={[styles.skeletonLine, { backgroundColor: colors.surfaceSecondary }]} /></View>
+      </View>)}
+    </View>)}
+  </View>;
 }
 
 type EmptyCartProps = {
@@ -1270,11 +1117,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  scroll: { flex: 1, minHeight: 0 },
 
   content: {
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.five,
-    paddingBottom: Spacing.ten,
+    paddingBottom: Spacing.five,
   },
 
   summaryHeader: {
@@ -1314,15 +1162,15 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     alignItems: "center",
     gap: Spacing.three,
-    marginBottom: Spacing.four,
-    padding: Spacing.four,
+    marginBottom: Spacing.three,
+    padding: Spacing.three,
     borderWidth: 1,
     borderRadius: Radius.xl,
   },
 
   singleCartIcon: {
-    width: 46,
-    height: 46,
+    width: 38,
+    height: 38,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: Radius.lg,
@@ -1359,15 +1207,15 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     alignItems: "flex-start",
     gap: Spacing.three,
-    marginBottom: Spacing.four,
-    padding: Spacing.four,
+    marginBottom: Spacing.three,
+    padding: Spacing.three,
     borderWidth: 1.5,
     borderRadius: Radius.xl,
   },
 
   sharedCartIcon: {
-    width: 46,
-    height: 46,
+    width: 38,
+    height: 38,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: Radius.lg,
@@ -1481,12 +1329,14 @@ const styles = StyleSheet.create({
 
   itemCard: {
     padding: Spacing.three,
-    borderWidth: 1,
-    borderRadius: Radius.lg,
+    borderWidth: 0,
+    borderRadius: 0,
   },
-  storeGroup: { gap: Spacing.two },
-  storeGroupHeader: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.two, paddingHorizontal: Spacing.one },
-  storeGroupIcon: { alignItems: "center", borderRadius: Radius.full, height: 30, justifyContent: "center", width: 30 },
+  invoiceSeparator: { borderTopWidth: StyleSheet.hairlineWidth },
+  offerInvoiceRow: { borderRadius: 0, borderWidth: 0, gap: Spacing.three, padding: Spacing.three },
+  storeGroup: { borderRadius: Radius.lg, borderWidth: 1, overflow: "hidden" },
+  storeGroupHeader: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.two, padding: Spacing.three },
+  storeGroupIcon: { alignItems: "center", borderRadius: Radius.md, height: 38, justifyContent: "center", overflow: "hidden", position: "relative", width: 38 },
   storeGroupTitle: { flex: 1, fontFamily: Fonts.semiBold, fontSize: FontSizes.sm, textAlign: "right" },
   storeGroupCount: { fontFamily: Fonts.regular, fontSize: FontSizes.xs },
 
@@ -1544,44 +1394,46 @@ const styles = StyleSheet.create({
 
   itemBottom: {
     flexDirection: "row-reverse",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: Spacing.four,
-    paddingTop: Spacing.three,
-    borderTopWidth: 1,
+    marginTop: Spacing.one,
+    paddingTop: 0,
+    borderTopWidth: 0,
   },
 
   quantityControl: {
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     alignItems: "center",
-    minHeight: 40,
+    minHeight: 36,
     borderWidth: 1,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.md,
   },
 
   quantityButton: {
-    width: 38,
-    height: 38,
+    minWidth: 36,
+    minHeight: 36,
     alignItems: "center",
     justifyContent: "center",
   },
 
   quantity: {
-    minWidth: 32,
     fontFamily: Fonts.bold,
     fontSize: FontSizes.sm,
     textAlign: "center",
   },
+  quantityValue: { alignItems: "center", justifyContent: "center", minWidth: 58, paddingHorizontal: Spacing.one },
+  quantityUnit: { fontFamily: Fonts.regular, fontSize: FontSizes.xs },
 
   itemPrice: {
+    alignItems: "flex-end",
     flexDirection: "row-reverse",
-    alignItems: "baseline",
     gap: 3,
   },
 
   itemTotal: {
     fontFamily: Fonts.bold,
-    fontSize: FontSizes.lg,
+    fontSize: FontSizes.md,
   },
 
   itemCurrency: {
@@ -1713,6 +1565,14 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: FontSizes.md,
   },
+  purchaseBar: { borderTopWidth: 1, gap: Spacing.two, paddingHorizontal: Spacing.four, paddingTop: Spacing.three },
+  purchaseTotal: { alignItems: "center", flexDirection: "row-reverse", flexWrap: "wrap", justifyContent: "space-between", gap: Spacing.one },
+  purchaseLabel: { fontFamily: Fonts.medium, fontSize: FontSizes.sm, textAlign: "right" },
+  purchaseAmount: { fontFamily: Fonts.bold, fontSize: FontSizes.xl, textAlign: "right" },
+  purchaseCurrency: { fontFamily: Fonts.semiBold, fontSize: FontSizes.xs },
+  purchaseHint: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "center" },
+  readState: { alignItems: "center", borderRadius: Radius.md, borderWidth: 1, flexDirection: "row-reverse", flexWrap: "wrap", gap: Spacing.two, justifyContent: "space-between", padding: Spacing.three },
+  readStateText: { flex: 1, flexBasis: 180, fontFamily: Fonts.regular, fontSize: FontSizes.sm, textAlign: "right" },
 
   note: {
     marginTop: Spacing.two,
@@ -1770,4 +1630,21 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.72,
   },
+  offerActions: { alignItems: "center", gap: Spacing.two },
+  offerRemove: { alignItems: "center", height: 32, justifyContent: "center", width: 32 },
+  backgroundStatus: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.one, justifyContent: "center", paddingHorizontal: Spacing.four, paddingVertical: Spacing.one },
+  backgroundDot: { borderRadius: Radius.full, height: 6, width: 6 },
+  backgroundText: { fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "right" },
+  catalogError: { alignItems: "center", flexDirection: "row-reverse", flexWrap: "wrap", gap: Spacing.two, justifyContent: "center", paddingHorizontal: Spacing.four, paddingVertical: Spacing.two },
+  catalogErrorText: { flex: 1, flexBasis: 200, fontFamily: Fonts.regular, fontSize: FontSizes.xs, textAlign: "right" },
+  priceNotice: { alignItems: "center", borderRadius: Radius.md, borderWidth: 1, flexDirection: "row-reverse", gap: Spacing.two, marginHorizontal: Spacing.four, marginTop: Spacing.two, padding: Spacing.two },
+  priceNoticeText: { flex: 1, fontFamily: Fonts.medium, fontSize: FontSizes.xs, textAlign: "right" },
+  skeletonWrap: { flex: 1, gap: Spacing.three, padding: Spacing.four },
+  skeletonGroup: { borderRadius: Radius.lg, borderWidth: 1, overflow: "hidden" },
+  skeletonHeader: { borderRadius: Radius.sm, height: 18, margin: Spacing.three, width: "45%" },
+  skeletonRow: { alignItems: "center", flexDirection: "row-reverse", gap: Spacing.three, padding: Spacing.three },
+  skeletonImage: { borderRadius: Radius.md, height: 54, width: 54 },
+  skeletonLines: { flex: 1, gap: Spacing.two },
+  skeletonLineWide: { borderRadius: Radius.sm, height: 12, width: "75%" },
+  skeletonLine: { borderRadius: Radius.sm, height: 10, width: "45%" },
 });

@@ -2158,11 +2158,35 @@ export type Database = {
       }
     }
     Functions: {
+      read_customer_orders_page: {
+        Args: { query_value?: string; status_value?: string; offset_value?: number; limit_value?: number };
+        Returns: Database["public"]["Tables"]["customer_orders"]["Row"][];
+      };
+      read_customer_product_directory: {
+        Args: { seed_value: string; query_value?: string; category_value?: string; sort_value?: string;
+          after_price?: number; after_rank?: string; after_id?: string };
+        Returns: { id: string; store_id: string; store_name: string; category_id: string; title: string;
+          description: string; price: number; selling_unit: string; minimum_quantity: number;
+          quantity_step: number; media_id: string | null; media_path: string | null; media_alt: string | null;
+          media_order: number | null; rank_key: string }[];
+      };
+      read_customer_store_directory: {
+        Args: { seed_value: string; query_value?: string; category_value?: string; after_rank?: string; after_id?: string };
+        Returns: { id: string; name: string; category_id: string; rank_key: string }[];
+      };
       read_customer_home_discovery: { Args: { seed_value: string }; Returns: Json };
       read_customer_home_ads: { Args: Record<never, never>; Returns: {
         id: string; title: string; body: string; target_kind: "store" | "product" | "offer";
         target_id: string; media_kind: "image" | "video"; media_path: string; ends_at: string; thumbnail_path: string | null;
       }[] };
+      read_customer_active_offers: {
+        Args: Record<never, never>
+        Returns: Database["public"]["Tables"]["store_offers"]["Row"][]
+      }
+      read_customer_next_offer_transition: {
+        Args: Record<never, never>
+        Returns: string | null
+      }
       // Local onboarding migration contract; regenerate from the deployed schema after application.
       get_signup_capabilities: { Args: Record<PropertyKey, never>; Returns: number }
       submit_professional_onboarding: { Args: { input_application: Json; input_birth_date: string }; Returns: string }
@@ -2320,6 +2344,22 @@ export type Database = {
           input_ends_at: string | null
           input_is_active: boolean
           input_items: Json
+          input_title: string
+          input_type: Database["public"]["Enums"]["store_offer_type"]
+          selected_offer: string | null
+        }
+        Returns: string
+      }
+      save_store_offer_v2: {
+        Args: {
+          input_bundle_price: number | null
+          input_description: string
+          input_discount_method: Database["public"]["Enums"]["offer_discount_method"] | null
+          input_discount_value: number | null
+          input_ends_at: string | null
+          input_is_active: boolean
+          input_items: Json
+          input_starts_at: string
           input_title: string
           input_type: Database["public"]["Enums"]["store_offer_type"]
           selected_offer: string | null

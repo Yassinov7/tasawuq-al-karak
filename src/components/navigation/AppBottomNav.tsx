@@ -25,10 +25,16 @@ const customerNavItems: NavItem[] = [
     route: "/home",
   },
   {
-    label: "البحث",
-    icon: "search-outline",
-    activeIcon: "search",
-    route: "/home/search",
+    label: "المتاجر",
+    icon: "storefront-outline",
+    activeIcon: "storefront",
+    route: "/stores",
+  },
+  {
+    label: "المنتجات",
+    icon: "cube-outline",
+    activeIcon: "cube",
+    route: "/products",
   },
   {
     label: "العروض",
@@ -213,8 +219,7 @@ export function AppBottomNav() {
               key={item.label}
               onPress={() => {
                 if (!active || (mode === "merchant" && pathname !== item.route)) {
-                  if (pathname === "/home/search" && item.route === "/home") router.dismissTo("/home");
-                  else if (pathname === "/home" && item.route === "/home/search") router.push(item.route);
+                  if (mode === "customer") router.navigate(item.route);
                   else router.replace(item.route);
                 }
               }}
@@ -295,6 +300,7 @@ const styles = StyleSheet.create({
   item: {
     position: "relative",
     flex: 1,
+    minWidth: 0,
     minHeight: 62,
     alignItems: "center",
     justifyContent: "center",
@@ -314,6 +320,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.medium,
     fontSize: FontSizes.xs,
     lineHeight: 17,
+    textAlign: "center",
   },
 
   activeIndicator: {

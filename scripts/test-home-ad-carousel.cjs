@@ -25,6 +25,11 @@ function harness() {
       if (!slots[index] || !same(slots[index].deps, deps)) slots[index] = { value: fn, deps };
       return slots[index].value;
     },
+    useMemo(fn, deps) {
+      const index = cursor++;
+      if (!slots[index] || !same(slots[index].deps, deps)) slots[index] = { value: fn(), deps };
+      return slots[index].value;
+    },
     useEffect(fn, deps) {
       const index = cursor++;
       if (!slots[index] || !same(slots[index].deps, deps)) {
@@ -45,6 +50,7 @@ function harness() {
 const jsx = (type, props) => ({ type, props });
 const timers = new Map();
 let focused = true, foreground, reduce, reader, nextTimer = 0, plays = 0, pauses = 0, playerSetup;
+let whatsapp;
 const banner = harness();
 let video = harness();
 let released = false;
@@ -59,6 +65,8 @@ const mocks = {
   "expo-video": { VideoView: "VideoView", useVideoPlayer: (_, setup) => { setup(player); playerSetup = player; return player; } },
   "react-native": {
     View: "View", Pressable: "Pressable", Text: "Text", Platform: { OS: "android" },
+    useWindowDimensions: () => ({ width: 360, height: 800, fontScale: 1 }),
+    Linking: { openURL: async url => { whatsapp = url; } },
     StyleSheet: { create: styles => styles, absoluteFill: {} },
     AppState: { currentState: "active", addEventListener: (_, fn) => { foreground = fn; return { remove() {} }; } },
     Animated: { View: "AnimatedView", Value: class { setValue() {} }, timing: () => ({ start() {}, stop() {} }) },
@@ -68,7 +76,9 @@ const mocks = {
     },
   },
   "@/components/marketplace/ShoppingCardImage": { ShoppingCardImage: "Image" },
-  "@/constants/theme": { Fonts: {}, FontSizes: {}, Radius: {}, Spacing: {} },
+  "@/components/brand/BrandMark": { BrandMark: "BrandMark" },
+  "@/components/ui/AppIcon": { AppIcon: "AppIcon" },
+  "@/constants/theme": { Fonts: {}, FontSizes: {}, Radius: {}, RtlText: {}, Spacing: {} },
   "@/context/ThemeContext": { useTheme: () => ({ colors: {} }) },
   "@/lib/home-ad-carousel": policy,
 };
@@ -102,9 +112,18 @@ async function main() {
   let view = render([ads[0]]);
   await Promise.resolve();
   view = render([ads[0]]);
-  assert.equal(timers.size, 0, "a single image has no carousel timer");
+  assert.equal(timers.size, 1, "the permanent platform slide joins a single paid ad");
   assert.equal(view.props.style[0].aspectRatio, 16 / 9);
   assert.match(hit(view).accessibilityLabel, /صورة/);
+  fire(5000);
+  view = render([ads[0]]);
+  assert.match(hit(view).accessibilityLabel, /منصة تسوق الكرك/);
+  assert.doesNotMatch(hit(view).accessibilityLabel, /ممول/);
+  hit(view).onPress();
+  await Promise.resolve();
+  assert.equal(whatsapp, "https://wa.me/963935787445");
+  fire(5000);
+  render([ads[0]]);
   render();
   const scheduled = nextTimer;
   render();
@@ -131,6 +150,9 @@ async function main() {
   released = false;
   activeHooks = banner.react;
   fire(15000);
+  view = render();
+  assert.match(hit(view).accessibilityLabel, /منصة تسوق الكرك/);
+  fire(5000);
   view = render();
   assert.match(hit(view).accessibilityLabel, /صورة/);
 
@@ -166,7 +188,8 @@ async function main() {
   media(view).props.onRetire();
   view = render(replacement);
   assert.equal(media(view).props.children.props.uri, "new-poster");
-  assert.equal(render([]), null);
+  view = render([]);
+  assert.match(hit(view).accessibilityLabel, /منصة تسوق الكرك/);
   // Each path actually mounts the player, changes the carousel, and retires the native object.
   for (const reason of ["ended", "timer", "swipe", "search", "background", "removed"]) {
     const current = [{ ...ads[1], id: "movie-" + reason, mediaKey: "movie-" + reason }, ads[0]];

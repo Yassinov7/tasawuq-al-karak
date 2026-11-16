@@ -1,12 +1,20 @@
 import { useIsFocused } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { AccessibilityInfo, Animated, AppState, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { AccessibilityInfo, Animated, AppState, Linking, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { BrandMark } from "@/components/brand/BrandMark";
 import { ShoppingCardImage } from "@/components/marketplace/ShoppingCardImage";
-import { Fonts, FontSizes, Radius, Spacing } from "@/constants/theme";
+import { AppIcon } from "@/components/ui/AppIcon";
+import { Fonts, FontSizes, Radius, RtlText, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 import { adSwipeDirection, nextAdIndex, stillAdMs, videoAdLimitMs } from "@/lib/home-ad-carousel";
 import type { CustomerHomeAd } from "@/lib/customer-home-feed";
+
+const platformSlideId = "taswoq-platform-advertising";
+const platformSlideKey = "platform:advertising-contact:v1";
+const administrationWhatsApp = "https://wa.me/963935787445";
+type SponsoredSlide = { id: string; key: string; kind: "paid"; ad: CustomerHomeAd }
+  | { id: typeof platformSlideId; key: typeof platformSlideKey; kind: "platform" };
 
 function BannerVideo({ url, paused, poster, onEnd, onRetire }: {
   url: string; paused: boolean; poster: ReactNode; onEnd: () => void; onRetire: () => void;
@@ -48,6 +56,7 @@ function BannerVideo({ url, paused, poster, onEnd, onRetire }: {
 
 export function CustomerHomeSponsored({ ads, onOpen }: { ads: CustomerHomeAd[]; onOpen: (ad: CustomerHomeAd) => void }) {
   const { colors } = useTheme();
+  const { width, fontScale } = useWindowDimensions();
   const focused = useIsFocused();
   const [foreground, setForeground] = useState(() => AppState.currentState === null || AppState.currentState === "active");
   const [motion, setMotion] = useState({ reduced: true, reader: Platform.OS !== "web" });
@@ -58,6 +67,10 @@ export function CustomerHomeSponsored({ ads, onOpen }: { ads: CustomerHomeAd[]; 
   const swiping = useRef(false);
   const start = useRef<{ x: number; y: number } | undefined>(undefined);
   const [opacity] = useState(() => new Animated.Value(1));
+  const slides = useMemo<SponsoredSlide[]>(() => [
+    ...ads.map(ad => ({ id: ad.id, key: ad.mediaKey, kind: "paid" as const, ad })),
+    { id: platformSlideId, key: platformSlideKey, kind: "platform" as const },
+  ], [ads]);
 
   useEffect(() => {
     const app = AppState.addEventListener("change", state => setForeground(state === "active"));
@@ -82,13 +95,14 @@ export function CustomerHomeSponsored({ ads, onOpen }: { ads: CustomerHomeAd[]; 
 
   const visible = focused && foreground;
   const auto = visible && !motion.reduced && !motion.reader;
-  const index = Math.max(0, ads.findIndex(ad => ad.id === selected));
-  const ad = ads[index];
-  const key = ad?.mediaKey;
-  const playVideo = Boolean(auto && ad?.media_kind === "video" && key && !seenVideos.has(key));
-  const previousId = ads[nextAdIndex(index, ads.length, -1)]?.id;
-  const nextId = ads[nextAdIndex(index, ads.length, 1)]?.id;
-  const multiple = ads.length > 1;
+  const index = Math.max(0, slides.findIndex(slide => slide.id === selected));
+  const slide = slides[index];
+  const paidAd = slide.kind === "paid" ? slide.ad : undefined;
+  const key = slide.key;
+  const playVideo = Boolean(auto && paidAd?.media_kind === "video" && !seenVideos.has(key));
+  const previousId = slides[nextAdIndex(index, slides.length, -1)]?.id;
+  const nextId = slides[nextAdIndex(index, slides.length, 1)]?.id;
+  const multiple = slides.length > 1;
 
   const markVideo = useCallback(() => {
     if (playVideo && key) {
@@ -121,11 +135,33 @@ export function CustomerHomeSponsored({ ads, onOpen }: { ads: CustomerHomeAd[]; 
     return () => animation.stop();
   }, [key, motion.reduced, opacity, visible]);
 
-  if (!ad) return null;
-  const isVideo = ad.media_kind === "video";
-  const poster = <View style={[styles.poster, { backgroundColor: colors.surfaceSecondary }]}>
-    <ShoppingCardImage uri={isVideo ? ad.thumbnailUrl : ad.url}
-      cacheKey={isVideo ? ad.thumbnailKey : ad.mediaKey} restricted icon={isVideo ? "film-outline" : "image-outline"} />
+  const isVideo = paidAd?.media_kind === "video";
+  const poster = paidAd ? <View style={[styles.poster, { backgroundColor: colors.surfaceSecondary }]}>
+    <ShoppingCardImage uri={isVideo ? paidAd.thumbnailUrl : paidAd.url}
+      cacheKey={isVideo ? paidAd.thumbnailKey : paidAd.mediaKey} restricted icon={isVideo ? "film-outline" : "image-outline"} />
+  </View> : <View style={[styles.platform, multiple && styles.platformWithDots,
+    (width < 340 || fontScale > 1.2) && styles.platformCompact,
+    { backgroundColor: colors.surface, borderColor: colors.primary }]}>
+    <View style={styles.platformMain}>
+      <View style={[styles.brandPanel, { backgroundColor: colors.primaryLight, borderColor: colors.border }]}>
+        <BrandMark size="small" />
+      </View>
+      <View style={styles.platformCopy}>
+        <Text maxFontSizeMultiplier={1.5} adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={[styles.platformTitle,
+          (width < 340 || fontScale > 1.2) && styles.platformTitleCompact, { color: colors.text }]}>خلّ متجرك يوصل لأكثر</Text>
+        <Text maxFontSizeMultiplier={1.5} adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={2}
+          style={[styles.platformBody, { color: colors.textSecondary }]}>احجز مساحة إعلانية لمتجرك داخل تسوق الكرك.</Text>
+      </View>
+    </View>
+    <View style={[styles.contact, { backgroundColor: colors.primaryLight, borderColor: colors.border }]}>
+      <View style={[styles.contactIcon, { backgroundColor: colors.surface }]}>
+        <AppIcon name="logo-whatsapp" size={18} color={colors.primary} />
+      </View>
+      <Text maxFontSizeMultiplier={1.4} adjustsFontSizeToFit minimumFontScale={0.8} numberOfLines={1}
+        style={[styles.contactLabel, { color: colors.text }]}>تواصل معنا للإعلان</Text>
+      <Text maxFontSizeMultiplier={1.25} adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={1}
+        style={[styles.contactText, { color: colors.primary }]}>واتساب · +963 0935787445</Text>
+    </View>
   </View>;
   return <View style={[styles.banner, { backgroundColor: colors.surfaceSecondary }]}
     onTouchStart={event => { start.current = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY }; }}
@@ -143,20 +179,23 @@ export function CustomerHomeSponsored({ ads, onOpen }: { ads: CustomerHomeAd[]; 
     }}
     onResponderTerminate={endSwipe}>
     <Pressable style={styles.hitArea} accessibilityRole="link"
-      accessibilityLabel={["ممول", ad.title || "فتح الإعلان", multiple ? (index + 1) + " من " + ads.length : ""].filter(Boolean).join("، ")}
+      accessibilityLabel={[paidAd ? "ممول" : "الإعلان على منصة تسوق الكرك",
+        paidAd?.title || (paidAd ? "فتح الإعلان" : "التواصل مع الإدارة عبر واتساب"),
+        multiple ? (index + 1) + " من " + slides.length : ""].filter(Boolean).join("، ")}
       accessibilityActions={multiple ? [{ name: "increment", label: "الإعلان التالي" }, { name: "decrement", label: "الإعلان السابق" }] : undefined}
       onAccessibilityAction={event => {
         if (event.nativeEvent.actionName === "increment") move(1);
         if (event.nativeEvent.actionName === "decrement") move(-1);
       }}
-      onPressIn={begin} onPressOut={() => { if (!swiping.current) end(); }} onPress={() => onOpen(ad)}>
+      onPressIn={begin} onPressOut={() => { if (!swiping.current) end(); }}
+      onPress={() => paidAd ? onOpen(paidAd) : void Linking.openURL(administrationWhatsApp).catch(() => undefined)}>
       <Animated.View style={[StyleSheet.absoluteFill, { opacity }]} pointerEvents="none"
         accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        {playVideo ? <BannerVideo key={key} url={ad.url} paused={interacting} poster={poster}
+        {playVideo && paidAd ? <BannerVideo key={key} url={paidAd.url} paused={interacting} poster={poster}
           onEnd={finish} onRetire={markVideo} /> : poster}
-        <Text style={[styles.badge, { color: colors.text, backgroundColor: colors.surface }]}>ممول</Text>
+        {paidAd ? <Text style={[styles.badge, { color: colors.text, backgroundColor: colors.surface }]}>ممول</Text> : null}
         {multiple ? <View style={[styles.dots, { backgroundColor: colors.surface }]}>
-          {ads.map((item, position) => <View key={item.id}
+          {slides.map((item, position) => <View key={item.id}
             style={[styles.dot, { backgroundColor: position === index ? colors.primary : colors.borderStrong }]} />)}
         </View> : null}
       </Animated.View>
@@ -168,6 +207,22 @@ const styles = StyleSheet.create({
   banner: { marginHorizontal: Spacing.four, aspectRatio: 16 / 9, borderRadius: Radius.lg, overflow: "hidden" },
   hitArea: { flex: 1 },
   poster: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center" },
+  platform: { ...StyleSheet.absoluteFill, direction: "rtl", borderWidth: 1, borderRadius: Radius.lg,
+    justifyContent: "space-between", gap: Spacing.two, padding: Spacing.three },
+  platformWithDots: { paddingBottom: Spacing.six },
+  platformCompact: { gap: Spacing.one, padding: Spacing.two, paddingBottom: Spacing.six },
+  platformMain: { flex: 1, minHeight: 0, flexDirection: "row", alignItems: "center", gap: Spacing.three },
+  brandPanel: { width: 78, height: 78, flexShrink: 0, borderWidth: 1, borderRadius: Radius.lg,
+    alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  platformCopy: { flex: 1, minWidth: 0, alignItems: "stretch", justifyContent: "center", gap: Spacing.one },
+  platformTitle: { fontFamily: Fonts.bold, fontSize: FontSizes.lg, ...RtlText },
+  platformTitleCompact: { fontSize: FontSizes.md },
+  platformBody: { fontFamily: Fonts.regular, fontSize: FontSizes.sm, ...RtlText },
+  contact: { minHeight: 38, flexDirection: "row", alignItems: "center", gap: Spacing.two,
+    borderWidth: 1, borderRadius: Radius.md, paddingHorizontal: Spacing.two, paddingVertical: Spacing.one },
+  contactIcon: { width: 28, height: 28, borderRadius: Radius.full, alignItems: "center", justifyContent: "center" },
+  contactLabel: { flex: 1, minWidth: 0, fontFamily: Fonts.semiBold, fontSize: FontSizes.sm, ...RtlText },
+  contactText: { flexShrink: 1, fontFamily: Fonts.semiBold, fontSize: FontSizes.xs, writingDirection: "ltr" },
   badge: { position: "absolute", top: Spacing.two, right: Spacing.two, borderRadius: Radius.sm,
     paddingHorizontal: Spacing.two, fontFamily: Fonts.medium, fontSize: FontSizes.xs },
   dots: { position: "absolute", bottom: Spacing.two, alignSelf: "center", flexDirection: "row-reverse",

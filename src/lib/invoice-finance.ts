@@ -11,7 +11,7 @@ export type InvoiceDetail = MoneyInvoice & { admin: boolean; details: Record<str
 export type MoneyPerson = { id: string; name: string; role: string; account_reference: string; policy: { mode: string; value: number } | null };
 export type MoneyAction = { action: "settle" | "policy" | "salary" | "correct"; reason: string; [key: string]: string };
 export type ActionResult = { state: "completed"; invoice_id: string | null } | { state: "rejected"; message: string };
-type Rpc = "read_money" | "read_merchant_money" | "read_driver_money" | "read_money_invoice" | "record_money_action" | "recover_money_action" | "money_people" | "find_order_invoice";
+type Rpc = "read_money" | "read_merchant_money" | "read_driver_money" | "read_customer_invoices" | "read_money_invoice" | "record_money_action" | "recover_money_action" | "money_people" | "find_order_invoice";
 // Local migration contract. All external values are validated before rendering money.
 const api = supabase as unknown as { rpc(name: Rpc, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }> };
 const sendRpc = createFinancialTransport(api);
@@ -43,6 +43,7 @@ export async function readMoney(search = "", page = 0, owner?: string, signal?: 
 export type MerchantInvoiceKind = "ALL" | "SAL" | "SUB" | "SET" | "COR";
 export type DriverInvoiceKind = "ALL" | "DLV" | "SET" | "COR" | "WAG";
 export type MerchantInvoiceCursor = { createdAt: string; id: string };
+export type CustomerInvoiceKind = "ALL" | "INV" | "SET" | "COR";
 
 export async function readMerchantMoney(search: string, kind: MerchantInvoiceKind, before?: MerchantInvoiceCursor, signal?: AbortSignal) {
   return readOwnedMoneyPage("read_merchant_money", search, kind, before, signal);
@@ -50,6 +51,24 @@ export async function readMerchantMoney(search: string, kind: MerchantInvoiceKin
 
 export async function readDriverMoney(search: string, kind: DriverInvoiceKind, before?: MerchantInvoiceCursor, signal?: AbortSignal) {
   return readOwnedMoneyPage("read_driver_money", search, kind, before, signal);
+}
+
+export async function readCustomerInvoices(search: string, kind: CustomerInvoiceKind, before?: MerchantInvoiceCursor, signal?: AbortSignal) {
+  const result = object(await rpc("read_customer_invoices", {
+    search_value: search,
+    kind_value: kind,
+    before_created_at: before?.createdAt ?? null,
+    before_id: before?.id ?? null,
+  }, signal));
+  if (!Array.isArray(result.rows) || typeof result.has_more !== "boolean") throw Error("تعذر تأكيد صفحة الفواتير.");
+  const rows = result.rows.map(invoice);
+  if (rows.length > 12 || (result.has_more && rows.length !== 12) ||
+      new Set(rows.map(row => row.id)).size !== rows.length ||
+      rows.some(row => row.owner_id === "" || !["INV", "SET", "COR"].includes(row.kind)) ||
+      (kind !== "ALL" && rows.some(row => row.kind !== kind))) {
+    throw Error("تعذر تأكيد صفحة الفواتير.");
+  }
+  return { rows, hasMore: result.has_more };
 }
 
 async function readOwnedMoneyPage(name: "read_merchant_money" | "read_driver_money", search: string, kind: MerchantInvoiceKind | DriverInvoiceKind, before?: MerchantInvoiceCursor, signal?: AbortSignal) {

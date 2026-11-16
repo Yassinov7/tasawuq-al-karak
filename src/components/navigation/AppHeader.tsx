@@ -11,6 +11,7 @@ import { useTheme } from "@/context/ThemeContext";
 type AppHeaderProps = {
   title?: string;
   showBack?: boolean;
+  adaptiveTitle?: boolean;
   onBack?: () => void;
   showNotifications?: boolean;
   cartCount?: number;
@@ -34,6 +35,7 @@ function getHeaderMode(pathname: string): HeaderMode {
 export function AppHeader({
   title = "تسوق",
   showBack = false,
+  adaptiveTitle = false,
   onBack,
   showNotifications = true,
   cartCount = 0,
@@ -82,8 +84,8 @@ export function AppHeader({
         },
       ]}
     >
-      <View style={styles.header}>
-        <View style={styles.side}>
+      <View style={[styles.header, adaptiveTitle && styles.adaptiveHeader]}>
+        <View style={[styles.side, adaptiveTitle && styles.adaptiveSide]}>
           {showBack ? (
             <Pressable
               onPress={onBack ?? safeBack}
@@ -100,18 +102,18 @@ export function AppHeader({
               <AppIcon name="arrow-forward" size={23} color={colors.text} />
             </Pressable>
           ) : (
-            <View style={styles.logoContainer}>
+            <View style={[styles.logoContainer, adaptiveTitle && styles.adaptiveLogo]}>
               <Image
                 source={logoSource}
                 resizeMode="contain"
                 accessibilityLabel="شعار تسوق"
-                style={styles.logo}
+                style={[styles.logo, adaptiveTitle && styles.adaptiveLogo]}
               />
             </View>
           )}
         </View>
 
-        <View style={styles.titleContainer}>
+        <View style={[styles.titleContainer, adaptiveTitle && styles.adaptiveTitleContainer]}>
           <Text
             style={[
               styles.title,
@@ -119,7 +121,7 @@ export function AppHeader({
                 color: colors.primary,
               },
             ]}
-            numberOfLines={1}
+            numberOfLines={adaptiveTitle ? 2 : 1}
           >
             {title}
           </Text>
@@ -247,12 +249,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
   },
 
+  adaptiveHeader: { height: "auto", minHeight: 64, paddingVertical: Spacing.one },
+
   side: {
     width: 78,
     height: "100%",
     alignItems: "flex-start",
     justifyContent: "center",
   },
+
+  adaptiveSide: { width: 52, height: 52 },
 
   logoContainer: {
     width: 70,
@@ -267,6 +273,8 @@ const styles = StyleSheet.create({
     height: 52,
   },
 
+  adaptiveLogo: { width: 50 },
+
   titleContainer: {
     flex: 1,
     height: "100%",
@@ -274,6 +282,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: Spacing.three,
   },
+
+  adaptiveTitleContainer: { height: "auto", minWidth: 0, paddingHorizontal: Spacing.one },
 
   title: {
     fontFamily: Fonts.bold,

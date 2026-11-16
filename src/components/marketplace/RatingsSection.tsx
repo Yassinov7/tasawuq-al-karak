@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
+import { AppButton } from "@/components/ui/AppButton";
 import { useTheme } from "@/context/ThemeContext";
 import { getEligibleStoreOrders, getMyProductReview, getMyStoreReview, getProductRatings, getStoreRatings, saveProductReview, saveStoreReview, type OwnReview, type PublicReview, type RatingSummary } from "@/lib/customer-reviews";
 import { RatingSummary as RatingSummaryView } from "./RatingStars";
 import { ReviewCard } from "./ReviewCard";
 import { ReviewForm } from "./ReviewForm";
 
-type Props = { kind: "store" | "product"; storeId: string; productId?: string; showSummary?: boolean };
+type Props = {
+  kind: "store" | "product";
+  storeId: string;
+  productId?: string;
+  showSummary?: boolean;
+};
 
 export function RatingsSection({ kind, storeId, productId, showSummary = true }: Props) {
   const { colors } = useTheme();
@@ -59,11 +65,27 @@ export function RatingsSection({ kind, storeId, productId, showSummary = true }:
     const updated = kind === "store" ? await getMyStoreReview(selectedOrderId) : await getMyProductReview(selectedOrderId, productId!);
     setOwnReview(updated); setReviewOrderId(selectedOrderId);
   };
-
-  return <View style={{ gap: Spacing.three, marginTop: Spacing.six }}>
-    <View style={{ alignItems: "flex-end", gap: Spacing.two }}><Text style={{ color: colors.text, fontFamily: Fonts.bold, fontSize: FontSizes.lg }}>التقييمات والمراجعات</Text>{showSummary ? <RatingSummaryView averageRating={summary.averageRating} ratingCount={summary.ratingCount} /> : null}</View>
-    {loading ? <ActivityIndicator color={colors.primary} /> : error ? <Text style={{ color: colors.textMuted, fontFamily: Fonts.regular, textAlign: "right" }}>تعذر تحميل التقييمات الآن.</Text> : reviews.length ? reviews.map((review) => <ReviewCard key={review.id} review={review} />) : <View style={{ backgroundColor: colors.surface, borderColor: colors.border, borderRadius: Radius.lg, borderWidth: 1, padding: Spacing.three }}><Text style={{ color: colors.textMuted, fontFamily: Fonts.regular, textAlign: "right" }}>لا توجد تقييمات بعد.</Text></View>}
-    {orders.length > 1 ? <View style={{ alignItems: "flex-end", gap: Spacing.two }}><Text style={{ color: colors.textSecondary, fontFamily: Fonts.medium, fontSize: FontSizes.sm }}>اختر طلبًا مسلّمًا للتقييم</Text><View style={{ flexDirection: "row-reverse", flexWrap: "wrap", gap: Spacing.two }}>{orders.map((order, index) => <Pressable key={order.id} onPress={() => setSelectedOrderId(order.id)} style={{ backgroundColor: selectedOrderId === order.id ? colors.primary : colors.surface, borderColor: colors.primary, borderWidth: 1, borderRadius: Radius.full, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two }}><Text style={{ color: selectedOrderId === order.id ? colors.surface : colors.primary, fontFamily: Fonts.medium }}>طلب {index + 1}</Text></Pressable>)}</View></View> : null}
+  return <View style={styles.section}>
+    <View style={styles.header}><Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>التقييمات والمراجعات</Text>{showSummary ? <RatingSummaryView averageRating={summary.averageRating} ratingCount={summary.ratingCount} /> : null}</View>
+    {loading ? <ActivityIndicator color={colors.primary} /> : error ? <View style={styles.errorRow}>
+      <Text style={[styles.body, { color: colors.textMuted }]}>تعذر تحميل التقييمات الآن.</Text>
+      <AppButton compact title="إعادة المحاولة" variant="outline" fullWidth={false} onPress={() => void refresh()} />
+    </View> : reviews.length ? <>
+      {reviews.map((review) => <ReviewCard key={review.id} review={review} />)}
+    </> : <View style={[styles.empty, { backgroundColor: colors.surface, borderColor: colors.border }]}><Text style={[styles.body, { color: colors.textMuted }]}>لا توجد تقييمات بعد.</Text></View>}
+    {orders.length > 1 ? <View style={styles.orders}><Text style={[styles.body, { color: colors.textSecondary }]}>اختر طلبًا مسلّمًا للتقييم</Text><View style={styles.orderChoices}>{orders.map((order, index) => <Pressable key={order.id} onPress={() => setSelectedOrderId(order.id)} style={{ backgroundColor: selectedOrderId === order.id ? colors.primary : colors.surface, borderColor: colors.primary, borderWidth: 1, borderRadius: Radius.full, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two }}><Text style={[styles.orderText, { color: selectedOrderId === order.id ? colors.onPrimary : colors.primary }]}>طلب {index + 1}</Text></Pressable>)}</View></View> : null}
     <ReviewForm key={ownReview?.id ?? selectedOrderId ?? "ineligible"} review={reviewOrderId === selectedOrderId ? ownReview : null} canReview={Boolean(selectedOrderId)} loading={reviewLoading} onSave={save} />
   </View>;
 }
+
+const styles = StyleSheet.create({
+  section: { gap: Spacing.three, marginTop: Spacing.six },
+  header: { alignItems: "flex-end", gap: Spacing.two },
+  title: { fontFamily: Fonts.bold, fontSize: FontSizes.lg, textAlign: "right", writingDirection: "rtl" },
+  body: { fontFamily: Fonts.regular, fontSize: FontSizes.sm, lineHeight: 22, textAlign: "right", writingDirection: "rtl" },
+  empty: { borderRadius: Radius.lg, borderWidth: 1, padding: Spacing.three },
+  errorRow: { alignItems: "flex-end", gap: Spacing.two },
+  orders: { alignItems: "flex-end", gap: Spacing.two },
+  orderChoices: { flexDirection: "row-reverse", flexWrap: "wrap", gap: Spacing.two },
+  orderText: { fontFamily: Fonts.medium, textAlign: "right", writingDirection: "rtl" },
+});

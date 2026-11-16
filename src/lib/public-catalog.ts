@@ -25,7 +25,7 @@ type PublicCatalogCache = {
   productMedia: PublicProductMedia[];
 };
 
-const cacheKey = (owner: string | null) => `public-catalog:central-v2:${owner ?? "guest"}`;
+const cacheKey = (owner: string | null) => `public-catalog:central-v3:${owner ?? "guest"}`;
 let lastCacheKey: string | null = null;
 
 let catalogVersion = 0;
@@ -44,83 +44,91 @@ export async function readCatalogCategoryChoices() {
   return { storeCategories, productCategories };
 }
 
-async function fetchAcceptedStores(): Promise<PublicStore[]> {
-  const { data, error } = await supabase
+const catalogPageSize = 500;
+const catalogIdBatchSize = 100;
+
+async function readCatalogPages<T>(
+  read: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += catalogPageSize) {
+    const { data, error } = await read(from, from + catalogPageSize - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < catalogPageSize) return rows;
+  }
+}
+
+async function readCatalogBatches<T>(
+  ids: string[], read: (batch: string[]) => Promise<T[]>,
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let start = 0; start < ids.length; start += catalogIdBatchSize) {
+    rows.push(...await read(ids.slice(start, start + catalogIdBatchSize)));
+  }
+  return rows;
+}
+
+function newestFirst<T extends { id: string }>(date: (row: T) => string | null) {
+  return (a: T, b: T) => (Date.parse(date(b) ?? "") - Date.parse(date(a) ?? "")) || a.id.localeCompare(b.id);
+}
+
+function fetchAcceptedStores(): Promise<PublicStore[]> {
+  return readCatalogPages((from, to) => supabase
     .from("stores")
     .select("*")
     .eq("status", "accepted")
-    .order("created_at", { ascending: false });
-
-  if (error) throw error;
-
-  return data ?? [];
+    .order("created_at", { ascending: false })
+    .order("id")
+    .range(from, to));
 }
 
-async function fetchAvailableProducts(
-  acceptedStoreIds: string[],
-): Promise<PublicProduct[]> {
-  if (acceptedStoreIds.length === 0) return [];
-
-  const { data, error } = await supabase
+async function fetchAvailableProducts(acceptedStoreIds: string[]): Promise<PublicProduct[]> {
+  const rows = await readCatalogBatches(acceptedStoreIds, batch => readCatalogPages((from, to) => supabase
     .from("products")
     .select("*")
     .eq("is_available", true)
-    .in("store_id", acceptedStoreIds)
-    .order("created_at", { ascending: false });
-
-  if (error) throw error;
-
-  return data ?? [];
+    .in("store_id", batch)
+    .order("created_at", { ascending: false })
+    .order("id")
+    .range(from, to)));
+  return rows.sort(newestFirst(row => row.created_at));
 }
 
-async function fetchActiveOffers(
-  acceptedStoreIds: string[],
-): Promise<PublicOffer[]> {
-  if (acceptedStoreIds.length === 0) return [];
-
-  const now = new Date().toISOString();
-
-  const { data, error } = await supabase
-    .from("store_offers")
-    .select("*")
-    .eq("is_active", true)
-    .in("store_id", acceptedStoreIds)
-    .lte("starts_at", now)
-    .or(`ends_at.is.null,ends_at.gt.${now}`)
-    .order("starts_at", { ascending: false });
-
-  if (error) throw error;
-
-  return data ?? [];
+async function fetchActiveOffers(_acceptedStoreIds: string[]): Promise<PublicOffer[]> {
+  const result = await supabase.rpc("read_customer_active_offers");
+  if (result.error) throw result.error;
+  return (result.data ?? []).sort(newestFirst(row => row.starts_at));
 }
 
-async function fetchOfferItems(offers: PublicOffer[]): Promise<PublicOfferItem[]> {
-  if (offers.length === 0) return [];
+export async function readNextOfferTransition(): Promise<number | null> {
+  const result = await supabase.rpc("read_customer_next_offer_transition");
+  if (result.error) throw result.error;
+  if (!result.data) return null;
+  const transition = Date.parse(result.data);
+  return Number.isFinite(transition) ? transition : null;
+}
 
-  const { data, error } = await supabase
+function fetchOfferItems(offers: PublicOffer[]): Promise<PublicOfferItem[]> {
+  return readCatalogBatches(offers.map(offer => offer.id), batch => readCatalogPages((from, to) => supabase
     .from("store_offer_products")
     .select("*")
-    .in("offer_id", offers.map((offer) => offer.id))
-    .order("id", { ascending: true });
-
-  if (error) throw error;
-
-  return data ?? [];
+    .in("offer_id", batch)
+    .order("id")
+    .range(from, to)));
 }
 
-async function fetchProductMedia(products: PublicProduct[], signal?: AbortSignal): Promise<PublicProductMedia[]> {
-  if (products.length === 0) return [];
-
-  const query = supabase
-    .from("product_media")
-    .select("*")
-    .in("product_id", products.map((product) => product.id))
-    .order("display_order", { ascending: true });
-  const { data, error } = await (signal ? query.abortSignal(signal) : query);
-
-  if (error) throw error;
-
-  return data ?? [];
+function fetchProductMedia(products: PublicProduct[], signal?: AbortSignal): Promise<PublicProductMedia[]> {
+  return readCatalogBatches(products.map(product => product.id), batch => readCatalogPages((from, to) => {
+    const query = supabase
+      .from("product_media")
+      .select("*")
+      .in("product_id", batch)
+      .order("display_order")
+      .order("id")
+      .range(from, to);
+    return signal ? query.abortSignal(signal) : query;
+  }));
 }
 
 export async function assertCatalogOwner(owner: string | null) {

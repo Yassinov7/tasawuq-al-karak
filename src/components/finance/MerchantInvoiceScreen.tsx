@@ -10,14 +10,14 @@ import { useTheme } from "@/context/ThemeContext";
 import { useToast } from "@/context/ToastContext";
 import { ControlSizes, MaxContentWidth, Radius, Spacing, Typography } from "@/constants/theme";
 import { useOrderRealtime } from "@/hooks/useOrderRealtime";
-import { difference, invoiceKindLabels, InvoiceUnavailableError, readInvoice, readMerchantMoney, type InvoiceDetail } from "@/lib/invoice-finance";
+import { difference, InvoiceUnavailableError, readInvoice, readMerchantMoney, type InvoiceDetail } from "@/lib/invoice-finance";
+import { financialDocumentTitle, savedFinancialDate } from "@/lib/shared-financial-presentation";
 import { formatSypExact } from "@/lib/money";
 import { FinancialFeedback } from "./FinancialParts";
 import { InvoiceStatus } from "./InvoiceStatus";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const referencePattern = /^[A-Z]{3}-[0-9]{7,}$/;
-const issuedDate = new Intl.DateTimeFormat("ar-SY", { day: "numeric", month: "long", year: "numeric" });
 const savedText = (value: unknown) => typeof value === "string" && value.trim() ? value : undefined;
 const savedAmount = (value: unknown) => typeof value === "string" && /^\d{1,40}(?:\.\d{1,2})?$/.test(value) ? formatSypExact(value) : undefined;
 
@@ -61,7 +61,8 @@ export function MerchantInvoiceDocument({ invoice, onCopy, onInvoice, onOrder, o
 }) {
   const { colors } = useTheme();
   const { details, kind } = invoice;
-  const date = new Date(invoice.created_at);
+  const confirmedDate = savedFinancialDate(invoice.confirmedAt);
+  const date = confirmedDate ?? savedFinancialDate(invoice.created_at);
   const original = savedText(details.original_reference);
   const orderId = invoice.store_order_id;
   const orderReference = invoice.references.ORD;
@@ -76,7 +77,6 @@ export function MerchantInvoiceDocument({ invoice, onCopy, onInvoice, onOrder, o
 
   return <>
     <View style={[styles.hero, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <Text accessibilityRole="header" style={[styles.heading, { color: colors.text }]}>{invoiceKindLabels[kind] ?? invoice.title}</Text>
       <View style={styles.row}>
         <View style={styles.reference}><DocumentReference value={invoice.reference} /></View>
         {canCopy ? <Pressable accessibilityRole="button" onPress={() => onCopy(invoice.reference)}
@@ -84,7 +84,7 @@ export function MerchantInvoiceDocument({ invoice, onCopy, onInvoice, onOrder, o
           <Text style={[styles.strong, { color: colors.primary }]}>نسخ الرمز</Text>
         </Pressable> : null}
       </View>
-      {Number.isFinite(date.getTime()) ? <Text style={[styles.body, { color: colors.textSecondary }]}>تاريخ الإصدار {issuedDate.format(date)}</Text> : null}
+      {date ? <DetailRow label={confirmedDate ? "تاريخ الاعتماد" : "تاريخ الإنشاء"} value={date} /> : null}
       <InvoiceStatus invoice={invoice} />
       <View style={[styles.value, { borderTopColor: colors.border }]}>
         <Text style={[styles.body, { color: colors.textSecondary }]}>{kind === "SET" ? "مبلغ التسوية" : "قيمة المستند"}</Text>
@@ -122,7 +122,7 @@ export function MerchantInvoiceDocument({ invoice, onCopy, onInvoice, onOrder, o
       <DetailRow label="المدة بالشهور" value={months} />
     </Section> : null}
     {kind === "SET" ? <Section title="تفاصيل التسوية">
-      <DetailRow label="الطرف" value={invoice.owner_name ?? "حساب متجرك"} />
+      <DetailRow label="الطرف" value={invoice.owner_name} />
       <DetailRow label="اتجاه الدفع" value={direction} />
       <DetailRow label="السبب" value={savedText(details.reason)} />
     </Section> : null}
@@ -229,7 +229,7 @@ export function MerchantInvoiceScreen({ owner, id }: { owner: string; id: string
   };
 
   return <View style={[styles.screen, { backgroundColor: colors.background }]}>
-    <AppHeader title="تفاصيل الفاتورة" showBack onBack={back} showNotifications={false} />
+    <AppHeader title={invoice ? financialDocumentTitle(invoice.kind) : "المستند المالي"} showBack onBack={back} showNotifications={false} />
     <ScrollView contentContainerStyle={styles.content}>
       {!valid ? <FinancialFeedback error message="رابط الفاتورة غير صالح. افتح الفاتورة من قائمة المالية." /> : null}
       {valid && error ? <FinancialFeedback error message={invoice ? `آخر بيانات متاحة. ${error}` : error} /> : null}

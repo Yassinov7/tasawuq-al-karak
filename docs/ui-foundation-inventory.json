@@ -816,47 +816,18 @@
       "name": "إعدادات التاجر",
       "path": "src/app/merchant/settings.tsx",
       "route": "/merchant/settings",
-      "function": "إعدادات حساب التاجر والعرض",
-      "access": "حساب التاجر",
+      "function": "توافق مع رابط إعدادات التاجر السابق",
+      "access": "الرابط القديم؛ الحساب يفتح /settings مباشرة",
       "reference_files": [
         "src/components/account/SharedAccountParts.tsx",
         "src/components/merchant/MerchantAccountScreens.tsx",
         "src/lib/merchant-navigation.ts"
       ],
       "bottom_tab": false,
-      "children": "SettingsScreen بنمط المظهر فقط؛ الخصوصية وحول التطبيق ضمن حساب التاجر",
-      "components": [
-        "src/components/account/SettingsScreen.tsx",
-        "src/components/navigation/AppHeader.tsx",
-        "src/components/ui/AppIcon.tsx",
-        "src/components/ui/SyriaFlag.tsx"
-      ],
-      "services": [
-        "src/hooks/useLiveUpdates.ts",
-        "src/hooks/usePersonalAccount.ts",
-        "src/hooks/usePushRegistration.ts",
-        "src/hooks/useSafeBack.ts",
-        "src/lib/account-routing.ts",
-        "src/lib/catalog-categories.ts",
-        "src/lib/catalog-quantity.ts",
-        "src/lib/customer-offers.ts",
-        "src/lib/customer-reviews.ts",
-        "src/lib/financial-transport.ts",
-        "src/lib/live-diagnostics.ts",
-        "src/lib/live-updates.ts",
-        "src/lib/local-cache.ts",
-        "src/lib/merchant-store.ts",
-        "src/lib/money.ts",
-        "src/lib/personal-account-model.ts",
-        "src/lib/personal-account.ts",
-        "src/lib/public-catalog.ts",
-        "src/lib/purchase-availability.ts",
-        "src/lib/push-device.ts",
-        "src/lib/request-key.ts",
-        "src/lib/safe-back.ts",
-        "src/lib/supabase.ts"
-      ],
-      "concerns": "الثيم والتفضيلات الفعلية فقط؛ لا إضافة خيارات غير مستخدمة",
+      "children": "تحويل إلى /settings",
+      "components": [],
+      "services": [],
+      "concerns": "تحقق من الرجوع إلى حساب التاجر",
       "priority": "P1: الاستخدام اليومي",
       "status": "مغلقة",
       "phone": "أغلق المالك إعدادات التاجر بعد اختبار إعادة التنظيم"
@@ -871,7 +842,6 @@
       "function": "إدارة كلمة المرور والأمان المتاح",
       "access": "حساب التاجر",
       "reference_files": [
-        "src/components/account/SettingsScreen.tsx",
         "src/components/account/SharedAccountParts.tsx",
         "src/components/merchant/MerchantAccountScreens.tsx",
         "src/lib/merchant-navigation.ts"
@@ -1284,45 +1254,16 @@
       "name": "إعدادات السائق",
       "path": "src/app/driver/settings.tsx",
       "route": "/driver/settings",
-      "function": "تفضيل مظهر التطبيق للسائق",
-      "access": "حساب السائق أو رابط مباشر تحت حارس الدور",
+      "function": "توافق مع رابط إعدادات السائق السابق",
+      "access": "الرابط القديم؛ الحساب يفتح /settings مباشرة",
       "reference_files": [
         "src/app/driver/account.tsx"
       ],
       "bottom_tab": false,
-      "children": "نفس مكوّن إعدادات التاجر بوضع المظهر فقط",
-      "components": [
-        "src/components/account/SettingsScreen.tsx",
-        "src/components/navigation/AppHeader.tsx",
-        "src/components/ui/AppIcon.tsx",
-        "src/components/ui/SyriaFlag.tsx"
-      ],
-      "services": [
-        "src/hooks/useLiveUpdates.ts",
-        "src/hooks/usePersonalAccount.ts",
-        "src/hooks/usePushRegistration.ts",
-        "src/hooks/useSafeBack.ts",
-        "src/lib/account-routing.ts",
-        "src/lib/catalog-categories.ts",
-        "src/lib/catalog-quantity.ts",
-        "src/lib/customer-offers.ts",
-        "src/lib/customer-reviews.ts",
-        "src/lib/financial-transport.ts",
-        "src/lib/live-diagnostics.ts",
-        "src/lib/live-updates.ts",
-        "src/lib/local-cache.ts",
-        "src/lib/merchant-store.ts",
-        "src/lib/money.ts",
-        "src/lib/personal-account-model.ts",
-        "src/lib/personal-account.ts",
-        "src/lib/public-catalog.ts",
-        "src/lib/purchase-availability.ts",
-        "src/lib/push-device.ts",
-        "src/lib/request-key.ts",
-        "src/lib/safe-back.ts",
-        "src/lib/supabase.ts"
-      ],
-      "concerns": "التلقائي والفاتح والداكن وحفظ التفضيل والرجوع",
+      "children": "تحويل إلى /settings",
+      "components": [],
+      "services": [],
+      "concerns": "تحقق من الرجوع إلى حساب السائق",
       "priority": "P1: الاستخدام اليومي",
       "status": "بانتظار اختبار الهاتف",
       "phone": "مكتملة برمجيًا وتنتظر اختبار المالك وقبوله"
@@ -3106,16 +3047,26 @@
       "path": "src/app/settings.tsx",
       "route": "/settings",
       "function": "تعديل تفضيلات الحساب والعرض",
-      "access": "حساب العميل/السائق/الإدارة",
+      "access": "حساب العميل والتاجر والسائق والإدارة",
       "reference_files": [
-        "src/components/account/SharedAccountParts.tsx"
+        "src/app/(customer)/home/account.tsx",
+        "src/app/admin/more.tsx",
+        "src/app/driver/account.tsx",
+        "src/app/driver/settings.tsx",
+        "src/app/merchant/settings.tsx",
+        "src/components/account/SharedAccountParts.tsx",
+        "src/components/merchant/MerchantAccountScreens.tsx"
       ],
       "bottom_tab": false,
-      "children": "SettingsScreen؛ لا إعداد مستقل لكل دور مطلوب",
+      "children": "صفحة مشتركة؛ روابط التاجر والسائق القديمة تحوّل إليها",
       "components": [
-        "src/components/account/SettingsScreen.tsx",
+        "src/components/account/AccountShell.tsx",
         "src/components/navigation/AppHeader.tsx",
+        "src/components/notifications/DeviceNotificationStatus.tsx",
+        "src/components/notifications/StoreOfferNotificationControls.tsx",
+        "src/components/ui/AppButton.tsx",
         "src/components/ui/AppIcon.tsx",
+        "src/components/ui/LoadingState.tsx",
         "src/components/ui/SyriaFlag.tsx"
       ],
       "services": [
@@ -3145,8 +3096,8 @@
       ],
       "concerns": "الثيم والإعدادات المتاحة فعلًا؛ الرجوع الآمن إلى حساب الدور",
       "priority": "P1: الاستخدام اليومي",
-      "status": "لم تبدأ",
-      "phone": "لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md"
+      "status": "بانتظار اختبار الهاتف",
+      "phone": "مفتوحة بعد توحيد المسارات وتنتظر اختبار الهاتف والقبول"
     },
     {
       "id": "RUI-SHR-05",
@@ -3214,7 +3165,6 @@
       "access": "حسابي للأدوار المشتركة",
       "reference_files": [
         "src/app/driver/account.tsx",
-        "src/components/account/SettingsScreen.tsx",
         "src/components/account/SharedAccountParts.tsx"
       ],
       "bottom_tab": false,
@@ -3272,7 +3222,6 @@
         "src/app/financial-invoice.tsx",
         "src/app/notifications.tsx",
         "src/components/account/SecurityScreen.tsx",
-        "src/components/account/SettingsScreen.tsx",
         "src/hooks/useSafeBack.ts",
         "src/lib/customer-home-ads.ts",
         "src/lib/merchant-product-create.ts",
@@ -3628,7 +3577,6 @@
       "access": "حسابي والروابط القانونية",
       "reference_files": [
         "src/app/driver/account.tsx",
-        "src/components/account/SettingsScreen.tsx",
         "src/components/legal/LegalPageLayout.tsx",
         "src/components/login/LoginFooter.tsx",
         "src/components/merchant/MerchantAccountScreens.tsx"
@@ -3661,7 +3609,6 @@
         "src/app/driver/account.tsx",
         "src/app/terms.tsx",
         "src/components/about/AboutContent.tsx",
-        "src/components/account/SettingsScreen.tsx",
         "src/components/legal/LegalPageLayout.tsx",
         "src/components/legal/LegalRelatedDocument.tsx",
         "src/components/login/LoginFooter.tsx",
@@ -3695,7 +3642,6 @@
         "src/app/driver/account.tsx",
         "src/app/privacy.tsx",
         "src/components/about/AboutContent.tsx",
-        "src/components/account/SettingsScreen.tsx",
         "src/components/legal/LegalPageLayout.tsx",
         "src/components/legal/LegalRelatedDocument.tsx",
         "src/components/login/LoginFooter.tsx",
@@ -3901,7 +3847,8 @@
         "src/app/driver/credentials.tsx",
         "src/components/account/PersonalInfoScreen.tsx",
         "src/components/account/SecurityScreen.tsx",
-        "src/components/merchant/MerchantAccountScreens.tsx"
+        "src/components/merchant/MerchantAccountScreens.tsx",
+        "src/app/settings.tsx"
       ],
       "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
       "rtl": "لا دليل مباشر في الملف؛ افحص الوراثة والأيقونات",
@@ -3972,31 +3919,6 @@
       "direct_consumers": [
         "src/app/merchant/security.tsx",
         "src/app/security.tsx"
-      ],
-      "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
-      "rtl": "دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة",
-      "states": {
-        "loading": true,
-        "error": true,
-        "disabled": true
-      },
-      "fixed_colors": [],
-      "assessment": "مرشح لإعادة الاستخدام ضمن اختصاصه؛ لا استبدال مقرر دون حاجة الصفحة واختبار props والمستهلكين"
-    },
-    {
-      "name": "SettingsScreen",
-      "path": "src/components/account/SettingsScreen.tsx",
-      "function": "شاشة تفضيلات الحساب والثيم",
-      "page_reachability": [
-        "RUI-MER-12",
-        "RUI-DRV-04.02",
-        "RUI-SHR-04"
-      ],
-      "layout_reachability": [],
-      "direct_consumers": [
-        "src/app/driver/settings.tsx",
-        "src/app/merchant/settings.tsx",
-        "src/app/settings.tsx"
       ],
       "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
       "rtl": "دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة",
@@ -5756,11 +5678,11 @@
         "src/app/orders.tsx",
         "src/components/account/PersonalInfoScreen.tsx",
         "src/components/account/SecurityScreen.tsx",
-        "src/components/account/SettingsScreen.tsx",
         "src/components/finance/FinanceScreen.tsx",
         "src/components/finance/InvoiceScreen.tsx",
         "src/components/finance/MerchantInvoiceScreen.tsx",
-        "src/components/navigation/CustomerMarketHeader.tsx"
+        "src/components/navigation/CustomerMarketHeader.tsx",
+        "src/app/settings.tsx"
       ],
       "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
       "rtl": "دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة",
@@ -6389,7 +6311,8 @@
         "src/components/signup/SignupCredentialsStep.tsx",
         "src/components/signup/SignupReviewStep.tsx",
         "src/components/signup/SignupRoleStep.tsx",
-        "src/components/ui/AppEmptyState.tsx"
+        "src/components/ui/AppEmptyState.tsx",
+        "src/app/settings.tsx"
       ],
       "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
       "rtl": "دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة",
@@ -6543,7 +6466,6 @@
         "src/components/account/AccountProfileHeader.tsx",
         "src/components/account/AccountSection.tsx",
         "src/components/account/SecurityScreen.tsx",
-        "src/components/account/SettingsScreen.tsx",
         "src/components/admin/AdminCategoriesScreen.tsx",
         "src/components/application-status/ApplicationStatusEmptyState.tsx",
         "src/components/driver/DeliveryTaskCard.tsx",
@@ -6580,7 +6502,8 @@
         "src/components/ui/AppModal.tsx",
         "src/components/ui/AppSearchBar.tsx",
         "src/components/ui/AppSectionHeader.tsx",
-        "src/components/ui/AppTextField.tsx"
+        "src/components/ui/AppTextField.tsx",
+        "src/app/settings.tsx"
       ],
       "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
       "rtl": "لا دليل مباشر في الملف؛ افحص الوراثة والأيقونات",
@@ -7210,7 +7133,8 @@
         "src/components/finance/MerchantFinanceView.tsx",
         "src/components/finance/MerchantInvoiceScreen.tsx",
         "src/components/merchant/MerchantCatalogPanel.tsx",
-        "src/components/ui/AppButton.tsx"
+        "src/components/ui/AppButton.tsx",
+        "src/app/settings.tsx"
       ],
       "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
       "rtl": "دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة",
@@ -7310,7 +7234,8 @@
         "src/components/finance/MerchantFinanceView.tsx",
         "src/components/finance/MerchantInvoiceScreen.tsx",
         "src/components/merchant/MerchantCatalogPanel.tsx",
-        "src/components/ui/AppButton.tsx"
+        "src/components/ui/AppButton.tsx",
+        "src/app/settings.tsx"
       ],
       "theme": "يستخدم useTheme/رموز colors في الملف؛ يحتاج تحقق الأزواج",
       "rtl": "دلائل اتجاه/محاذاة في الملف؛ يلزم هاتف وأرقام مختلطة",
@@ -7344,13 +7269,11 @@
       "path": "src/components/ui/SyriaFlag.tsx",
       "function": "أصل بصري للمنطقة لا منطق صلاحية أو حساب",
       "page_reachability": [
-        "RUI-MER-12",
-        "RUI-DRV-04.02",
         "RUI-SHR-04"
       ],
       "layout_reachability": [],
       "direct_consumers": [
-        "src/components/account/SettingsScreen.tsx"
+        "src/app/settings.tsx"
       ],
       "theme": "لا استدعاء ثيم مباشر؛ افحص الألوان الممررة/المكون الأب، لا يثبت غياب الدعم",
       "rtl": "لا دليل مباشر في الملف؛ افحص الوراثة والأيقونات",
@@ -7446,8 +7369,8 @@
       "assessment": "أساس مشترك قائم قابل للإبقاء؛ تحقق سلوكي بصري في الصفحة الحالية، لا مبرر لاستبداله الشامل من المصدر وحده"
     }
   ],
-  "component_module_count": 104,
-  "component_export_record_count": 122,
+  "component_module_count": 103,
+  "component_export_record_count": 121,
   "import_graph": {
     "src/app/(customer)/_layout.tsx": [],
     "src/app/(customer)/home/account.tsx": [
@@ -7835,9 +7758,7 @@
       "src/lib/driver-deliveries.ts",
       "src/lib/driver-read-queue.ts"
     ],
-    "src/app/driver/settings.tsx": [
-      "src/components/account/SettingsScreen.tsx"
-    ],
+    "src/app/driver/settings.tsx": [],
     "src/app/driver/task-details.tsx": [
       "src/components/driver/DriverTaskLocation.tsx",
       "src/components/driver/StorePickupPanel.tsx",
@@ -7995,9 +7916,7 @@
       "src/components/account/SecurityScreen.tsx",
       "src/context/MerchantWorkspaceContext.tsx"
     ],
-    "src/app/merchant/settings.tsx": [
-      "src/components/account/SettingsScreen.tsx"
-    ],
+    "src/app/merchant/settings.tsx": [],
     "src/app/merchant/settlement-details.tsx": [],
     "src/app/merchant/settlements.tsx": [],
     "src/app/merchant/store-info.tsx": [
@@ -8114,7 +8033,20 @@
       "src/components/account/SecurityScreen.tsx"
     ],
     "src/app/settings.tsx": [
-      "src/components/account/SettingsScreen.tsx"
+      "src/components/account/AccountShell.tsx",
+      "src/components/navigation/AppHeader.tsx",
+      "src/components/notifications/DeviceNotificationStatus.tsx",
+      "src/components/notifications/StoreOfferNotificationControls.tsx",
+      "src/components/ui/AppButton.tsx",
+      "src/components/ui/AppIcon.tsx",
+      "src/components/ui/LoadingState.tsx",
+      "src/components/ui/SyriaFlag.tsx",
+      "src/constants/theme.ts",
+      "src/context/AuthContext.tsx",
+      "src/context/SettingsContext.tsx",
+      "src/context/ThemeContext.tsx",
+      "src/hooks/usePersonalAccount.ts",
+      "src/lib/personal-account-model.ts"
     ],
     "src/app/signup.tsx": [
       "src/components/signup/ProfessionalApplicationFields.tsx",
@@ -8255,17 +8187,6 @@
       "src/hooks/usePersonalAccount.ts",
       "src/lib/personal-account-model.ts",
       "src/lib/personal-account.ts"
-    ],
-    "src/components/account/SettingsScreen.tsx": [
-      "src/components/navigation/AppHeader.tsx",
-      "src/components/ui/AppIcon.tsx",
-      "src/components/ui/SyriaFlag.tsx",
-      "src/constants/theme.ts",
-      "src/context/CartContext.tsx",
-      "src/context/SettingsContext.tsx",
-      "src/context/ThemeContext.tsx",
-      "src/hooks/usePersonalAccount.ts",
-      "src/lib/personal-account-model.ts"
     ],
     "src/components/account/SharedAccountParts.tsx": [
       "src/components/account/AccountMenuItem.tsx",

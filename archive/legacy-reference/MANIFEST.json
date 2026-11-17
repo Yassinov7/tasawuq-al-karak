@@ -1,6 +1,11 @@
 {
   "moves": [
     {
+      "archived": "archive/legacy-reference/source/SettingsScreen.tsx.txt",
+      "reason": "General settings use the shared /settings route; legacy merchant and driver URLs only redirect",
+      "source": "src/components/account/SettingsScreen.tsx"
+    },
+    {
       "archived": "archive/legacy-reference/docs/finance-c10-integration.md",
       "reason": "Superseded onboarding implementation or historical finance/design reference; no runtime dependency",
       "source": "docs/finance-c10-integration.md"

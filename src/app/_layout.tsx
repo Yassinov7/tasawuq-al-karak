@@ -10,6 +10,7 @@ import {
 } from "@expo-google-fonts/cairo";
 import { Stack, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { View } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -45,7 +46,7 @@ const MAIN_ROUTES = [
 
 function AppContent() {
   const pathname = usePathname();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
 
   const showBottomNav = !pathname.startsWith("/merchant") && MAIN_ROUTES.includes(
@@ -61,6 +62,7 @@ function AppContent() {
         },
       ]}
     >
+      <StatusBar style={isDark ? "light" : "dark"} />
       <Stack
         screenOptions={{
           headerShown: false,

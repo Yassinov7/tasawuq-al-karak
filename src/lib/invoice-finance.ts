@@ -7,7 +7,7 @@ import { newIdempotencyKey } from "@/lib/request-key";
 export type MoneyDue = { id: string; purpose: string; direction: "in" | "out"; amount: string; remaining: string };
 export type MoneyInvoice = { id: string; reference: string; kind: string; title: string; amount: string; status: string; owner_id: string; owner_name?: string; created_at: string; voided_by: string | null; customer_order_id: string | null; store_order_id: string | null; task_id: string | null; dues: MoneyDue[] };
 export type MoneyOverview = { admin: boolean; owner: string; account_reference: string | null; cash: string | null; receivable: string; payable: string; collection_due: string; subscription_due: string; rows: MoneyInvoice[] };
-export type InvoiceDetail = MoneyInvoice & { admin: boolean; details: Record<string, unknown>; references: Record<string, string>; corrects: string | null; cashDirection?: "in" | "out"; settlements: { id: string; reference: string; amount: string; voided: boolean }[] };
+export type InvoiceDetail = MoneyInvoice & { admin: boolean; confirmedAt?: string; details: Record<string, unknown>; references: Record<string, string>; corrects: string | null; cashDirection?: "in" | "out"; settlements: { id: string; reference: string; amount: string; voided: boolean }[] };
 export type MoneyPerson = { id: string; name: string; role: string; account_reference: string; policy: { mode: string; value: number } | null };
 export type MoneyAction = { action: "settle" | "policy" | "salary" | "correct"; reason: string; [key: string]: string };
 export type ActionResult = { state: "completed"; invoice_id: string | null } | { state: "rejected"; message: string };
@@ -91,7 +91,7 @@ async function readOwnedMoneyPage(name: "read_merchant_money" | "read_driver_mon
 export async function readInvoice(id: string, signal?: AbortSignal): Promise<InvoiceDetail> {
   const d = object(await rpc("read_money_invoice", { target_invoice: id }, signal));
   if (!Array.isArray(d.settlements)) throw Error("سجل التسويات غير مكتمل.");
-  return { ...invoice(d), admin: d.admin === true, details: object(d.details), references: Object.fromEntries(Object.entries(object(d.references)).map(([k, v]) => [k, text(v)])), corrects: d.corrects === null ? null : text(d.corrects), cashDirection: d.cash_direction === "in" || d.cash_direction === "out" ? d.cash_direction : undefined, settlements: d.settlements.map(v => { const s = object(v); return { id: text(s.id), reference: text(s.reference), amount: exactAmount(s.amount), voided: s.voided === true }; }) };
+  return { ...invoice(d), admin: d.admin === true, confirmedAt: typeof d.confirmed_at === "string" ? d.confirmed_at : undefined, details: object(d.details), references: Object.fromEntries(Object.entries(object(d.references)).map(([k, v]) => [k, text(v)])), corrects: d.corrects === null ? null : text(d.corrects), cashDirection: d.cash_direction === "in" || d.cash_direction === "out" ? d.cash_direction : undefined, settlements: d.settlements.map(v => { const s = object(v); return { id: text(s.id), reference: text(s.reference), amount: exactAmount(s.amount), voided: s.voided === true }; }) };
 }
 export async function findOrderInvoice(order: string) { const id = await rpc("find_order_invoice", { target_order: order }); if (typeof id !== "string") throw Error("فاتورة الطلب غير متاحة لهذا الحساب."); return id; }
 export async function moneyPeople(): Promise<MoneyPerson[]> {

@@ -1,2 +1,5 @@
-import SettingsScreen from "@/components/account/SettingsScreen";
-export default function MerchantPage() { return <SettingsScreen embedded preferencesOnly />; }
+import { Redirect } from "expo-router";
+
+export default function MerchantSettingsRedirect() {
+  return <Redirect href="/settings" />;
+}

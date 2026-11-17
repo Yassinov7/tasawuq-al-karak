@@ -354,11 +354,11 @@
 ### RUI-MER-12 — إعدادات التاجر
 
 - الدور: التاجر. المصدر: `src/app/merchant/settings.tsx`؛ الوجهة: `/merchant/settings`.
-- الوظيفة: إعدادات حساب التاجر والعرض.
-- الوصول: حساب التاجر. إشارات المصدر: `src/components/account/SharedAccountParts.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`، `src/lib/merchant-navigation.ts`.
-- التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
-- التفاصيل الموجودة/الناقصة: SettingsScreen بنمط المظهر فقط؛ الخصوصية وحول التطبيق ضمن حساب التاجر.
-- المكونات (وصول محافظ): `src/components/account/SettingsScreen.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/SyriaFlag.tsx`.
+- الوظيفة: تحويل رابط التوافق إلى `/settings` ‏(RUI-SHR-04).
+- الوصول: الرابط القديم؛ يفتح حساب التاجر `/settings` مباشرة من `src/components/merchant/MerchantAccountScreens.tsx`.
+- التبويب: مسار توافق فقط.
+- التفاصيل الموجودة/الناقصة: يعرض المسار المشترك الإعدادات؛ الخصوصية وحول التطبيق ضمن حساب التاجر.
+- المكونات: `Redirect` من Expo Router.
 - النصوص والحالات: الثيم والتفضيلات الفعلية فقط؛ لا إضافة خيارات غير مستخدمة.
 - الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
 - الأولوية: P1: الاستخدام اليومي. الحالة: **مغلقة** في مسار RUI؛ أغلق المالك إعدادات التاجر بعد اختبار إعادة التنظيم.
@@ -367,7 +367,7 @@
 
 - الدور: التاجر. المصدر: `src/app/merchant/security.tsx`؛ الوجهة: `/merchant/security`.
 - الوظيفة: إدارة كلمة المرور والأمان المتاح.
-- الوصول: حساب التاجر. إشارات المصدر: `src/components/account/SettingsScreen.tsx`، `src/components/account/SharedAccountParts.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`، `src/lib/merchant-navigation.ts`.
+- الوصول: حساب التاجر. إشارات المصدر: `src/components/account/SharedAccountParts.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`، `src/lib/merchant-navigation.ts`.
 - التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
 - التفاصيل الموجودة/الناقصة: SecurityScreen؛ النموذج داخل الصفحة.
 - المكونات (وصول محافظ): `src/components/account/AccountMenuItem.tsx`، `src/components/account/AccountProfileHeader.tsx`، `src/components/account/AccountSection.tsx`، `src/components/account/AccountShell.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/account/SharedAccountParts.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/AppModal.tsx`، `src/components/ui/AppTextField.tsx`، `src/components/ui/KeyboardAwareScrollView.tsx`، `src/components/ui/LoadingState.tsx`.
@@ -452,11 +452,11 @@
 ### RUI-DRV-04.02 — إعدادات السائق
 
 - الدور: السائق. المصدر: `src/app/driver/settings.tsx`؛ الوجهة: `/driver/settings`.
-- الوظيفة: تفضيل مظهر التطبيق للسائق.
-- الوصول: حساب السائق أو رابط مباشر تحت حارس الدور. إشارات المصدر: `src/app/driver/account.tsx`.
-- التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
-- التفاصيل الموجودة/الناقصة: نفس مكوّن إعدادات التاجر بوضع المظهر فقط.
-- المكونات (وصول محافظ): `src/components/account/SettingsScreen.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/SyriaFlag.tsx`.
+- الوظيفة: تحويل رابط التوافق إلى `/settings` ‏(RUI-SHR-04).
+- الوصول: الرابط القديم؛ يفتح حساب السائق `/settings` مباشرة من `src/app/driver/account.tsx`.
+- التبويب: مسار توافق فقط.
+- التفاصيل الموجودة/الناقصة: يعرض المسار المشترك إعدادات السائق.
+- المكونات: `Redirect` من Expo Router.
 - النصوص والحالات: التلقائي والفاتح والداكن وحفظ التفضيل والرجوع.
 - الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
 - الأولوية: P1: الاستخدام اليومي. الحالة: **بانتظار اختبار الهاتف** في مسار RUI؛ مكتملة برمجيًا وتنتظر اختبار المالك وقبوله.
@@ -667,31 +667,31 @@
 - المكونات (وصول محافظ): `src/components/finance/FinancialParts.tsx`، `src/components/finance/InvoiceScreen.tsx`، `src/components/finance/InvoiceStatus.tsx`، `src/components/finance/MerchantInvoiceScreen.tsx`، `src/components/finance/PendingMoneyCard.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/AppModal.tsx`، `src/components/ui/AppTextField.tsx`، `src/components/ui/DocumentReference.tsx`، `src/components/ui/KeyboardAwareScrollView.tsx`، `src/components/ui/LiveStatus.tsx`، `src/components/ui/LoadingState.tsx`.
 - النصوص والحالات: مستند مؤكد لا يعني مدفوعًا؛ فتح التفاصيل لا ينشئ عملية.
 - الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
-- الأولوية: P0: بيانات/مال/إجراء. الحالة: **مغلقة لعرض التاجر** في مسار RUI؛ قبول نهائي لعرض التاجر بحسب اختبار المالك.
+- الأولوية: P0: بيانات/مال/إجراء. الحالة: **مغلقة بقبول المالك النهائي للصفحة المشتركة**.
 
 ### RUI-SHR-03 — مدخل الحساب المالي المشترك
 
 - الدور: مشتركة بحسب صلاحية الحساب. المصدر: `src/app/wallet.tsx`؛ الوجهة: `/wallet`.
-- الوظيفة: مدخل إضافي إلى FinanceScreen الحالية.
+- الوظيفة: ملخص قراءة للحساب المالي ومستنداته بحسب الدور.
 - الوصول: روابط توافق/الحساب إن وجدت؛ ليست محفظة مالية قديمة. إشارات المصدر: `src/components/finance/FinanceScreen.tsx`، `src/lib/account-routing.ts`.
 - التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
-- التفاصيل الموجودة/الناقصة: نفس FinanceScreen؛ لا نظام مالي ثان ولا صفحة محفظة جديدة.
+- التفاصيل الموجودة/الناقصة: فتح المستند أو قائمة الفواتير أو مالية الدور من مدخل القراءة.
 - المكونات (وصول محافظ): `src/components/finance/FinanceScreen.tsx`، `src/components/finance/FinancialAccountSummary.tsx`، `src/components/finance/FinancialParts.tsx`، `src/components/finance/InvoiceStatus.tsx`، `src/components/finance/MerchantFinanceView.tsx`، `src/components/finance/PendingMoneyCard.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/AppModal.tsx`، `src/components/ui/AppTextField.tsx`، `src/components/ui/DocumentReference.tsx`، `src/components/ui/KeyboardAwareScrollView.tsx`، `src/components/ui/LiveStatus.tsx`، `src/components/ui/LoadingState.tsx`.
 - النصوص والحالات: مراجعة ضرورة المدخل واسم المحفظة مع مستهلكيه قبل أي إزالة.
 - الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
-- الأولوية: P1: الاستخدام اليومي. الحالة: **لم تبدأ** في مسار RUI؛ لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md.
+- الأولوية: P1: الاستخدام اليومي. الحالة: **مغلقة بقبول المالك النهائي للصفحة المشتركة**.
 
 ### RUI-SHR-04 — الإعدادات
 
 - الدور: مشتركة بحسب صلاحية الحساب. المصدر: `src/app/settings.tsx`؛ الوجهة: `/settings`.
 - الوظيفة: تعديل تفضيلات الحساب والعرض.
-- الوصول: حساب العميل/السائق/الإدارة. إشارات المصدر: `src/components/account/SharedAccountParts.tsx`.
-- التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
-- التفاصيل الموجودة/الناقصة: SettingsScreen؛ لا إعداد مستقل لكل دور مطلوب.
-- المكونات (وصول محافظ): `src/components/account/SettingsScreen.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/SyriaFlag.tsx`.
+- الوصول: حسابات العميل والتاجر والسائق والإدارة، والرابط المباشر، وروابط الإعدادات القديمة التي تحوّل إليه.
+- التبويب: صفحة مشتركة بترويسة واحدة وزر رجوع إلى حساب الدور.
+- التفاصيل الموجودة/الناقصة: تنبيهات الجهاز والمعاملات لكل دور، وعروض المتاجر للعميل فقط، والمظهر وصف اللغة العربية.
+- المكونات: `AccountShell` و`AppHeader` و`LoadingSkeleton` و`DeviceNotificationStatus` و`StoreOfferNotificationSettings` و`SyriaFlag`.
 - النصوص والحالات: الثيم والإعدادات المتاحة فعلًا؛ الرجوع الآمن إلى حساب الدور.
 - الثيم الليلي: غير معتمد لهذه المراجعة؛ رموز الثيم المشتركة أساس موجود، والتباين والحالات المحلية تحتاج اختبار الصفحة. ملاحظات محددة في مرجع التصميم وجرد المكونات.
-- الأولوية: P1: الاستخدام اليومي. الحالة: **لم تبدأ** في مسار RUI؛ لم تختبر هذه المراجعة الجديدة؛ القبول التاريخي محفوظ في WORK_PROGRESS.md.
+- الأولوية: P1: الاستخدام اليومي. الحالة: **منفذة محليًا — بانتظار اختبار الهاتف والقبول**.
 
 ### RUI-SHR-05 — البيانات الشخصية
 
@@ -709,7 +709,7 @@
 
 - الدور: مشتركة بحسب صلاحية الحساب. المصدر: `src/app/security.tsx`؛ الوجهة: `/security`.
 - الوظيفة: تعديل كلمة المرور والأمان الموجود.
-- الوصول: حسابي للأدوار المشتركة. إشارات المصدر: `src/app/driver/account.tsx`، `src/components/account/SettingsScreen.tsx`، `src/components/account/SharedAccountParts.tsx`.
+- الوصول: حسابي للأدوار المشتركة. إشارات المصدر: `src/app/driver/account.tsx`، `src/components/account/SharedAccountParts.tsx`.
 - التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
 - التفاصيل الموجودة/الناقصة: SecurityScreen ونموذج كلمة المرور.
 - المكونات (وصول محافظ): `src/components/account/AccountMenuItem.tsx`، `src/components/account/AccountProfileHeader.tsx`، `src/components/account/AccountSection.tsx`، `src/components/account/AccountShell.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/account/SharedAccountParts.tsx`، `src/components/navigation/AppHeader.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/AppModal.tsx`، `src/components/ui/AppTextField.tsx`، `src/components/ui/KeyboardAwareScrollView.tsx`، `src/components/ui/LoadingState.tsx`.
@@ -723,7 +723,7 @@
 
 - الدور: الدخول والتسجيل والانضمام. المصدر: `src/app/index.tsx`؛ الوجهة: `/`.
 - الوظيفة: تحديد الجلسة والدور وتوجيهه مع حالة بدء وخطأ.
-- الوصول: تشغيل التطبيق والمسار /. إشارات المصدر: `src/app/financial-invoice.tsx`، `src/app/notifications.tsx`، `src/components/account/SecurityScreen.tsx`، `src/components/account/SettingsScreen.tsx`، `src/hooks/useSafeBack.ts`، `src/lib/customer-home-ads.ts`، `src/lib/merchant-product-create.ts`، `src/lib/merchant-product-edit.ts`.
+- الوصول: تشغيل التطبيق والمسار /. إشارات المصدر: `src/app/financial-invoice.tsx`، `src/app/notifications.tsx`، `src/components/account/SecurityScreen.tsx`، `src/hooks/useSafeBack.ts`، `src/lib/customer-home-ads.ts`، `src/lib/merchant-product-create.ts`، `src/lib/merchant-product-edit.ts`.
 - التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
 - التفاصيل الموجودة/الناقصة: توجيه فعلي مع واجهة انتظار/إعادة محاولة؛ ليس Redirect صرفًا.
 - المكونات (وصول محافظ): `src/components/brand/BrandMark.tsx`، `src/components/ui/AppButton.tsx`، `src/components/ui/AppIcon.tsx`، `src/components/ui/LoadingState.tsx`.
@@ -821,7 +821,7 @@
 
 - الدور: القانونية ومعلومات التطبيق. المصدر: `src/app/about.tsx`؛ الوجهة: `/about`.
 - الوظيفة: تعريف التطبيق ومعلوماته الحالية.
-- الوصول: حسابي والروابط القانونية. إشارات المصدر: `src/app/driver/account.tsx`، `src/components/account/SettingsScreen.tsx`، `src/components/legal/LegalPageLayout.tsx`، `src/components/login/LoginFooter.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`.
+- الوصول: حسابي والروابط القانونية. إشارات المصدر: `src/app/driver/account.tsx`، `src/components/legal/LegalPageLayout.tsx`، `src/components/login/LoginFooter.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`.
 - التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
 - التفاصيل الموجودة/الناقصة: AboutContent/FeatureList/Header وروابط privacy/terms.
 - المكونات (وصول محافظ): `src/components/about/AboutContent.tsx`، `src/components/about/AboutFeatureList.tsx`، `src/components/about/AboutHeader.tsx`، `src/components/brand/BrandMark.tsx`، `src/components/ui/AppIcon.tsx`.
@@ -833,7 +833,7 @@
 
 - الدور: القانونية ومعلومات التطبيق. المصدر: `src/app/privacy.tsx`؛ الوجهة: `/privacy`.
 - الوظيفة: شرح جمع البيانات واستخدامها والحقوق الفعلية.
-- الوصول: التسجيل والحساب والصفحات القانونية. إشارات المصدر: `src/app/driver/account.tsx`، `src/app/terms.tsx`، `src/components/about/AboutContent.tsx`، `src/components/account/SettingsScreen.tsx`، `src/components/legal/LegalPageLayout.tsx`، `src/components/legal/LegalRelatedDocument.tsx`، `src/components/login/LoginFooter.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`، `src/components/signup/SignupReviewStep.tsx`.
+- الوصول: التسجيل والحساب والصفحات القانونية. إشارات المصدر: `src/app/driver/account.tsx`، `src/app/terms.tsx`، `src/components/about/AboutContent.tsx`، `src/components/legal/LegalPageLayout.tsx`، `src/components/legal/LegalRelatedDocument.tsx`، `src/components/login/LoginFooter.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`، `src/components/signup/SignupReviewStep.tsx`.
 - التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
 - التفاصيل الموجودة/الناقصة: LegalPageLayout/Section/RelatedDocument؛ لا مسار حذف بيانات منفذ يثبت بالنص وحده.
 - المكونات (وصول محافظ): `src/components/legal/LegalPageLayout.tsx`، `src/components/legal/LegalRelatedDocument.tsx`، `src/components/legal/LegalSection.tsx`، `src/components/ui/AppIcon.tsx`.
@@ -845,7 +845,7 @@
 
 - الدور: القانونية ومعلومات التطبيق. المصدر: `src/app/terms.tsx`؛ الوجهة: `/terms`.
 - الوظيفة: بيان شروط الاستخدام التشغيلية والتجارية الفعلية.
-- الوصول: التسجيل والحساب والصفحات القانونية. إشارات المصدر: `src/app/driver/account.tsx`، `src/app/privacy.tsx`، `src/components/about/AboutContent.tsx`، `src/components/account/SettingsScreen.tsx`، `src/components/legal/LegalPageLayout.tsx`، `src/components/legal/LegalRelatedDocument.tsx`، `src/components/login/LoginFooter.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`، `src/components/signup/SignupReviewStep.tsx`.
+- الوصول: التسجيل والحساب والصفحات القانونية. إشارات المصدر: `src/app/driver/account.tsx`، `src/app/privacy.tsx`، `src/components/about/AboutContent.tsx`، `src/components/legal/LegalPageLayout.tsx`، `src/components/legal/LegalRelatedDocument.tsx`، `src/components/login/LoginFooter.tsx`، `src/components/merchant/MerchantAccountScreens.tsx`، `src/components/signup/SignupReviewStep.tsx`.
 - التبويب: ليس تبويبًا مباشرًا؛ قد يبقى شريط الدور ظاهرًا عبر layout.
 - التفاصيل الموجودة/الناقصة: LegalPageLayout ومراجع الخصوصية؛ لا صفحة دفع متجر جديدة مفترضة.
 - المكونات (وصول محافظ): `src/components/legal/LegalPageLayout.tsx`، `src/components/legal/LegalRelatedDocument.tsx`، `src/components/legal/LegalSection.tsx`، `src/components/ui/AppIcon.tsx`.

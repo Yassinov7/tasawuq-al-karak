@@ -5,7 +5,8 @@ const show=load('src/lib/invoice-presentation.ts').invoicePresentation;
 const customerInvoiceSource=fs.readFileSync('src/components/finance/InvoiceScreen.tsx','utf8');
 assert.match(customerInvoiceSource,/orderInvoiceSnapshots/);
 assert.match(customerInvoiceSource,/data && customerView \? <CustomerInvoiceDocument/);
-assert.match(customerInvoiceSource,/!customerView \? <LiveStatus/);
+assert.match(customerInvoiceSource,/useOrderRealtime\(/);
+assert.doesNotMatch(customerInvoiceSource,/<LiveStatus/);
 assert.match(customerInvoiceSource,/styles\.balanceMetrics/);
 assert.match(customerInvoiceSource,/styles\.referenceSummary/);
 assert.match(customerInvoiceSource,/محتويات الفاتورة/);
@@ -35,6 +36,17 @@ mocks['@/components/ui/LoadingState']={LoadingSkeleton:'LoadingSkeleton',Refresh
 mocks['@/components/finance/PendingMoneyCard']={PendingMoneyCard:'PendingMoneyCard'};
 mocks['@/components/finance/FinancialAccountSummary']={FinancialAccountSummary:'FinancialAccountSummary'};
 mocks['@/components/finance/FinancialParts']=Object.fromEntries(['FinancialAmount','FinancialFeedback','FinancialSection','InvoiceListItem'].map(n=>[n,n]));
+const sharedPresentation=load('src/lib/shared-financial-presentation.ts');
+mocks['@/lib/shared-financial-presentation']=sharedPresentation;
+const testDocumentId='10000000-0000-0000-0000-000000000002';
+invoice.id=testDocumentId;
+mocks['expo-router'].useLocalSearchParams=()=>({id:testDocumentId});
+for(const [account,destination] of Object.entries({'/home':'/invoice','/merchant':'/merchant/finance','/driver':'/driver/cash-account','/admin':'/admin/finance','/application-status':null})) {
+  assert.equal(sharedPresentation.financialAccountDestination(account),destination);
+}
+assert.equal(sharedPresentation.financialDocumentTitle('SET'),'مستند تسوية');
+assert.equal(sharedPresentation.financialDocumentTitle('DLV'),'مستند تحصيل التوصيل');
+assert.equal(sharedPresentation.savedFinancialDate('not-a-date'),null);
 const screen=load('src/components/finance/InvoiceScreen.tsx',mocks).InvoiceScreen;
 const render=()=>{cursor=0;const wrapper=screen({});return wrapper.type(wrapper.props);};
 const nodes=(tree)=>!tree||typeof tree!=='object'?[]:Array.isArray(tree)?tree.flatMap(nodes):[tree,...nodes(tree.props?.children)];
@@ -138,7 +150,7 @@ async function main(){
  assert.equal(merchantView.page,1);
  assert.equal(merchantView.data,null);
  await merchantView.onRefresh();
- assert.equal(reads.at(-1)[2].id,'invoice');
+ assert.equal(reads.at(-1)[2].id,testDocumentId);
  merchantView=renderMerchant().view;
  merchantView.onSearch('SUB-0000001');
  merchantView=renderMerchant().view;
@@ -214,7 +226,7 @@ async function main(){
    strip.props.onLayout({nativeEvent:{layout:{width:600}}});
    assert.equal(scrolls.at(-1).x,0);
    chips[1].props.onPress();
-   assert.deepEqual(opened,['invoice']);
+   assert.deepEqual(opened,[testDocumentId]);
    assert.deepEqual(kinds,['SAL']);
    const previous=rendered.find(node=>node?.props?.accessibilityLabel==='السابق');
    const next=rendered.find(node=>node?.props?.accessibilityLabel==='التالي');

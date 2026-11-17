@@ -149,7 +149,7 @@ async function main(){
   assert(tree.some(node=>node.props.children==='9.8.7'));
   const links=tree.filter(node=>node.type==='Menu');assert(links.every(node=>node.props.compact));
   links.forEach(node=>node.props.onPress());
-  assert.deepEqual(routes,['/driver/credentials','/driver/cash-account','/personal-info','/notifications','/driver/settings','/security','/privacy','/terms','/about']);
+  assert.deepEqual(routes,['/driver/credentials','/driver/cash-account','/personal-info','/notifications','/settings','/security','/privacy','/terms','/about']);
   assert.deepEqual(links.slice(0,5).map(node=>node.props.title),['بيانات الاعتماد','المالية والفواتير','المعلومات الشخصية','الإشعارات','الإعدادات']);
   const header=tree.find(node=>node.type==='Shell').props.header.props;
   assert.equal(header.title,'حسابي');assert.equal(header.showNotifications,false);
@@ -179,37 +179,90 @@ async function main(){
   assert.ok(tree.some(n=>n.props.children==='اسم التطبيق الفعلي'));assert.ok(tree.some(n=>n.props.children==='9.8.7'));
   assert.ok(!tree.some(n=>n.props.children==='الكرك الشرقي'));
   items.forEach(n=>n.props.onPress());
-  assert.deepEqual(routes,['/merchant/store-info','/merchant/finance',{pathname:'/merchant/finance',params:{search:'SUB-'}},'/merchant/personal-info','/notifications','/merchant/settings','/merchant/security','/privacy','/terms','/about']);
+  assert.deepEqual(routes,['/merchant/store-info','/merchant/finance',{pathname:'/merchant/finance',params:{search:'SUB-'}},'/merchant/personal-info','/notifications','/settings','/merchant/security','/privacy','/terms','/about']);
   assert.ok(tree.some(n=>n.type==='Logout'&&n.props.compact));
   state={...state,loading:false,error:'failed',reload:()=>retries++};tree=nodes();
   assert.ok(tree.some(n=>n.props.children==='اسم التاجر'));tree.find(n=>n.props.title==='إعادة المحاولة').props.onPress();assert.equal(retries,1);
   state={...state,error:'',data:{role:'customer',full_name:'اسم حساب آخر',email:'other@example.invalid'}};
   assert.ok(!nodes().some(n=>['اسم التاجر','اسم حساب آخر','other@example.invalid'].includes(n.props.children)));
  });
- await test('merchant and driver settings share the three appearance controls and other roles retain their links',()=>{
-  const hooks=hookHarness(),paths=[],themes=[];let role;
-  const settings=load('src/components/account/SettingsScreen.tsx',{
-   'react/jsx-runtime':hooks.jsx,'expo-router':{useRouter:()=>({push:path=>paths.push(path),canGoBack:()=>false,replace:path=>paths.push(path)})},
-   'react-native':{Pressable:'Pressable',ScrollView:'ScrollView',StyleSheet:{create:v=>v},Text:'Text',View:'View'},
-   '@/hooks/usePersonalAccount':{usePersonalAccount:()=>({data:role?{role}:null})},'@/components/navigation/AppHeader':{AppHeader:'Header'},
-   '@/components/ui/AppIcon':{AppIcon:'Icon'},'@/components/ui/SyriaFlag':{SyriaFlag:'Flag'},
-   '@/constants/theme':{FontSizes:{},Fonts:{},Radius:{},Spacing:{}},'@/context/CartContext':{useCart:()=>({itemCount:0})},
-   '@/context/SettingsContext':{useSettings:()=>({themeMode:'system',settingsReady:true,setThemeMode:mode=>themes.push(mode)})},
-   '@/context/ThemeContext':{useTheme:()=>({colors:{}})},
-  }).default;
+ await test('general settings links use the common route and the legacy routes only redirect',()=>{
+  const hooks=hookHarness(),paths=[];
+  for(const role of ['merchant','driver']){
+   const redirect=load(`src/app/${role}/settings.tsx`,{'react/jsx-runtime':hooks.jsx,'expo-router':{Redirect:'Redirect'}}).default();
+   assert.equal(redirect.type,'Redirect');assert.equal(redirect.props.href,'/settings');
+  }
+  const mocks={
+   'react':hooks.react,'react/jsx-runtime':hooks.jsx,'expo-router':{useRouter:()=>({push:p=>paths.push(p)})},
+   'expo-constants':{__esModule:true,default:{expoConfig:{}}},
+   'react-native':{StyleSheet:{create:v=>v},Text:'Text',View:'View'},
+   '@/context/AuthContext':{useAuth:()=>({user:{id:'customer-a'}})},'@/context/CartContext':{useCart:()=>({itemCount:0})},
+   '@/context/ThemeContext':{useTheme:()=>({colors:{}})},'@/hooks/usePersonalAccount':{usePersonalAccount:()=>({data:null})},
+   '@/lib/personal-account':{},'@/constants/theme':{Spacing:{},Typography:{}},
+   ...Object.fromEntries([['account/AccountMenuItem','AccountMenuItem'],['account/AccountSection','AccountSection'],['account/AccountShell','AccountShell'],['account/AccountProfileHeader','AccountProfileHeader'],['navigation/AppHeader','AppHeader'],['ui/AppButton','AppButton'],['ui/AppModal','AppModal']].map(([path,name])=>['@/components/'+path,{[name]:name}])),
+  };
+  const shared=load('src/components/account/SharedAccountParts.tsx',mocks);
+  mocks['@/components/account/SharedAccountParts']=shared;
+  mocks['@/components/admin/C3DeliverySettings']={};
+  const customer=load('src/app/(customer)/home/account.tsx',mocks).default();
+  const admin=load('src/app/admin/more.tsx',mocks).default();
   const walk=node=>Array.isArray(node)?node.flatMap(walk):node?.props?[node,...walk(node.props.children)]:[];
-  const merchant=walk(settings({embedded:true,preferencesOnly:true}));
-  assert.ok(!merchant.some(n=>['الخصوصية والأمان','حول التطبيق','اللغة','الإصدار 1.0.0'].includes(n.props.children)));
-  merchant.filter(n=>n.props.mode).forEach(n=>n.props.onPress());assert.deepEqual(themes,['system','light','dark']);
-  const shared=walk(settings());for(const title of ['تغيير كلمة المرور','الخصوصية','شروط الاستخدام','عن تسوق'])shared.find(n=>n.props.title===title).props.onPress();
-  assert.deepEqual(paths,['/security','/privacy','/terms','/about']);
-  const driverRoute=load('src/app/driver/settings.tsx',{'react/jsx-runtime':hooks.jsx,
-   '@/components/account/SettingsScreen':{__esModule:true,default:settings}}).default();
-  assert.equal(driverRoute.type,settings);
-  const driver=walk(settings(driverRoute.props));
-  assert.deepEqual(plain(driver.find(n=>n.type==='ScrollView')),plain(merchant.find(n=>n.type==='ScrollView')));
-  driver.find(n=>n.type==='Header').props.onBack();assert.equal(paths.at(-1),'/driver/account');
-  role='driver';assert(!walk(settings()).some(n=>n.props.title==='الخصوصية'||n.props.title==='عن تسوق'));
+  const adminMenu=walk(admin).find(n=>n.type===shared.SharedAccountMenu);
+  assert.equal(adminMenu.props.role,'admin');
+  for(const entry of [customer,adminMenu]){
+   walk(entry.type(entry.props)).find(n=>n.props.title==='الإعدادات').props.onPress();
+  }
+  assert.deepEqual(paths,['/settings','/settings']);
+ });
+ await test('shared settings renders the same preferences, with offers scoped to the customer',()=>{
+  const hooks=hookHarness(),paths=[],themes=[];
+  let user={id:'customer-a'},account={data:null,loading:true,error:'',reload:()=>paths.push('retry')};
+  let setting={themeMode:'system',settingsReady:false,themeSaving:false,settingsError:'',setThemeMode:mode=>themes.push(mode)};
+  const route=load('src/app/settings.tsx',{
+   'react/jsx-runtime':hooks.jsx,'expo-router':{useRouter:()=>({canGoBack:()=>false,replace:p=>paths.push(p),push:p=>paths.push(p),dismissTo:p=>paths.push(p)})},
+   'react-native':{ActivityIndicator:'Spinner',Pressable:'Pressable',StyleSheet:{create:v=>v},Text:'Text',View:'View'},
+   '@/context/AuthContext':{useAuth:()=>({user,loading:false})},'@/hooks/usePersonalAccount':{usePersonalAccount:()=>account},
+   '@/context/ThemeContext':{useTheme:()=>({colors:{}})},
+   '@/context/SettingsContext':{useSettings:()=>setting},'@/constants/theme':{ControlSizes:{},Radius:{},RtlText:{},Spacing:{},Typography:{}},
+   '@/components/notifications/DeviceNotificationStatus':{DeviceNotificationStatus:'DeviceNotificationStatus'},
+   ...Object.fromEntries([['account/AccountShell','AccountShell'],['navigation/AppHeader','AppHeader'],['notifications/StoreOfferNotificationControls','StoreOfferNotificationSettings'],['ui/AppButton','AppButton'],['ui/AppIcon','AppIcon'],['ui/SyriaFlag','SyriaFlag'],['ui/LoadingState','LoadingSkeleton']].map(([path,name])=>['@/components/'+path,{[name]:name}])),
+  }).default;
+  const walk=node=>Array.isArray(node)?node.flatMap(walk):node?.props?[node,...(typeof node.type==='function'?walk(node.type(node.props)):[...walk(node.props.header),...walk(node.props.children)])]:[];
+  const render=()=>{const node=route();return walk(typeof node.type==='function'?node.type(node.props):node);};
+  let view=render();assert(view.some(n=>n.type==='LoadingSkeleton'));assert(!view.some(n=>n.type==='StoreOfferNotificationSettings'));assert(view.find(n=>n.props.accessibilityRole==='radio').props.disabled);
+  account={...account,loading:false,error:'offline'};view=render();
+  view.find(n=>n.props.title==='إعادة المحاولة').props.onPress();assert.equal(paths.at(-1),'retry');
+  setting={...setting,settingsReady:true};account={...account,error:'',data:{role:'customer'}};view=render();
+  assert.equal(view.find(n=>n.type==='StoreOfferNotificationSettings').props.owner,'customer-a');
+  assert.equal(view.find(n=>n.type==='StoreOfferNotificationSettings').props.offersOnly,true);
+  view.find(n=>n.props.accessibilityLabel==='داكن').props.onPress();assert.deepEqual(themes,['dark']);
+  for(const [role,destination] of Object.entries({admin:'/admin/more',merchant:'/merchant/account',driver:'/driver/account',customer:'/home/account'})){
+   account={...account,data:{role}};user={id:role};view=render();
+   assert.equal(view.filter(n=>n.type==='DeviceNotificationStatus').length,1);
+   assert.equal(view.some(n=>n.type==='StoreOfferNotificationSettings'),role==='customer');
+   assert.deepEqual(view.filter(n=>n.props.accessibilityRole==='radio').map(n=>n.props.accessibilityLabel),['تلقائي حسب النظام','فاتح','داكن']);
+   const language=view.find(n=>n.props.title==='اللغة');
+   assert.equal(language.props.detail,'العربية · اللغة الحالية');assert.equal(language.props.onPress,undefined);
+   assert.equal(view.filter(n=>n.type==='SyriaFlag').length,1);
+   assert(!view.some(n=>['الأمان والخصوصية','تغيير كلمة المرور','الخصوصية','شروط الاستخدام','عن تسوق الكرك'].includes(n.props.title)));
+   view.find(n=>n.props.title==='إشعارات المعاملات').props.onPress();assert.equal(paths.at(-1),'/notifications');
+   view.find(n=>n.type==='AppHeader').props.onBack();assert.equal(paths.at(-1),destination);
+  }
+  user=null;view=render();assert(view.some(n=>n.props.title==='تسجيل الدخول'));
+ });
+ await test('root status bar uses the resolved application theme',()=>{
+  const hooks=hookHarness();
+  let themeMode='system',system='light';
+  const {ThemeProvider}=load('src/context/ThemeContext.tsx',{
+   'react':hooks.react,'react/jsx-runtime':hooks.jsx,'react-native':{useColorScheme:()=>system},
+   '@/constants/theme':{DarkColors:{},LightColors:{}},'@/context/SettingsContext':{useSettings:()=>({themeMode})},
+  });
+  for(const [mode,systemColor,isDark] of [['system','light',false],['system','dark',true],['light','dark',false],['dark','light',true]]){
+   themeMode=mode;system=systemColor;
+   assert.equal(ThemeProvider({}).props.value.isDark,isDark);
+  }
+  const root=fs.readFileSync('src/app/_layout.tsx','utf8');
+  assert.match(root,/<StatusBar style=\{isDark \? "light" : "dark"\} \/>/);
  });
  await test('moved account links keep their original back behavior',()=>{
   const hooks=hookHarness(),history=[];
@@ -314,7 +367,7 @@ async function main(){
   tree=render();assert.ok(!tree.some(n=>n.type==='Field'||n.props.children==='another@example.invalid'));
  });
  await test('UI contracts: one editor, draft guards, safe navigation and no phone writes',async()=>{
-  const src=p=>fs.readFileSync(p,'utf8');assert.match(src('src/hooks/useAccountDraftGuard.tsx'),/usePreventRemove/);assert.match(src('src/hooks/useAccountDraftGuard.tsx'),/hardwareBackPress/);assert.match(src('src/components/account/PersonalInfoScreen.tsx'),/key=\{user\?\.id/);assert.match(src('src/components/merchant/MerchantAccountScreens.tsx'),/PersonalInfoScreen embedded/);assert.match(src('src/app/admin/more.tsx'),/SharedAccountMenu role="admin"/);assert.doesNotMatch(src('src/components/account/SettingsScreen.tsx'),/accountRole|notificationsEnabled|Switch/);assert.match(src('src/context/SettingsContext.tsx'),/THEME_MODE_STORAGE_KEY/);assert.match(src('src/context/SettingsContext.tsx'),/setTheme\(mode\)/);assert.doesNotMatch(src('src/lib/personal-account.ts'),/updateUser\(\{\s*(data|email|phone)/);
+  const src=p=>fs.readFileSync(p,'utf8');assert.match(src('src/hooks/useAccountDraftGuard.tsx'),/usePreventRemove/);assert.match(src('src/hooks/useAccountDraftGuard.tsx'),/hardwareBackPress/);assert.match(src('src/components/account/PersonalInfoScreen.tsx'),/key=\{user\?\.id/);assert.match(src('src/components/merchant/MerchantAccountScreens.tsx'),/PersonalInfoScreen embedded/);assert.match(src('src/app/admin/more.tsx'),/SharedAccountMenu role="admin"/);assert.doesNotMatch(src('src/app/settings.tsx'),/accountRole|notificationsEnabled|Switch/);assert.match(src('src/context/SettingsContext.tsx'),/THEME_MODE_STORAGE_KEY/);assert.match(src('src/context/SettingsContext.tsx'),/setTheme\(mode\)/);assert.doesNotMatch(src('src/lib/personal-account.ts'),/updateUser\(\{\s*(data|email|phone)/);
  });
  console.log(`${count} shared-account production logic/adapter checks passed (offline; no live Auth/RLS claims).`);
 }

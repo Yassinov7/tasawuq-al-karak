@@ -115,12 +115,12 @@ export function StoreOfferFollow({ owner, storeId }: { owner: string; storeId: s
   </View>;
 }
 
-export function StoreOfferNotificationSettings({ owner }: { owner: string }) {
+export function StoreOfferNotificationSettings({ owner, offersOnly = false }: { owner: string; offersOnly?: boolean }) {
   const state = useStoreOfferPreferences(owner);
   const { colors } = useTheme();
   const router = useRouter();
-  return <View style={styles.sections}>
-    <AccountSection compact title="الإشعارات">
+  return <View style={!offersOnly && styles.sections}>
+    {!offersOnly ? <AccountSection compact title="الإشعارات">
       <AccountMenuItem compact icon="phone-portrait-outline" title="تنبيهات الجهاز" subtitle="إذن الهاتف وحالة تسجيل هذا الجهاز"
         isLast onPress={() => router.push("/notifications")} />
       <View style={[styles.settingsIntro, { borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.borderSubtle }]}>
@@ -129,7 +129,7 @@ export function StoreOfferNotificationSettings({ owner }: { owner: string }) {
           تظهر تحديثات طلباتك ومعاملاتك في قائمة الإشعارات داخل التطبيق.
         </Text>
       </View>
-    </AccountSection>
+    </AccountSection> : null}
     <AccountSection compact title="عروض المتاجر">
     <View style={styles.settingsIntro}>
       <Text style={[styles.caption, { color: colors.textSecondary }]}>
@@ -137,6 +137,7 @@ export function StoreOfferNotificationSettings({ owner }: { owner: string }) {
       </Text>
       <PreferenceError error={state.error} retry={state.load} />
       {!state.data && !state.error ? <Text style={[styles.caption, { color: colors.textSecondary }]}>جارٍ قراءة التفضيلات…</Text> : null}
+      {offersOnly && state.busy ? <Text accessibilityLiveRegion="polite" style={[styles.caption, { color: colors.textSecondary }]}>جارٍ حفظ تفضيلات العروض…</Text> : null}
     </View>
     {state.data ? <>
       <AccountMenuItem compact icon="notifications-outline" title={state.data.enabled ? "إيقاف إشعارات العروض" : "تفعيل إشعارات العروض"}

@@ -49,7 +49,7 @@ export function MerchantAccountHub() {
       <MerchantAccountGroup title="إدارة الحساب">
         <AccountMenuItem compact title="المعلومات الشخصية" icon="person-outline" onPress={() => router.push("/merchant/personal-info")} />
         <AccountMenuItem compact title="الإشعارات" icon="notifications-outline" onPress={() => router.push("/notifications")} />
-        <AccountMenuItem compact title="الإعدادات" icon="settings-outline" isLast onPress={() => router.push("/merchant/settings")} />
+        <AccountMenuItem compact title="الإعدادات" icon="settings-outline" isLast onPress={() => router.push("/settings")} />
       </MerchantAccountGroup>
 
       <MerchantAccountGroup title="الخصوصية والأمان">

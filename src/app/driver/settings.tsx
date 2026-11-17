@@ -1,5 +1,5 @@
-import SettingsScreen from "@/components/account/SettingsScreen";
+import { Redirect } from "expo-router";
 
-export default function DriverSettingsScreen() {
-  return <SettingsScreen preferencesOnly backFallback="/driver/account" />;
+export default function DriverSettingsRedirect() {
+  return <Redirect href="/settings" />;
 }

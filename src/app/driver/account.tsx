@@ -50,7 +50,7 @@ function DriverAccount() {
         <AccountSection compact title="إدارة الحساب">
           <AccountMenuItem compact title="المعلومات الشخصية" icon="person-outline" onPress={() => router.push("/personal-info")} />
           <AccountMenuItem compact title="الإشعارات" icon="notifications-outline" onPress={() => router.push("/notifications")} />
-          <AccountMenuItem compact title="الإعدادات" icon="settings-outline" isLast onPress={() => router.push("/driver/settings")} />
+          <AccountMenuItem compact title="الإعدادات" icon="settings-outline" isLast onPress={() => router.push("/settings")} />
         </AccountSection>
 
         <AccountSection compact title="الخصوصية والأمان">

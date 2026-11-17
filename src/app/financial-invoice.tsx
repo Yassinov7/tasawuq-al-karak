@@ -35,12 +35,17 @@ function AccountInvoice({ owner, id }: { owner: string; id: string }) {
   }, [owner, retry]);
 
   if (account === "/merchant") return <MerchantInvoiceScreen key={id} owner={owner} id={id} />;
-  if (account) return <InvoiceScreen customer={account === "/home"} />;
+  if (account === "/home" || account === "/driver" || account === "/admin") {
+    return <InvoiceScreen customer={account === "/home"} account={account} />;
+  }
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <AppHeader title="تفاصيل الفاتورة" showBack showNotifications={false} />
       <View style={{ padding: Spacing.four, gap: Spacing.three }}>
-        {failed ? <>
+        {account ? <>
+          <FinancialFeedback message="المستند غير متاح لهذا الحساب." />
+          <AppButton title="العودة إلى الحساب" variant="outline" onPress={() => router.replace(account)} />
+        </> : failed ? <>
           <FinancialFeedback error message="تعذر التحقق من حسابك. تحقق من الاتصال ثم أعد المحاولة." />
           <AppButton title="إعادة المحاولة" variant="outline" onPress={() => { setFailed(false); setRetry(value => value + 1); }} />
           <AppButton title="العودة إلى الحساب" variant="outline" onPress={() => router.replace("/")} />

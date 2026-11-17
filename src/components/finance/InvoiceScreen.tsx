@@ -4,7 +4,6 @@ import { PendingMoneyCard } from "@/components/finance/PendingMoneyCard";
 import { FinancialAmount, FinancialFeedback, FinancialSection } from "@/components/finance/FinancialParts";
 import { InvoiceStatus } from "@/components/finance/InvoiceStatus";
 import { useOrderRealtime } from "@/hooks/useOrderRealtime";
-import { LiveStatus } from "@/components/ui/LiveStatus";
 import { useCallback, useRef, useState, type ReactNode } from "react";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text, View, type ScrollView } from "react-native";
@@ -17,15 +16,16 @@ import { AppIcon } from "@/components/ui/AppIcon";
 import { useAuth } from "@/context/AuthContext";
 import { useAppDialog } from "@/context/AppDialogContext";
 import { useTheme } from "@/context/ThemeContext";
-import { FontSizes, Fonts, Radius, Spacing, Typography } from "@/constants/theme";
+import { FontSizes, Fonts, Radius, RtlText, Spacing, Typography } from "@/constants/theme";
 import { formatSypExact } from "@/lib/money";
-import { findOrderInvoice, invoiceKindLabels, moneyAction, pendingMoneyAction, purposeLabels, readInvoice, type InvoiceDetail, type MoneyAction, type MoneyDue } from "@/lib/invoice-finance";
+import { findOrderInvoice, invoiceKindLabels, InvoiceUnavailableError, moneyAction, pendingMoneyAction, purposeLabels, readInvoice, type InvoiceDetail, type MoneyAction, type MoneyDue } from "@/lib/invoice-finance";
+import { financialAccountDestination, financialDocumentTitle, savedFinancialDate } from "@/lib/shared-financial-presentation";
 
 type OrderInvoiceSnapshot = { data: InvoiceDetail; loadedAt: number; scrollOffset: number };
 const orderInvoiceSnapshots = new Map<string, OrderInvoiceSnapshot>();
 const orderInvoiceFreshnessMs = 30_000;
 
-export function InvoiceScreen({ order = false, customer = false }: { order?: boolean; customer?: boolean }) {
+export function InvoiceScreen({ order = false, customer = false, account }: { order?: boolean; customer?: boolean; account?: "/home" | "/driver" | "/admin" }) {
   const { user,loading:authLoading } = useAuth();
   const router=useRouter();
   const { colors } = useTheme();
@@ -33,9 +33,13 @@ export function InvoiceScreen({ order = false, customer = false }: { order?: boo
   const id = order ? params.orderId ?? params.id : params.id;
   if(authLoading)return <View style={{flex:1,backgroundColor:colors.background,justifyContent:"center"}}><LoadingSkeleton cards={1} label="جارٍ التحقق من الحساب"/></View>;
   if(!user||!id)return <View style={{flex:1,padding:20,gap:16,backgroundColor:colors.background}}><FinancialFeedback message={!user?"سجّل الدخول لعرض الفاتورة.":"لم تُحدد فاتورة. افتحها من قائمة الفواتير أو من الطلب المرتبط بها."}/><AppButton title={!user?"تسجيل الدخول":"قائمة الفواتير"} onPress={()=>router.replace(!user?"/login":"/invoice")}/></View>;
-  return user && id ? <OwnedInvoice key={`${user.id}:${id}`} owner={user.id} id={id} order={order} customer={customer}/> : null;
+  if (typeof id !== "string" || !/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(id)) return <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <AppHeader title="المستند المالي" showBack showNotifications={false} onBack={() => router.canGoBack() ? router.back() : router.replace(account ? financialAccountDestination(account) ?? "/" : "/invoice")} />
+    <View style={{ padding: Spacing.four }}><FinancialFeedback message="رابط المستند غير صالح. افتحه من القائمة المالية." error /></View>
+  </View>;
+  return user && id ? <OwnedInvoice key={`${user.id}:${account ?? "order"}:${id}`} owner={user.id} id={id} order={order} customer={customer} account={account}/> : null;
 }
-function OwnedInvoice({ owner, id, order, customer }: { owner: string; id: string; order: boolean; customer: boolean }) {
+function OwnedInvoice({ owner, id, order, customer, account }: { owner: string; id: string; order: boolean; customer: boolean; account?: "/home" | "/driver" | "/admin" }) {
   const { colors } = useTheme(), router = useRouter(), dialog = useAppDialog();
   const customerView = order || customer;
   const snapshotKey = `${owner}:${id}`;
@@ -45,6 +49,7 @@ function OwnedInvoice({ owner, id, order, customer }: { owner: string; id: strin
   const [correctionReason,setCorrectionReason]=useState(""),[correcting,setCorrecting]=useState(false);
   const [busy, setBusy] = useState(false), [pending, setPending] = useState(false), [refreshing, setRefreshing] = useState(false);
   const [reviewReady,setReviewReady]=useState(false),[partialError,setPartialError]=useState("");
+  const [unavailable,setUnavailable]=useState(false);
   const alive = useRef(false), generation = useRef(0), lock = useRef(false);
   const scrollRef = useRef<ScrollView>(null), scrollOffset = useRef(initialSnapshot?.scrollOffset ?? 0), restoredScroll = useRef(false);
   const load = useCallback(async (force = false) => {
@@ -53,26 +58,39 @@ function OwnedInvoice({ owner, id, order, customer }: { owner: string; id: strin
       setData(cached.data); setError(""); setReviewReady(true); return;
     }
     const token = ++generation.current;
-    if (customerView && force) setRefreshing(true);
+    if (force) setRefreshing(true);
     try {
       const actual = order ? await findOrderInvoice(id) : id;
       const next=await readInvoice(actual);
       if (!alive.current || token !== generation.current) return;
-      setData(next);setError("");
+      if (next.id.toLowerCase() !== actual.toLowerCase() ||
+          (account && next.admin !== (account === "/admin")) || (!next.admin && next.owner_id !== owner)) throw new InvoiceUnavailableError();
+      setData(next);setError("");setUnavailable(false);
       if (customerView) orderInvoiceSnapshots.set(snapshotKey, { data: next, loadedAt: Date.now(), scrollOffset: scrollOffset.current });
-      if (customerView) { setPending(false); setReviewReady(true); setPartialError(""); return; }
+      if (customerView || !next.admin) { setPending(false); setReviewReady(true); setPartialError(""); return; }
       try{
         const attempt=await pendingMoneyAction(owner);
         if(alive.current&&token===generation.current){setPending(!!attempt);setReviewReady(true);setPartialError("");}
       }catch{if(alive.current&&token===generation.current){setReviewReady(false);setPartialError("الفاتورة معروضة، لكن تعذر التحقق من العملية المحفوظة. حدّث البيانات قبل أي إجراء مالي.");}}
-    } catch (e) { if (alive.current && token === generation.current) setError(userErrorMessage(e, "تعذر تحميل الفاتورة.")); }
-    finally { if (alive.current && token === generation.current && customerView) setRefreshing(false); }
-  }, [customerView, id, order, owner, snapshotKey]);
+    } catch (e) {
+      if (alive.current && token === generation.current) {
+        setReviewReady(false);
+        if (e instanceof InvoiceUnavailableError) {
+          orderInvoiceSnapshots.delete(snapshotKey);
+          setData(null);setPending(false);setPartialError("");setDue(null);setCorrecting(false);setUnavailable(true);
+          setError("المستند غير موجود أو غير متاح لهذا الحساب.");
+        } else {
+          setError(dataErrorText);
+        }
+      }
+    } finally { if (alive.current && token === generation.current) setRefreshing(false); }
+  }, [account, customerView, id, order, owner, snapshotKey]);
   useFocusEffect(useCallback(() => { alive.current = true; void load(); return () => { alive.current = false; generation.current++; }; }, [load]));
   const refreshLive = useCallback(() => load(true), [load]);
-  const live = useOrderRealtime({channelName:`invoice:${owner}:${id}`,enabled:true,subscriptions:data?[{table:"money_invoices",filter:`id=eq.${data.id}`},{table:"money_invoices",filter:`owner_id=eq.${data.owner_id}`},{table:"money_allocations"}]:[{table:"money_invoices",filter:`owner_id=eq.${owner}`}],onChange:refreshLive});
+  useOrderRealtime({channelName:`invoice:${owner}:${id}`,enabled:!unavailable,subscriptions:order?[{table:"money_invoices",filter:`owner_id=eq.${owner}`},{table:"money_allocations"}]:[{table:"money_invoices",filter:`id=eq.${id}`},{table:"money_allocations"}],onChange:refreshLive});
   const admin = data?.admin === true;
-  const customerTitle = data?.kind === "INV" && data.customer_order_id ? "فاتورة الطلب" : data ? invoiceKindLabels[data.kind] ?? "تفاصيل الفاتورة" : "تفاصيل الفاتورة";
+  const title = order ? "فاتورة الطلب" : data ? financialDocumentTitle(data.kind) : "المستند المالي";
+  const back = () => router.canGoBack() ? router.back() : router.replace(account ? financialAccountDestination(account) ?? "/" : "/invoice");
   const currentDue=data?.dues.find(d=>d.id===due?.id);
   const dueSettled=currentDue?/^0(?:\.0{1,2})?$/.test(currentDue.remaining):false;
   const execute = async (input?: MoneyAction, expectedAttemptKey?:string) => {
@@ -89,29 +107,39 @@ function OwnedInvoice({ owner, id, order, customer }: { owner: string; id: strin
     finally { lock.current = false; if (alive.current) setBusy(false); }
   };
   return <View style={{ flex: 1, backgroundColor: colors.background }}>
-    <AppHeader title={customerView ? customerTitle : "تفاصيل الفاتورة"} showBack showNotifications={false}/>
+    <AppHeader title={title} showBack onBack={back} showNotifications={false}/>
     <KeyboardAwareScrollView ref={scrollRef} contentContainerStyle={customerView ? styles.content : styles.sharedContent} showsVerticalScrollIndicator={false}
       onScroll={event => { scrollOffset.current = event.nativeEvent.contentOffset.y; const snapshot = orderInvoiceSnapshots.get(snapshotKey); if (customerView && snapshot) snapshot.scrollOffset = scrollOffset.current; }}
       onContentSizeChange={() => { if (!customerView || restoredScroll.current || scrollOffset.current <= 0) return; restoredScroll.current = true; scrollRef.current?.scrollTo({ y: scrollOffset.current, animated: false }); }}>
-      {!customerView ? <LiveStatus state={live}/> : null}
       {pending ? <PendingMoneyCard key={owner} owner={owner} busy={busy} onResume={key=>execute(undefined,key)} onRefresh={load}/> : null}
       {!data && !error ? <LoadingSkeleton label="جارٍ تحميل الفاتورة"/> : null}
       {partialError?<FinancialFeedback message={partialError} error/>:null}
       {data && customerView ? <CustomerInvoiceDocument invoice={data} refreshing={refreshing} onRefresh={() => void load(true)} /> : null}
       {data && !customerView ? <>
-        <DocumentReference value={data.reference}/>
-        <Text style={{ ...Typography.cardTitle, color: colors.text, textAlign: "right" }}>{data.title}</Text>
-        <Text style={{ ...Typography.body, color: colors.text, textAlign: "right" }}>{invoiceKindLabels[data.kind]}</Text>
-        <Text style={{ ...Typography.pageTitle, color: colors.text, textAlign: "right" }}>{formatSypExact(data.amount)}</Text>
-        {Object.entries(data.references).map(([key, value]) => <Text selectable key={key} style={{ ...Typography.body, color: colors.primary }}>{value}</Text>)}
-        <InvoiceStatus invoice={data}/>
-        {data.dues.length>0&&data.status==="confirmed"&&!data.voided_by?<Text style={{...Typography.body,color:colors.textSecondary,textAlign:"right"}}>تأكيد المستند يعني اعتماده. حالة السداد تتغير عند تسجيل القبض أو الصرف الفعلي.</Text>:null}
-        <InvoiceDetails details={data.details}/>
-        {data.dues.map(d => <FinancialSection key={d.id}>
-          <Text style={{ ...Typography.bodyStrong, color: colors.text, textAlign: "right" }}>{purposeLabels[d.purpose]} · {d.direction === "in" ? admin?"عليه للمنصة":"عليك للمنصة" : admin?"حق له لدى المنصة":"حق لك لدى المنصة"}</Text>
+        <FinancialSection>
+          <DocumentReference value={data.reference}/>
+          <InvoiceStatus invoice={data}/>
+          <FinancialAmount label={data.kind === "SET" ? "مبلغ التسوية" : "قيمة المستند"} amount={data.amount} />
+          {savedFinancialDate(data.confirmedAt) ? <DocumentRow label="تاريخ الاعتماد" value={savedFinancialDate(data.confirmedAt)!} />
+            : savedFinancialDate(data.created_at) ? <DocumentRow label="تاريخ الإنشاء" value={savedFinancialDate(data.created_at)!} /> : null}
+          {data.owner_name ? <DocumentRow label="الحساب المرتبط" value={data.owner_name} /> : null}
+          {data.voided_by ? <FinancialFeedback message="أُلغي الأثر المالي لهذا المستند. يبقى ظاهرًا في السجل." /> : null}
+        </FinancialSection>
+        <InvoiceDetails details={data.details} cashDirection={data.cashDirection}/>
+        {Object.keys(data.references).length ? <FinancialSection title="السجلات المرتبطة">
+          {data.references.ORD ? <DocumentRow label="مرجع الطلب"><DocumentReference value={data.references.ORD} /></DocumentRow> : null}
+          {data.references.SOR ? <DocumentRow label="مرجع طلب المتجر"><DocumentReference value={data.references.SOR} /></DocumentRow> : null}
+          {data.references.TSK ? <DocumentRow label="مرجع المهمة"><DocumentReference value={data.references.TSK} /></DocumentRow> : null}
+          {admin && data.customer_order_id ? <AppButton compact title="فتح تفاصيل الطلب" variant="outline"
+            onPress={() => router.push({ pathname: "/admin/order-details", params: { orderId: data.customer_order_id! } })} /> : null}
+          {account === "/driver" && data.task_id ? <AppButton compact title="فتح مهمة التوصيل" variant="outline"
+            onPress={() => router.push({ pathname: "/driver/task-details", params: { taskId: data.task_id! } })} /> : null}
+        </FinancialSection> : null}
+        {!data.voided_by && data.status === "confirmed" ? data.dues.map(d => <FinancialSection key={d.id} title={purposeLabels[d.purpose] ?? "المستحق المرتبط"}>
+          <Text style={{ ...Typography.bodyStrong, ...RtlText, color: colors.text }}>{d.direction === "in" ? admin?"على الطرف للمنصة":"عليك للمنصة" : admin?"مستحق للطرف من المنصة":"مستحق لك من المنصة"}</Text>
           <FinancialAmount label="القيمة الأصلية" amount={d.amount}/><FinancialAmount label="المتبقي للتسوية" amount={d.remaining}/>
           {admin && !data.voided_by && data.status === "confirmed" && !/^0(?:\.0{1,2})?$/.test(d.remaining) ? <AppButton title={d.direction === "in" ? "تسجيل قبض فعلي" : "تسجيل صرف فعلي"} variant="outline" disabled={busy || pending || !reviewReady} onPress={() => { setCorrecting(false); setCorrectionReason(""); setDue(d); setAmount(d.remaining); setSettlementReason(""); }}/>: null}
-        </FinancialSection>)}
+        </FinancialSection>) : null}
         {due && !data.voided_by && data.status === "confirmed" ? <FinancialSection title={due.direction==="in"?"قبض فعلي للمنصة":"صرف فعلي للطرف"}>
           <DocumentReference value={data.reference}/>
           {currentDue?<FinancialAmount label="المتبقي حاليًا على المستحق" amount={currentDue.remaining}/>:<FinancialFeedback message="المستحق المحدد لم يعد متاحًا في البيانات الحالية. أغلق النموذج وراجع الفاتورة."/>}
@@ -122,7 +150,7 @@ function OwnedInvoice({ owner, id, order, customer }: { owner: string; id: strin
           <AppButton title="إغلاق النموذج" variant="outline" disabled={busy} onPress={() => {setDue(null);setSettlementReason("");setAmount("");}}/>
         </FinancialSection> : null}
         {data.settlements.length?<FinancialSection title="التسويات المرتبطة">{data.settlements.map(s => <AppButton key={s.id} title={`${s.reference} · ${formatSypExact(s.amount)}${s.voided ? " · ملغاة" : ""}`} variant="outline" onPress={() => router.push({ pathname: "/financial-invoice", params: { id: s.id } })}/>)}</FinancialSection>:null}
-        {data.voided_by ? <AppButton title="فتح فاتورة التصحيح" variant="outline" onPress={() => router.push({ pathname: "/financial-invoice", params: { id: data.voided_by! } })}/> : null}
+        {data.voided_by ? <AppButton title="فتح مستند التصحيح" variant="outline" onPress={() => router.push({ pathname: "/financial-invoice", params: { id: data.voided_by! } })}/> : null}
         {data.corrects ? <AppButton title="فتح المستند الأصلي" variant="outline" onPress={() => router.push({ pathname: "/financial-invoice", params: { id: data.corrects! } })}/> : null}
         {admin && data.status === "confirmed" && !data.voided_by && !["INV", "COR"].includes(data.kind) ? <>
           <AppButton title={correcting?"إغلاق الإجراءات الإضافية":"إجراءات إضافية — تصحيح المستند"} variant="outline" disabled={busy||pending} onPress={()=>{setCorrecting(!correcting);setCorrectionReason("");setDue(null);setSettlementReason("");}}/>
@@ -133,9 +161,9 @@ function OwnedInvoice({ owner, id, order, customer }: { owner: string; id: strin
           </View>:null}
         </> : null}
       </> : null}
-      {error ? <FinancialFeedback message={error} error/> : null}
+      {error ? <FinancialFeedback message={data && error === dataErrorText ? `تظهر آخر قراءة ناجحة. ${error}` : error} error/> : null}
       {message ? <FinancialFeedback message={message}/> : null}
-      {!customerView ? <AppButton title="تحديث" variant="outline" disabled={busy} onPress={() => void load(true)}/> : null}
+      {!unavailable && (!customerView || (!data && error)) ? <AppButton compact title={error ? "إعادة المحاولة" : "تحديث المستند"} variant="outline" loading={refreshing} disabled={busy} onPress={() => void load(true)}/> : null}
     </KeyboardAwareScrollView>
   </View>;
 }
@@ -262,24 +290,33 @@ function DocumentRow({ label, value, strong = false, children }: { label: string
 }
 const detailLabels: Record<string, string> = { recipient: "المستلم", address: "العنوان", phone: "الهاتف", delivery_fee: "رسوم التوصيل", commission_rate: "نسبة العمولة ٪", commission: "حق المنصة — العمولة", merchant_net: "حق التاجر", expected_collection: "التحصيل المتوقع", collected: "المقبوض من العميل", wage: "أجر المهمة", plan: "الخطة", months: "المدة بالشهور", product_limit: "حد المنتجات", reason: "السبب", original_reference: "المستند الأصلي", from: "من تاريخ", until: "حتى تاريخ غير شامل", policy_value: "قيمة سياسة الراتب" };
 const monetary = new Set(["delivery_fee", "commission", "merchant_net", "expected_collection", "collected", "wage", "policy_value"]);
-function InvoiceDetails({ details }: { details: Record<string, unknown> }) {
+const dataErrorText = "تعذر تحميل المستند. تحقق من الاتصال ثم أعد المحاولة.";
+function InvoiceDetails({ details, cashDirection }: { details: Record<string, unknown>; cashDirection?: "in" | "out" }) {
   const { colors } = useTheme();
-  const body = { ...Typography.body, color: colors.text, textAlign: "right" as const };
+  const body = { ...Typography.body, ...RtlText, color: colors.text };
+  const fields = Object.entries(details).filter(([key, value]) => Object.hasOwn(detailLabels, key) &&
+    (typeof value === "number" || (typeof value === "string" && value.trim())) &&
+    (!monetary.has(key) || /^-?\d+(?:\.\d{1,2})?$/.test(String(value))));
   const items = (values: unknown) => Array.isArray(values) ? values.map((v, index) => {
     if (!v || typeof v !== "object") return null;
     const item = v as Record<string, unknown>;
     return <Text key={index} style={body}>{String(item.title ?? "منتج")} · الكمية {String(item.quantity ?? "")} · {typeof item.total === "string" ? formatSypExact(item.total) : ""}</Text>;
   }) : null;
-  return <View style={{ gap: 10 }}>
-    {Object.entries(details).filter(([key, value]) => key in detailLabels && (typeof value === "string" || typeof value === "number")).map(([key, value]) => <Text key={key} selectable style={body}>{detailLabels[key]}: {monetary.has(key) ? formatSypExact(String(value)) : String(value)}</Text>)}
-    {details.wage_policy && typeof details.wage_policy === "object" ? <Text style={body}>سياسة الأجر: {({fixed:"مبلغ لكل مهمة",percentage:"نسبة من رسوم التوصيل",salary:"راتب مستقل"} as Record<string,string>)[String((details.wage_policy as Record<string,unknown>).mode)]} · {String((details.wage_policy as Record<string,unknown>).value)}</Text> : null}
+  const wagePolicy = objectValue(details.wage_policy);
+  const wageMode = wagePolicy?.mode === "fixed" ? "مبلغ لكل مهمة" : wagePolicy?.mode === "percentage"
+    ? "نسبة من رسوم التوصيل" : wagePolicy?.mode === "salary" ? "راتب مستقل" : null;
+  if (!fields.length && !cashDirection && !wageMode && !["items","features","stores"].some(key => Array.isArray(details[key]) && details[key].length > 0)) return null;
+  return <FinancialSection title="تفاصيل المستند">
+    {cashDirection ? <DocumentRow label="اتجاه التسوية" value={cashDirection === "in" ? "قبض للمنصة" : "صرف من المنصة"} /> : null}
+    {fields.map(([key, value]) => <DocumentRow key={key} label={detailLabels[key]} value={monetary.has(key) ? formatSypExact(String(value)) : String(value)} />)}
+    {wageMode ? <DocumentRow label="سياسة الأجر المثبتة" value={wageMode} /> : null}
     {items(details.items)}
     {Array.isArray(details.features) ? details.features.filter((v): v is string => typeof v === "string").map((v, i) => <Text key={i} style={body}>• {v}</Text>) : null}
     {Array.isArray(details.stores) ? details.stores.map((v, i) => {
       if (!v || typeof v !== "object") return null;const store = v as Record<string, unknown>;
       return <View key={i} style={{ gap: 6 }}><Text style={{ ...body, ...Typography.bodyStrong }}>{String(store.name)} · {String(store.reference ?? "")} · {store.status === "rejected" || store.status === "cancelled" ? "مستبعد من الإجمالي" : "ضمن الطلب"}</Text>{items(store.items)}</View>;
     }) : null}
-  </View>;
+  </FinancialSection>;
 }
 
 const styles = StyleSheet.create({

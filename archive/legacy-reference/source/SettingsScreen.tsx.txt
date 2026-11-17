@@ -1,3 +1,4 @@
+// Historical settings UI replaced by the shared /settings route.
 import { useRouter } from "expo-router";
 import {
   Pressable,

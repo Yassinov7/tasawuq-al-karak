@@ -10,9 +10,14 @@ export function SettingsProvider({children}:{children:ReactNode}){
  const lock=useRef(false),mounted=useRef(true);
  useEffect(()=>{mounted.current=true;let active=true;void AsyncStorage.getItem(THEME_MODE_STORAGE_KEY).then(value=>{if(active&&isThemeMode(value))setTheme(value);}).catch(()=>{if(active)setError('تعذر قراءة المظهر المحفوظ. يمكنك اختيار المظهر مجددًا.');}).finally(()=>{if(active)setReady(true);});return()=>{active=false;mounted.current=false;};},[]);
  const setThemeMode=useCallback((mode:ThemeMode)=>{
-  if(!settingsReady||lock.current||!isThemeMode(mode))return;lock.current=true;setSaving(true);setError('');
-  void AsyncStorage.setItem(THEME_MODE_STORAGE_KEY,mode).then(()=>{if(mounted.current)setTheme(mode);}).catch(()=>{if(mounted.current)setError('تعذر حفظ المظهر. بقي الاختيار السابق؛ أعد المحاولة.');}).finally(()=>{lock.current=false;if(mounted.current)setSaving(false);});
- },[settingsReady]);
+  if(!settingsReady||lock.current||!isThemeMode(mode))return;
+  const previousMode=themeMode;
+  lock.current=true;setSaving(true);setError('');setTheme(mode);
+  void AsyncStorage.setItem(THEME_MODE_STORAGE_KEY,mode).catch(()=>{
+   if(!mounted.current)return;
+   setTheme(previousMode);setError('تعذر حفظ المظهر. أُعيد الاختيار السابق.');
+  }).finally(()=>{lock.current=false;if(mounted.current)setSaving(false);});
+ },[settingsReady,themeMode]);
  const value=useMemo(()=>({notificationsEnabled,themeMode,settingsReady,themeSaving,settingsError,setNotificationsEnabled,setThemeMode}),[notificationsEnabled,themeMode,settingsReady,themeSaving,settingsError,setThemeMode]);
  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }

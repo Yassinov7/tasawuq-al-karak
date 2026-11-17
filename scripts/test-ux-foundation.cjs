@@ -28,7 +28,7 @@ async function main(){
  console.log('PASS toast cooldown, expiry, four-tone API, route/account isolation, ABA and cleanup');
  const h=hooks(),colors={surface:'surface',mutedSurface:'muted',border:'border',textSecondary:'text',primary:'green',surfaceSecondary:'secondary'};
  const theme={Typography:{caption:{},body:{},cardTitle:{}},Spacing:{two:8,three:12,four:16},Radius:{sm:4,lg:16}};
- const native={View:'View',Text:'Text',ActivityIndicator:'Spinner',StyleSheet:{create:x=>x},Pressable:'Pressable'};
+ const native={View:'View',Text:'Text',ActivityIndicator:'Spinner',StyleSheet:{create:x=>x},Pressable:'Pressable',Platform:{OS:'android'}};
  const uiMocks={react:h.react,'react/jsx-runtime':runtime,'react-native':native,'@/constants/theme':theme,'@/context/ThemeContext':{useTheme:()=>({colors})}};
  const loading=load('src/components/ui/LoadingState.tsx',uiMocks);
  let row=h.render(()=>loading.RefreshStatus({busy:false}));h.effects();const height=row.props.style.minHeight;row=h.render(()=>loading.RefreshStatus({busy:true}));h.effects();assert.equal(row.props.style.minHeight,height);assert(row.props.children[0].props.children);await advance(12000);row=h.render(()=>loading.RefreshStatus({busy:true}));assert(!row.props.children[0].props.children);assert(row.props.children[1].props.children.includes('لم تُؤكد'));
@@ -56,7 +56,8 @@ async function main(){
  console.log('PASS actual toast host: all four tones in both themes, stable child, scope cleanup and late callback denial');
  const buttonHooks=hooks();const buttonTheme={...theme,Fonts:{},FontSizes:{},ControlSizes:{icon:24,button:48,touch:44}};
  const buttonMocks={...uiMocks,react:buttonHooks.react,'@/constants/theme':buttonTheme};const buttonLoading=load('src/components/ui/LoadingState.tsx',buttonMocks);
- const Button=load('src/components/ui/AppButton.tsx',{...buttonMocks,'@/components/ui/LoadingState':buttonLoading,'@/components/ui/AppIcon':{AppIcon:'Icon'}}).AppButton;
+ const arabicLayout=load('src/lib/arabic-layout.ts',{'react-native':{I18nManager:{isRTL:false}}});
+ const Button=load('src/components/ui/AppButton.tsx',{...buttonMocks,'@/components/ui/LoadingState':buttonLoading,'@/components/ui/AppIcon':{AppIcon:'Icon'},'@/lib/arabic-layout':arabicLayout}).AppButton;
  const renderButton=busy=>buttonHooks.render(()=>Button({title:'تأكيد التسليم',loading:busy,onPress(){}}));let buttonTree=renderButton(false);buttonHooks.effects();const slotWidth=buttonTree.props.children[0].props.style.width;buttonTree=renderButton(true);buttonHooks.effects();assert.equal(buttonTree.props.children[0].props.style.width,slotWidth);await advance(12000);buttonTree=renderButton(true);assert.equal(buttonTree.props.children[0].props.children.type,'Icon');assert.equal(buttonTree.props.disabled,true);assert.equal(buttonTree.props.accessibilityState.busy,true);assert.equal(buttonTree.props.children[1].props.children,'تأكيد التسليم');buttonHooks.stop();
  console.log('PASS actual action button: fixed slot, bounded animation, no fake completion or unlock');
  const customerHooks=hooks();let customer='customer-A',liveOptions;const requests=[];

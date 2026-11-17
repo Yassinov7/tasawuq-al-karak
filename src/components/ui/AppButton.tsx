@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { AppIcon } from "@/components/ui/AppIcon";
 import { FontSizes, Fonts, Radius, Spacing, Typography, ControlSizes } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
+import { arabicRowDirection } from "@/lib/arabic-layout";
 
 type AppButtonProps = {
   design?: "legacy" | "refined";
@@ -108,7 +109,8 @@ export function AppButton({
 const styles = StyleSheet.create({
   compactTouch: { minHeight: ControlSizes.touch, minWidth: ControlSizes.touch, maxWidth: "100%", justifyContent: "center" },
   compactFace: {
-    direction: "ltr", flexDirection: "row-reverse", alignItems: "center", justifyContent: "center",
+    flexDirection: arabicRowDirection,
+    alignItems: "center", justifyContent: "center",
     gap: Spacing.one, paddingHorizontal: Spacing.two, paddingVertical: Spacing.one,
     borderWidth: 1, borderRadius: Radius.sm,
   },

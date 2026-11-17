@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import type { ReactNode } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { AccountShell } from "@/components/account/AccountShell";
 import { AppHeader } from "@/components/navigation/AppHeader";
@@ -8,13 +8,13 @@ import { DeviceNotificationStatus } from "@/components/notifications/DeviceNotif
 import { StoreOfferNotificationSettings } from "@/components/notifications/StoreOfferNotificationControls";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { LoadingSkeleton } from "@/components/ui/LoadingState";
 import { SyriaFlag } from "@/components/ui/SyriaFlag";
 import { ControlSizes, MaxContentWidth, Radius, RtlText, Spacing, Typography } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useSettings, type ThemeMode } from "@/context/SettingsContext";
 import { useTheme } from "@/context/ThemeContext";
 import { usePersonalAccount } from "@/hooks/usePersonalAccount";
+import { arabicRowDirection, arabicTextAlign } from "@/lib/arabic-layout";
 import { accountHome } from "@/lib/personal-account-model";
 
 const appearanceOptions = [
@@ -31,23 +31,11 @@ const transactionDescriptions = {
 };
 
 export default function SettingsRoute() {
-  const { user, loading } = useAuth();
+  const { user, loading, initializationError, retrySession } = useAuth();
   const router = useRouter();
-  if (!loading && user) return <OwnedSettings key={user.id} owner={user.id} />;
-  return <AccountShell header={<AppHeader title="الإعدادات" showBack showNotifications={false} />}>
-    {loading ? <LoadingSkeleton cards={1} label="جارٍ التحقق من الجلسة" /> : (
-      <View style={styles.content}>
-        <SettingsMessage>سجّل الدخول لعرض إعدادات حسابك.</SettingsMessage>
-        <AppButton title="تسجيل الدخول" onPress={() => router.replace("/login")} />
-      </View>
-    )}
-  </AccountShell>;
-}
-
-function OwnedSettings({ owner }: { owner: string }) {
-  const router = useRouter();
-  const { data, error, loading, reload } = usePersonalAccount();
-  const role = data?.role;
+  const { data, error, loading: loadingAccount, reload } = usePersonalAccount();
+  const owner = !loading ? user?.id : undefined;
+  const role = owner ? data?.role : undefined;
   const back = () => {
     if (role) router.dismissTo(accountHome[role]);
     else if (router.canGoBack()) router.back();
@@ -58,17 +46,24 @@ function OwnedSettings({ owner }: { owner: string }) {
     <AppHeader title="الإعدادات" showBack onBack={back} showNotifications={false} />
   }>
     <View style={styles.content}>
-      {!data && loading ? <LoadingSkeleton cards={1} label="جارٍ تحميل إعدادات الحساب" /> : null}
-      {error ? <View style={styles.feedback}>
-        <SettingsMessage error>{data ? "تعذر تحديث بيانات الحساب." : "تعذر تحميل إعدادات الحساب."}</SettingsMessage>
-        <AppButton compact fullWidth={false} title="إعادة المحاولة" variant="outline" loading={loading} onPress={() => void reload()} />
-      </View> : null}
       <SettingsGroup title="الإشعارات">
-        <DeviceNotificationStatus />
-        <SettingsRow icon="notifications-outline" title="إشعارات المعاملات"
-          detail={role ? transactionDescriptions[role] : "تظهر تحديثات العمليات المرتبطة بحسابك في قائمة الإشعارات."}
-          onPress={() => router.push("/notifications")} />
-        {role === "customer" ? <StoreOfferNotificationSettings key={owner} owner={owner} offersOnly /> : null}
+        {owner ? <>
+          <DeviceNotificationStatus />
+          <SettingsRow icon="notifications-outline" title="إشعارات المعاملات"
+            detail={role ? transactionDescriptions[role] : "تظهر تحديثات العمليات المرتبطة بحسابك في قائمة الإشعارات."}
+            onPress={() => router.push("/notifications")} />
+          {role === "customer" ? <StoreOfferNotificationSettings key={owner} owner={owner} /> : null}
+          {error ? <View style={styles.feedback}>
+            <SettingsMessage error>{role ? "تعذر تحديث إعدادات الحساب." : "تعذر قراءة إعدادات الدور."}</SettingsMessage>
+            <AppButton compact fullWidth={false} title="إعادة المحاولة" variant="outline" loading={loadingAccount} onPress={() => void reload()} />
+          </View> : !role && loadingAccount ? <SettingsMessage>جارٍ التحقق من إعدادات الدور…</SettingsMessage> : null}
+        </> : loading ? <SettingsMessage>جارٍ التحقق من الجلسة…</SettingsMessage> : initializationError ? <>
+          <SettingsMessage error>تعذر التحقق من الجلسة.</SettingsMessage>
+          <AppButton compact fullWidth={false} title="إعادة المحاولة" variant="outline" onPress={() => void retrySession()} />
+        </> : <>
+          <SettingsMessage>سجّل الدخول لعرض إعدادات التنبيهات.</SettingsMessage>
+          <AppButton compact fullWidth={false} title="تسجيل الدخول" onPress={() => router.replace("/login")} />
+        </>}
       </SettingsGroup>
       <SettingsGroup title="تفضيلات التطبيق">
         <AppearanceSettings />
@@ -90,7 +85,7 @@ function AppearanceSettings() {
     <Text style={[styles.rowTitle, { color: colors.text }]}>المظهر</Text>
     <View style={styles.options}>
     {appearanceOptions.map(({ mode, title, icon }) => {
-      const selected = settingsReady && themeMode === mode;
+      const selected = themeMode === mode;
       return <Pressable key={mode} accessibilityRole="radio" accessibilityLabel={title}
         accessibilityState={{ checked: selected, disabled }} disabled={disabled} onPress={() => select(mode)}
         style={({ pressed }) => [styles.option, {
@@ -103,10 +98,6 @@ function AppearanceSettings() {
       </Pressable>;
     })}
     </View>
-    {!settingsReady || themeSaving ? <View style={styles.progress}>
-      <ActivityIndicator size="small" color={colors.primary} />
-      <SettingsMessage>{themeSaving ? "جارٍ حفظ المظهر…" : "جارٍ قراءة المظهر المحفوظ…"}</SettingsMessage>
-    </View> : null}
     {settingsError ? <View style={styles.feedback}><SettingsMessage error>{settingsError}</SettingsMessage></View> : null}
   </View>;
 }
@@ -142,19 +133,19 @@ function SettingsMessage({ children, error = false }: { children: string; error?
     style={[styles.message, { color: error ? colors.errorForeground : colors.textSecondary }]}>{children}</Text>;
 }
 
+const settingsText = { ...RtlText, textAlign: arabicTextAlign } as const;
 const styles = StyleSheet.create({
   content: { width: "100%", maxWidth: MaxContentWidth, alignSelf: "center", gap: Spacing.four },
   group: { gap: Spacing.two, paddingBottom: Spacing.three, borderBottomWidth: StyleSheet.hairlineWidth },
-  groupTitle: { ...Typography.bodyStrong, ...RtlText },
+  groupTitle: { ...Typography.bodyStrong, ...settingsText },
   appearance: { gap: Spacing.two },
-  options: { flexDirection: "row-reverse", flexWrap: "wrap", gap: Spacing.two },
-  option: { flexGrow: 1, flexDirection: "row-reverse", alignItems: "center", gap: Spacing.one, minHeight: ControlSizes.button,
+  options: { flexDirection: arabicRowDirection, flexWrap: "wrap", gap: Spacing.two },
+  option: { flexGrow: 1, flexDirection: arabicRowDirection, alignItems: "center", gap: Spacing.one, minHeight: ControlSizes.button,
     maxWidth: "100%", paddingHorizontal: Spacing.two, paddingVertical: Spacing.two, borderRadius: Radius.md, borderWidth: 1 },
-  optionLabel: { ...Typography.bodyStrong, ...RtlText, flexShrink: 1 },
-  row: { flexDirection: "row-reverse", alignItems: "center", gap: Spacing.two, minHeight: ControlSizes.button, paddingVertical: Spacing.two },
+  optionLabel: { ...Typography.bodyStrong, ...settingsText, flexShrink: 1 },
+  row: { flexDirection: arabicRowDirection, alignItems: "center", gap: Spacing.two, minHeight: ControlSizes.button, paddingVertical: Spacing.two },
   rowText: { flex: 1, minWidth: 0, gap: Spacing.half },
-  rowTitle: { ...Typography.bodyStrong, ...RtlText },
-  message: { ...Typography.caption, ...RtlText, flexShrink: 1 },
+  rowTitle: { ...Typography.bodyStrong, ...settingsText },
+  message: { ...Typography.caption, ...settingsText, flexShrink: 1 },
   feedback: { gap: Spacing.one, padding: Spacing.two },
-  progress: { flexDirection: "row-reverse", alignItems: "center", gap: Spacing.two, padding: Spacing.two },
 });

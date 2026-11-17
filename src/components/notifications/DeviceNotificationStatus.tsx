@@ -5,12 +5,18 @@ import { RtlText, Radius, Spacing, Typography } from "@/constants/theme";
 import { useAppDialog } from "@/context/AppDialogContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { useTheme } from "@/context/ThemeContext";
+import { arabicRowDirection, arabicStart, arabicTextAlign } from "@/lib/arabic-layout";
 
 export function DeviceNotificationStatus() {
   const { colors } = useTheme();
   const { alert } = useAppDialog();
   const { pushStatus, pushMessage, pushBusy, enablePush, retryPush } = useNotifications();
-  const action = pushStatus === "permission-needed"
+  if (pushStatus === "registered") return null;
+  if (pushStatus === "unsupported" || pushStatus === "checking") {
+    return <Text accessibilityLiveRegion="polite" style={[styles.message, { color: colors.textSecondary }]}>{pushMessage}</Text>;
+  }
+  const needsPermission = pushStatus === "permission-needed";
+  const action = needsPermission
     ? { title: "السماح بالتنبيهات", run: enablePush }
     : pushStatus === "permission-blocked" && (Platform.OS === "android" || Platform.OS === "ios")
       ? { title: "فتح إعدادات التطبيق", run: async () => {
@@ -26,23 +32,23 @@ export function DeviceNotificationStatus() {
 
   return <View style={[styles.panel, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}>
     <View style={styles.heading}>
-      <AppIcon name={pushStatus === "registered" ? "checkmark-circle-outline" : "phone-portrait-outline"}
-        size={19} color={pushStatus === "registered" ? colors.successForeground : colors.textSecondary} />
+      <AppIcon name="phone-portrait-outline" size={19} color={colors.textSecondary} />
       <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>تنبيهات الجهاز</Text>
     </View>
     <Text accessibilityLiveRegion="polite" style={[styles.message, {
       color: pushStatus === "registration-failed" || pushStatus === "permission-check-failed" ? colors.errorForeground : colors.textSecondary,
     }]}>{pushMessage}</Text>
     {action ? <View style={styles.action}>
-      <AppButton compact fullWidth={false} title={action.title} variant="outline" loading={pushBusy} onPress={() => void action.run()} />
+      <AppButton compact fullWidth={false} title={action.title} variant={needsPermission ? "primary" : "outline"}
+        icon={needsPermission ? "notifications-outline" : undefined} loading={pushBusy} onPress={() => void action.run()} />
     </View> : null}
   </View>;
 }
 
 const styles = StyleSheet.create({
-  panel: { padding: Spacing.three, gap: Spacing.one, borderRadius: Radius.md, borderWidth: StyleSheet.hairlineWidth },
-  heading: { flexDirection: "row-reverse", alignItems: "center", gap: Spacing.two },
-  title: { ...Typography.bodyStrong, ...RtlText, flexShrink: 1 },
-  message: { ...Typography.caption, ...RtlText },
-  action: { alignItems: "flex-end" },
+  panel: { padding: Spacing.two, gap: Spacing.one, borderRadius: Radius.md, borderWidth: StyleSheet.hairlineWidth },
+  heading: { flexDirection: arabicRowDirection, alignItems: "center", gap: Spacing.two },
+  title: { ...Typography.bodyStrong, ...RtlText, textAlign: arabicTextAlign, flexShrink: 1 },
+  message: { ...Typography.caption, ...RtlText, textAlign: arabicTextAlign },
+  action: { alignItems: arabicStart },
 });

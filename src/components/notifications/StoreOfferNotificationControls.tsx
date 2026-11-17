@@ -1,13 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Switch, Text, View } from "react-native";
 
-import { AccountMenuItem } from "@/components/account/AccountMenuItem";
 import { AccountSection } from "@/components/account/AccountSection";
 import { AppButton } from "@/components/ui/AppButton";
-import { RtlText, Spacing, Typography } from "@/constants/theme";
+import { AppModal } from "@/components/ui/AppModal";
+import { ControlSizes, RtlText, Spacing, Typography } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
+import { arabicRowDirection, arabicStart, arabicTextAlign } from "@/lib/arabic-layout";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/database";
 
@@ -115,51 +116,70 @@ export function StoreOfferFollow({ owner, storeId }: { owner: string; storeId: s
   </View>;
 }
 
-export function StoreOfferNotificationSettings({ owner, offersOnly = false }: { owner: string; offersOnly?: boolean }) {
+export function StoreOfferNotificationSettings({ owner }: { owner: string }) {
   const state = useStoreOfferPreferences(owner);
   const { colors } = useTheme();
-  const router = useRouter();
-  return <View style={!offersOnly && styles.sections}>
-    {!offersOnly ? <AccountSection compact title="الإشعارات">
-      <AccountMenuItem compact icon="phone-portrait-outline" title="تنبيهات الجهاز" subtitle="إذن الهاتف وحالة تسجيل هذا الجهاز"
-        isLast onPress={() => router.push("/notifications")} />
-      <View style={[styles.settingsIntro, { borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.borderSubtle }]}>
-        <Text style={[styles.label, { color: colors.text }]}>الطلبات والمعاملات</Text>
-        <Text style={[styles.caption, { color: colors.textSecondary }]}>
-          تظهر تحديثات طلباتك ومعاملاتك في قائمة الإشعارات داخل التطبيق.
-        </Text>
-      </View>
-    </AccountSection> : null}
-    <AccountSection compact title="عروض المتاجر">
+  const [modalOpen, setModalOpen] = useState(false);
+  const preferences = state.data;
+  const feedback = <>
+    {state.busy ? <Text accessibilityLiveRegion="polite" style={[styles.caption, styles.rightText, { color: colors.textSecondary }]}>
+      جارٍ حفظ تفضيلات العروض…
+    </Text> : null}
+    <PreferenceError error={state.error} retry={state.load} rtl />
+  </>;
+
+  return <AccountSection compact headerLayout="rtl" title="عروض المتاجر">
     <View style={styles.settingsIntro}>
-      <Text style={[styles.caption, { color: colors.textSecondary }]}>
-        تفضيل اختياري للمتاجر التي تتابعها. يمكنك إيقاف إشعارات العروض مع إبقاء قائمة المتابعة.
+      <Text style={[styles.caption, styles.rightText, { color: colors.textSecondary }]}>
+        يمكنك إيقاف إشعارات العروض مع إبقاء قائمة المتابعة.
       </Text>
-      <PreferenceError error={state.error} retry={state.load} />
-      {!state.data && !state.error ? <Text style={[styles.caption, { color: colors.textSecondary }]}>جارٍ قراءة التفضيلات…</Text> : null}
-      {offersOnly && state.busy ? <Text accessibilityLiveRegion="polite" style={[styles.caption, { color: colors.textSecondary }]}>جارٍ حفظ تفضيلات العروض…</Text> : null}
+      {!preferences && !state.error ? <Text accessibilityLiveRegion="polite" style={[styles.caption, styles.rightText, { color: colors.textSecondary }]}>
+        جارٍ قراءة التفضيلات…
+      </Text> : null}
+      {!modalOpen ? feedback : null}
     </View>
-    {state.data ? <>
-      <AccountMenuItem compact icon="notifications-outline" title={state.data.enabled ? "إيقاف إشعارات العروض" : "تفعيل إشعارات العروض"}
-        disabled={state.busy} onPress={() => void state.save({ enabled: !state.data?.enabled })} />
-      {state.data.stores.map(store => <View key={store.id} style={[styles.storeRow, { borderColor: colors.borderSubtle }]}>
-        <Text style={[styles.storeName, { color: colors.text }]}>{store.name}</Text>
-        <AppButton compact fullWidth={false} variant="outline" title="إلغاء المتابعة"
-          accessibilityLabel={`إلغاء متابعة ${store.name}`} disabled={state.busy}
-          onPress={() => void state.save({ storeId: store.id, following: false })} />
-      </View>)}
-      {!state.data.stores.length ? <View style={styles.settingsIntro}>
-        <Text style={[styles.caption, { color: colors.textSecondary }]}>يمكنك متابعة متجر من صفحة تفاصيله.</Text>
-      </View> : null}
+    {preferences ? <>
+      <View style={[styles.preferenceRow, { borderColor: colors.borderSubtle }]}>
+        <View style={styles.preferenceLabel}>
+          <Text style={[styles.label, { color: colors.text }]}>إشعارات العروض</Text>
+          <Text style={[styles.caption, styles.rightText, { color: preferences.enabled ? colors.primary : colors.textSecondary }]}>
+            {preferences.enabled ? "مفعّلة" : "متوقفة"}
+          </Text>
+        </View>
+        <Switch accessibilityLabel="إشعارات العروض" accessibilityState={{ disabled: state.busy, busy: state.busy }}
+          value={preferences.enabled} disabled={state.busy}
+          trackColor={{ false: colors.borderStrong, true: colors.primary }}
+          thumbColor={preferences.enabled ? colors.onPrimary : undefined}
+          onValueChange={enabled => void state.save({ enabled })} />
+      </View>
+      <View style={styles.manageAction}>
+        <AppButton compact fullWidth={false} variant="outline" icon="storefront-outline"
+          title={`إدارة المتاجر المتابَعة (${preferences.stores.length.toLocaleString("ar-SY")})`}
+          onPress={() => setModalOpen(true)} />
+      </View>
+      <AppModal visible={modalOpen} compact title="المتاجر المتابَعة" icon="storefront-outline"
+        confirmText="إغلاق" showCloseButton onCancel={() => setModalOpen(false)}>
+        {modalOpen ? <View style={styles.modalContent}>
+          {feedback}
+          {preferences.stores.map(store => <View key={store.id} style={[styles.storeRow, { borderColor: colors.borderSubtle }]}>
+            <Text style={[styles.storeName, { color: colors.text }]}>{store.name}</Text>
+            <AppButton compact fullWidth={false} variant="outline" title="إلغاء المتابعة"
+              accessibilityLabel={`إلغاء متابعة ${store.name}`} disabled={state.busy}
+              onPress={() => void state.save({ storeId: store.id, following: false })} />
+          </View>)}
+          {!preferences.stores.length ? <Text style={[styles.caption, styles.rightText, { color: colors.textSecondary }]}>
+            لا تتابع أي متاجر بعد. يمكنك متابعة متجر من صفحة تفاصيله.
+          </Text> : null}
+        </View> : null}
+      </AppModal>
     </> : null}
-    </AccountSection>
-  </View>;
+  </AccountSection>;
 }
 
-function PreferenceError({ error, retry }: { error: string; retry: () => Promise<void> }) {
+function PreferenceError({ error, retry, rtl = false }: { error: string; retry: () => Promise<void>; rtl?: boolean }) {
   const { colors } = useTheme();
-  return error ? <View style={styles.group}>
-    <Text accessibilityRole="alert" style={[styles.caption, { color: colors.errorForeground }]}>{error}</Text>
+  return error ? <View style={[styles.group, rtl && styles.rtlStart]}>
+    <Text accessibilityRole="alert" style={[styles.caption, rtl && styles.rightText, { color: colors.errorForeground }]}>{error}</Text>
     <AppButton compact fullWidth={false} variant="outline" title="إعادة المحاولة" onPress={() => void retry()} />
   </View> : null;
 }
@@ -168,9 +188,16 @@ const styles = StyleSheet.create({
   group: { gap: Spacing.one, alignItems: "flex-end" },
   actions: { flexDirection: "row-reverse", flexWrap: "wrap", gap: Spacing.two },
   caption: { ...Typography.caption, ...RtlText },
-  label: { ...Typography.bodyStrong, ...RtlText },
-  sections: { marginTop: Spacing.four, gap: Spacing.three },
-  storeRow: { flexDirection: "row-reverse", flexWrap: "wrap", alignItems: "center", gap: Spacing.two, paddingHorizontal: Spacing.three, borderTopWidth: StyleSheet.hairlineWidth },
-  storeName: { ...Typography.bodyStrong, ...RtlText, flexGrow: 1, flexShrink: 1, flexBasis: 120 },
-  settingsIntro: { padding: Spacing.three, gap: Spacing.two, alignItems: "flex-end" },
+  rightText: { textAlign: arabicTextAlign },
+  label: { ...Typography.bodyStrong, ...RtlText, textAlign: arabicTextAlign },
+  preferenceLabel: { flex: 1, minWidth: 0, gap: Spacing.half },
+  preferenceRow: { flexDirection: arabicRowDirection, alignItems: "center", gap: Spacing.two,
+    minHeight: ControlSizes.touch, paddingHorizontal: Spacing.three, paddingVertical: Spacing.one, borderTopWidth: StyleSheet.hairlineWidth },
+  manageAction: { alignItems: arabicStart,
+    paddingHorizontal: Spacing.three, paddingVertical: Spacing.one },
+  modalContent: { marginTop: Spacing.three, gap: Spacing.two },
+  rtlStart: { alignItems: arabicStart },
+  storeRow: { flexDirection: arabicRowDirection, flexWrap: "wrap", alignItems: "center", gap: Spacing.two, paddingVertical: Spacing.one, borderBottomWidth: StyleSheet.hairlineWidth },
+  storeName: { ...Typography.bodyStrong, ...RtlText, textAlign: arabicTextAlign, flexGrow: 1, flexShrink: 1, flexBasis: 120 },
+  settingsIntro: { padding: Spacing.three, gap: Spacing.two },
 });

@@ -51,8 +51,8 @@ async function main(){
   const m=load('src/context/SettingsContext.tsx',{'react':hooks.react,'react/jsx-runtime':hooks.jsx,'@react-native-async-storage/async-storage':{__esModule:true,default:{getItem:async()=> 'light',setItem:async(k,v)=>{writes.push([k,v]);if(fail)throw Error('offline');}}}});
   const render=()=>hooks.render(()=>m.SettingsProvider({children:null})).props.value;
   let state=render();assert.equal(state.themeMode,'system');hooks.effects();await tick();state=render();assert.equal(state.themeMode,'light');assert.equal(state.settingsReady,true);
-  state.setThemeMode('dark');state.setThemeMode('system');await tick();state=render();assert.equal(writes.length,1);assert.deepEqual(writes[0],['@taswoq/theme-mode','dark']);assert.equal(state.themeMode,'dark');
-  fail=true;state.setThemeMode('light');await tick();state=render();assert.equal(state.themeMode,'dark');assert.ok(state.settingsError);assert.equal(state.themeSaving,false);
+  state.setThemeMode('dark');state.setThemeMode('system');assert.equal(render().themeMode,'dark');await tick();state=render();assert.equal(writes.length,1);assert.deepEqual(writes[0],['@taswoq/theme-mode','dark']);assert.equal(state.themeMode,'dark');
+  fail=true;state.setThemeMode('light');assert.equal(render().themeMode,'light');await tick();state=render();assert.equal(state.themeMode,'dark');assert.ok(state.settingsError);assert.equal(state.themeSaving,false);
  });
  await test('actual account hook discards blur response, refreshes on focus and hides previous user synchronously',async()=>{
   const hooks=hookHarness();let owner='owner',focus;const requests=[];
@@ -216,12 +216,12 @@ async function main(){
  });
  await test('shared settings renders the same preferences, with offers scoped to the customer',()=>{
   const hooks=hookHarness(),paths=[],themes=[];
-  let user={id:'customer-a'},account={data:null,loading:true,error:'',reload:()=>paths.push('retry')};
+  let user={id:'customer-a'},authLoading=true,account={data:null,loading:true,error:'',reload:()=>paths.push('retry')};
   let setting={themeMode:'system',settingsReady:false,themeSaving:false,settingsError:'',setThemeMode:mode=>themes.push(mode)};
   const route=load('src/app/settings.tsx',{
    'react/jsx-runtime':hooks.jsx,'expo-router':{useRouter:()=>({canGoBack:()=>false,replace:p=>paths.push(p),push:p=>paths.push(p),dismissTo:p=>paths.push(p)})},
-   'react-native':{ActivityIndicator:'Spinner',Pressable:'Pressable',StyleSheet:{create:v=>v},Text:'Text',View:'View'},
-   '@/context/AuthContext':{useAuth:()=>({user,loading:false})},'@/hooks/usePersonalAccount':{usePersonalAccount:()=>account},
+   'react-native':{I18nManager:{isRTL:true},ActivityIndicator:'Spinner',Pressable:'Pressable',StyleSheet:{create:v=>v},Text:'Text',View:'View'},
+   '@/context/AuthContext':{useAuth:()=>({user,loading:authLoading})},'@/hooks/usePersonalAccount':{usePersonalAccount:()=>account},
    '@/context/ThemeContext':{useTheme:()=>({colors:{}})},
    '@/context/SettingsContext':{useSettings:()=>setting},'@/constants/theme':{ControlSizes:{},Radius:{},RtlText:{},Spacing:{},Typography:{}},
    '@/components/notifications/DeviceNotificationStatus':{DeviceNotificationStatus:'DeviceNotificationStatus'},
@@ -229,13 +229,32 @@ async function main(){
   }).default;
   const walk=node=>Array.isArray(node)?node.flatMap(walk):node?.props?[node,...(typeof node.type==='function'?walk(node.type(node.props)):[...walk(node.props.header),...walk(node.props.children)])]:[];
   const render=()=>{const node=route();return walk(typeof node.type==='function'?node.type(node.props):node);};
-  let view=render();assert(view.some(n=>n.type==='LoadingSkeleton'));assert(!view.some(n=>n.type==='StoreOfferNotificationSettings'));assert(view.find(n=>n.props.accessibilityRole==='radio').props.disabled);
+  let view=render();
+  assert(view.some(n=>n.type==='SyriaFlag'));assert(view.some(n=>n.type==='AppHeader'));assert(!view.some(n=>n.type==='LoadingSkeleton'||n.type==='DeviceNotificationStatus'));
+  assert(!view.some(n=>n.props.style?.direction));
+  assert(view.some(n=>n.props.style?.flexDirection==='row'&&n.props.style?.flexWrap==='wrap'));
+  authLoading=false;view=render();
+  assert(view.some(n=>n.type==='DeviceNotificationStatus'));assert(!view.some(n=>n.type==='LoadingSkeleton'||n.type==='StoreOfferNotificationSettings'));
+  const languageRow=view.find(n=>n.type==='View'&&n.props.style?.flexDirection==='row'&&walk(n.props.children).some(child=>child.type==='SyriaFlag'));
+  assert(languageRow);
+  const transactionRow=view.find(n=>n.type==='Pressable'&&walk(n.props.children).some(child=>child.props.name==='chevron-back-outline'));
+  assert.equal(transactionRow.props.style({pressed:false})[0].flexDirection,'row');
+  assert.deepEqual(walk(transactionRow.props.children).filter(n=>n.type==='AppIcon').map(n=>n.props.name),['notifications-outline','chevron-back-outline']);
+  assert(view.find(n=>n.props.accessibilityRole==='radio').props.disabled);
   account={...account,loading:false,error:'offline'};view=render();
   view.find(n=>n.props.title==='إعادة المحاولة').props.onPress();assert.equal(paths.at(-1),'retry');
   setting={...setting,settingsReady:true};account={...account,error:'',data:{role:'customer'}};view=render();
   assert.equal(view.find(n=>n.type==='StoreOfferNotificationSettings').props.owner,'customer-a');
-  assert.equal(view.find(n=>n.type==='StoreOfferNotificationSettings').props.offersOnly,true);
+  assert.equal(view.find(n=>n.type==='StoreOfferNotificationSettings').key,'customer-a');
+  setting={...setting,themeMode:'dark',themeSaving:true};view=render();
+  assert(view.find(n=>n.props.accessibilityLabel==='داكن').props.accessibilityState.checked);
+  assert(!view.some(n=>n.type==='Spinner'));assert(view.some(n=>n.type==='SyriaFlag'));
+  setting={...setting,themeMode:'system',themeSaving:false};view=render();
   view.find(n=>n.props.accessibilityLabel==='داكن').props.onPress();assert.deepEqual(themes,['dark']);
+  user={id:'customer-b'};account={...account,data:null,loading:true};view=render();
+  assert(!view.some(n=>n.type==='StoreOfferNotificationSettings'));assert(view.some(n=>n.type==='SyriaFlag'));
+  account={...account,data:{role:'customer'},loading:false};view=render();
+  assert.equal(view.find(n=>n.type==='StoreOfferNotificationSettings').key,'customer-b');
   for(const [role,destination] of Object.entries({admin:'/admin/more',merchant:'/merchant/account',driver:'/driver/account',customer:'/home/account'})){
    account={...account,data:{role}};user={id:role};view=render();
    assert.equal(view.filter(n=>n.type==='DeviceNotificationStatus').length,1);
@@ -249,6 +268,125 @@ async function main(){
    view.find(n=>n.type==='AppHeader').props.onBack();assert.equal(paths.at(-1),destination);
   }
   user=null;view=render();assert(view.some(n=>n.props.title==='تسجيل الدخول'));
+ });
+ await test('account section keeps legacy headers and opts settings into RTL without changing children',()=>{
+  const hooks=hookHarness();
+  const flatten=styles=>Object.assign({},...(Array.isArray(styles)?styles:[styles]).filter(Boolean));
+  const body={type:'ExistingChild',props:{style:{flexDirection:'row-reverse'}}};
+  for(const isRTL of [false,true]){
+   const {AccountSection}=load('src/components/account/AccountSection.tsx',{
+    'react/jsx-runtime':hooks.jsx,'react-native':{I18nManager:{isRTL},View:'View',Text:'Text',StyleSheet:{create:value=>value}},
+    '@/components/ui/AppIcon':{AppIcon:'Icon'},'@/constants/theme':{FontSizes:{},Fonts:{},Radius:{},Spacing:{}},
+    '@/context/ThemeContext':{useTheme:()=>({colors:{}})},
+   });
+   const props={title:'عروض المتاجر',icon:'storefront-outline',subtitle:'إدارة المتابعة',children:body};
+   const legacy=AccountSection(props).props.children;
+   const configured=AccountSection({...props,headerLayout:'rtl'}).props.children;
+   assert.equal(flatten(legacy[0].props.style).flexDirection,'row-reverse');
+   assert.equal(flatten(legacy[0].props.children[1].props.style).alignItems,'flex-end');
+   const header=configured[0];
+   assert.equal(flatten(header.props.style).flexDirection,isRTL?'row':'row-reverse');
+   const [icon,text]=header.props.children;
+   assert.equal(icon.props.children.props.name,'storefront-outline');
+   assert.equal(flatten(text.props.style).alignItems,'stretch');
+   const logicalRight=isRTL?'left':'right';
+   for(const line of text.props.children)assert.equal(flatten(line.props.style).textAlign,logicalRight);
+   assert.equal(flatten(legacy[0].props.children[1].props.children[0].props.style).textAlign,'right');
+   assert.equal(legacy[1].props.children,body);assert.equal(configured[1].props.children,body);
+   const compact=AccountSection({title:props.title,compact:true,headerLayout:'rtl',children:body}).props.children;
+   assert.equal(flatten(compact[0].props.style).textAlign,logicalRight);
+  }
+ });
+ await test('compact button keeps Arabic row order without forcing layout direction',()=>{
+  const hooks=hookHarness();
+  for(const isRTL of [false,true]){
+   let styles;
+   load('src/components/ui/AppButton.tsx',{
+    'react/jsx-runtime':hooks.jsx,'react-native':{I18nManager:{isRTL},StyleSheet:{create:value=>{styles=value;return value;}}},
+    '@/components/ui/LoadingState':{},'@/components/ui/AppIcon':{},
+    '@/constants/theme':{ControlSizes:{},FontSizes:{},Fonts:{},Radius:{},Spacing:{},Typography:{}},'@/context/ThemeContext':{},
+   });
+   assert.equal(Object.hasOwn(styles.compactFace,'direction'),false);
+   assert.equal(styles.compactFace.flexDirection,isRTL?'row':'row-reverse');
+  }
+ });
+ await test('shared device status offers the right action and disappears after confirmed registration',async()=>{
+  const hooks=hookHarness(),calls=[];
+  const push={pushStatus:'permission-needed',pushMessage:'permission',pushBusy:false,enablePush:()=>calls.push('enable'),retryPush:()=>calls.push('retry')};
+  const {DeviceNotificationStatus}=load('src/components/notifications/DeviceNotificationStatus.tsx',{
+   'react/jsx-runtime':hooks.jsx,'react-native':{I18nManager:{isRTL:true},Linking:{openSettings:async()=>calls.push('settings')},Platform:{OS:'android'},StyleSheet:{create:v=>v},Text:'Text',View:'View'},
+   '@/components/ui/AppButton':{AppButton:'Button'},'@/components/ui/AppIcon':{AppIcon:'Icon'},
+   '@/constants/theme':{RtlText:{},Radius:{},Spacing:{},Typography:{}},
+   '@/context/AppDialogContext':{useAppDialog:()=>({alert:()=>{}})},'@/context/ThemeContext':{useTheme:()=>({colors:{}})},
+   '@/context/NotificationContext':{useNotifications:()=>push},
+  });
+  const walk=node=>Array.isArray(node)?node.flatMap(walk):node?.props?[node,...walk(node.props.children)]:[];
+  const action=()=>walk(DeviceNotificationStatus()).find(n=>n.type==='Button')?.props;
+  assert(walk(DeviceNotificationStatus()).some(n=>n.props.style?.flexDirection==='row'));
+  assert.equal(action().variant,'primary');assert.equal(action().icon,'notifications-outline');action().onPress();
+  push.pushBusy=true;assert.equal(action().loading,true);push.pushBusy=false;
+  push.pushStatus='registration-failed';assert.equal(action().title,'إعادة المحاولة');action().onPress();
+  push.pushStatus='permission-blocked';assert.equal(action().title,'فتح إعدادات التطبيق');action().onPress();
+  assert.deepEqual(calls,['enable','retry','settings']);
+  for(const status of ['unsupported','checking']){push.pushStatus=status;assert.equal(DeviceNotificationStatus().type,'Text');assert.equal(action(),undefined);}
+  push.pushStatus='registered';assert.equal(DeviceNotificationStatus(),null);
+ });
+ await test('offers settings opens a scoped scrollable modal and refreshes its real count after unfollow',async()=>{
+  const hooks=hookHarness(),calls=[];
+  let focus,failed=false,enabled=true,stores=[{id:'s1',name:'متجر 1 Market'}];
+  const native={Modal:'NativeModal',I18nManager:{isRTL:true},Platform:{OS:'android'},Pressable:'Pressable',ScrollView:'ScrollView',KeyboardAvoidingView:'Keyboard',StyleSheet:{create:v=>v},Switch:'Switch',Text:'Text',View:'View'};
+  const mocks={
+   'react':hooks.react,'react/jsx-runtime':hooks.jsx,'expo-router':{useFocusEffect:fn=>{focus=fn;}},
+   'react-native':native,'react-native-safe-area-context':{useSafeAreaInsets:()=>({top:0,bottom:0})},
+   '@react-native-async-storage/async-storage':{},'@/constants/theme':{ControlSizes:{},FontSizes:{},Fonts:{},Radius:{},RtlText:{},Spacing:{},Typography:{}},
+   '@/context/ThemeContext':{useTheme:()=>({colors:{}})},'@/components/ui/AppIcon':{AppIcon:'Icon'},
+   '@/components/account/AccountSection':{AccountSection:'Section'},
+   '@/components/ui/AppButton':{AppButton:'Button'},'@/components/ui/AppModal':{AppModal:'Modal'},
+   '@/lib/supabase':{supabase:{rpc:async(name,args)=>{
+    calls.push([name,plain(args)]);
+    if(name==='read_store_notification_preferences')return {data:{enabled,stores}};
+    if(failed)return {error:Error('write failed')};
+    if(name==='set_store_offer_notifications')enabled=args.input_enabled;
+    else stores=[];
+    return {data:null};
+   }}},
+  };
+  const {StoreOfferNotificationSettings}=load('src/components/notifications/StoreOfferNotificationControls.tsx',mocks);
+  const {AppModal}=load('src/components/ui/AppModal.tsx',mocks);
+  const walk=node=>Array.isArray(node)?node.flatMap(walk):node?.props?[node,...walk(node.props.children)]:[];
+  const render=()=>walk(hooks.render(()=>StoreOfferNotificationSettings({owner:'customer-a'})));
+  const get=(tree,title)=>tree.find(node=>node.props.title===title);
+  const manage=tree=>tree.find(node=>node.props.title?.startsWith('إدارة المتاجر المتابَعة'));
+  const switchControl=tree=>tree.find(node=>node.type==='Switch')?.props;
+  let tree=render();assert(!manage(tree));assert(!switchControl(tree));
+  const blur=focus();await tick();tree=render();
+  assert.equal(tree[0].props.headerLayout,'rtl');
+  assert(manage(tree).props.title.endsWith(`(${(1).toLocaleString('ar-SY')})`));
+  assert.equal(switchControl(tree).value,true);
+  assert(!get(tree,'إلغاء المتابعة'));
+  manage(tree).props.onPress();tree=render();
+  const modal=get(tree,'المتاجر المتابَعة');
+  assert.equal(modal.props.visible,true);assert.equal(calls.length,1);
+  const nativeModal=AppModal(modal.props);
+  assert(walk(nativeModal).some(node=>node.type==='ScrollView'));
+  assert(!tree.some(node=>node.props.style?.direction||node.props.style?.some?.(style=>style?.direction)));
+  assert(tree.some(node=>node.props.style?.[0]?.flexDirection==='row'&&node.props.style?.[0]?.flexWrap==='wrap'));
+  assert(tree.some(node=>node.props.children==='متجر 1 Market'&&node.props.style?.[0]?.textAlign==='left'));
+  nativeModal.props.onRequestClose();tree=render();assert.equal(get(tree,'المتاجر المتابَعة').props.visible,false);
+  manage(tree).props.onPress();tree=render();
+  failed=true;get(tree,'إلغاء المتابعة').props.onPress();assert.equal(get(render(),'إلغاء المتابعة').props.disabled,true);await tick();
+  tree=render();assert(tree.some(n=>typeof n.type==='function'&&n.props.error?.includes('تعذر تأكيد الحفظ')));
+  assert(get(tree,'إلغاء المتابعة'));
+  failed=false;get(tree,'إلغاء المتابعة').props.onPress();await tick();tree=render();
+  assert.deepEqual(calls.at(-2),['set_store_notification_follow',{expected_user:'customer-a',target_store:'s1',following:false}]);
+  assert(manage(tree).props.title.endsWith(`(${(0).toLocaleString('ar-SY')})`));
+  assert(!get(tree,'إلغاء المتابعة'));
+  get(tree,'المتاجر المتابَعة').props.onCancel();
+  failed=true;switchControl(render()).onValueChange(false);assert.equal(switchControl(render()).disabled,true);await tick();
+  assert.equal(switchControl(render()).value,true);
+  failed=false;switchControl(render()).onValueChange(false);await tick();
+  tree=render();assert.equal(switchControl(tree).value,false);assert(tree.some(node=>node.props.children==='متوقفة'));
+  assert.deepEqual(calls.at(-2),['set_store_offer_notifications',{expected_user:'customer-a',input_enabled:false}]);blur();
  });
  await test('root status bar uses the resolved application theme',()=>{
   const hooks=hookHarness();

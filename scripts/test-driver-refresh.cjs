@@ -304,7 +304,8 @@ async function main(){
  // The shared controls/statuses also use the supplied palette, not fixed colors.
  for(const colors of [theme.LightColors,theme.DarkColors]){
   const h=hooks();const base={'@/components/ui/LoadingState':{useLongWait:()=>false},react:h.react,'react/jsx-runtime':runtime,'react-native':native,'@/constants/theme':theme,'@/context/ThemeContext':{useTheme:()=>({colors})},'@/components/ui/AppIcon':{AppIcon:'Icon'}};
-  const button=load('src/components/ui/AppButton.tsx',base).AppButton;
+  const arabicLayout=load('src/lib/arabic-layout.ts',{'react-native':{I18nManager:{isRTL:false}}});
+  const button=load('src/components/ui/AppButton.tsx',{...base,'@/lib/arabic-layout':arabicLayout}).AppButton;
   for(const variant of ['primary','outline','danger']){
    const tree=button({title:'متابعة',variant,onPress(){}});const style=Object.assign({},...tree.props.style({pressed:false}).filter(Boolean));assert.equal(style.backgroundColor,variant==='primary'?colors.primary:variant==='danger'?colors.error:colors.surface);
    const compact=button({title:'إضافة',accessibilityLabel:'إضافة منتج',compact:true,fullWidth:false,icon:'add-outline',variant,onPress(){}});

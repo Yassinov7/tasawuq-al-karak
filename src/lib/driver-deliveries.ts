@@ -33,6 +33,10 @@ type AssignedTaskStatus = Extract<
   "accepted" | "picked_up" | "delivered"
 >;
 
+export type DriverOrderItem = Pick<Tables<"store_order_items">,
+  "id" | "store_order_id" | "product_id" | "product_title_snapshot" | "selling_unit_snapshot" | "quantity"
+>;
+
 export type DriverAssignedTask = Pick<
   Tables<"delivery_tasks">,
   | "accepted_at"
@@ -44,6 +48,8 @@ export type DriverAssignedTask = Pick<
   | "status"
 > & {
   reference?: string;
+  orderReference?: string;
+  productsState?: "ready" | "unavailable";
   collection: DriverCollection;
   pickups?: PickupWorkflow;
   customer_orders: DriverDestination & {
@@ -52,6 +58,9 @@ export type DriverAssignedTask = Pick<
     store_orders: {
       id: string;
       status: Tables<"store_orders">["status"];
+      reference?: string;
+      customer_note?: string;
+      items?: DriverOrderItem[];
       stores: {
         name: string;
         address: string;
@@ -191,7 +200,7 @@ export async function getDriverAssignedTasks(
   let query = supabase
     .from("delivery_tasks")
     .select(
-      "id,driver_id,status,customer_order_id,created_at,accepted_at,picked_up_at,delivered_at,customer_orders!inner(order_number,recipient_name,contact_phone,delivery_address,delivery_zone_name_snapshot,customer_note,store_orders(id,status,stores(name,address)))",
+      "id,driver_id,status,customer_order_id,created_at,accepted_at,picked_up_at,delivered_at,customer_orders!inner(order_number,recipient_name,contact_phone,delivery_address,delivery_zone_name_snapshot,customer_note,store_orders(id,status,customer_note,stores(name,address)))",
     )
     .eq("driver_id", userId)
     .in("status", (page?.view === "active" ? ["accepted", "picked_up"] : page?.view === "completed" ? ["delivered"] : ["accepted", "picked_up", "delivered"]) satisfies AssignedTaskStatus[]);
@@ -220,9 +229,22 @@ export async function getDriverAssignedTasks(
       for (const task of tasks) {
         const context = contexts[task.customer_order_id];
         task.reference ??= context?.references[`TSK:${task.id}`];
+        task.orderReference = context?.references[`ORD:${task.customer_order_id}`];
+        for (const store of task.customer_orders.store_orders) store.reference = context?.references[`SOR:${store.id}`];
         if (context?.pricing) task.collection = collectionFromContext(context);
       }
     } catch { /* A context read/decoding failure must not fall back to old totals. */ }
+    assertReadActive(signal);
+    // One paged, RLS-protected read for the whole batch, never a query per product.
+    try {
+      const stores = tasks.flatMap(task => task.customer_orders.store_orders)
+        .filter(store => !["rejected", "cancelled"].includes(store.status));
+      const items = await readAssignedItems(stores.map(store => store.id), userId, signal);
+      for (const store of stores) store.items = items.get(store.id) ?? [];
+      for (const task of tasks) task.productsState = "ready";
+    } catch {
+      for (const task of tasks) task.productsState = "unavailable";
+    }
     assertReadActive(signal);
     if (!page || taskId) {
       try {
@@ -236,6 +258,38 @@ export async function getDriverAssignedTasks(
     result.push(...tasks);
   }
   return result;
+}
+
+async function readAssignedItems(storeIds: string[], expectedUser: string, signal?: AbortSignal) {
+  await requireDriverIdentity(expectedUser);
+  assertReadActive(signal);
+  const ids = [...new Set(storeIds)], items = new Map<string, DriverOrderItem[]>();
+  // Bound both the IN clause and each response; short server pages are not assumed complete.
+  for (let offset = 0; offset < ids.length; offset += 80) {
+    const batch = ids.slice(offset, offset + 80);
+    let cursor: string | undefined;
+    for (;;) {
+      assertReadActive(signal);
+      let query = supabase.from("store_order_items")
+        .select("id,store_order_id,product_id,product_title_snapshot,selling_unit_snapshot,quantity")
+        .in("store_order_id", batch).order("id").limit(100);
+      if (cursor) query = query.gt("id", cursor);
+      const { data, error } = await (signal ? query.abortSignal(signal) : query);
+      assertReadActive(signal);
+      if (error) throw error;
+      if (!data?.length) break;
+      for (const row of data) {
+        if (!batch.includes(row.store_order_id) || (cursor && row.id <= cursor)) throw Error("بيانات بنود المهمة غير مكتملة.");
+        const storeItems = items.get(row.store_order_id) ?? [];
+        storeItems.push(row);
+        items.set(row.store_order_id, storeItems);
+        cursor = row.id;
+      }
+    }
+  }
+  await requireDriverIdentity(expectedUser);
+  assertReadActive(signal);
+  return items;
 }
 
 async function requireDriverIdentity(expectedUser: string) {

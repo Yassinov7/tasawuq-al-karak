@@ -32,6 +32,7 @@ import {
 } from "react-native";
 import { FinancialFeedback } from "./FinancialParts";
 import { InvoiceStatus } from "./InvoiceStatus";
+import { CompactRoleInvoiceRow } from "./CompactRoleInvoiceRow";
 
 export type MerchantFinanceViewProps<Kind extends string = MerchantInvoiceKind> = {
   account: MoneyOverview | null;
@@ -292,7 +293,7 @@ function AccountBalance({ account, driver, title }: { account: MoneyOverview; dr
 }
 
 export function MerchantFinanceView(props: MerchantFinanceViewProps) {
-  return <FinanceAccountView {...props} role="merchant" filters={invoiceFilters} />;
+  return <FinanceAccountView {...props} role="merchant" filters={invoiceFilters} documentDensity="compact" />;
 }
 
 export function FinanceAccountView<Kind extends string>({
@@ -318,7 +319,8 @@ export function FinanceAccountView<Kind extends string>({
   pendingReview,
   role,
   filters,
-}: MerchantFinanceViewProps<Kind> & { role: "merchant" | "driver"; filters: readonly { kind: Kind; label: string }[] }) {
+  documentDensity = "standard",
+}: MerchantFinanceViewProps<Kind> & { role: "merchant" | "driver"; filters: readonly { kind: Kind; label: string }[]; documentDensity?: "standard" | "compact" }) {
   const { colors } = useTheme();
   const waiting = refreshing || (!data && !error);
   const delayed = useLongWait(waiting);
@@ -469,8 +471,9 @@ export function FinanceAccountView<Kind extends string>({
         <InvoiceFilters filters={filters} kind={kind} busy={busy} onKind={onKind} />
 
         {rows.length ? (
-          <View style={[styles.invoiceList, { borderColor: colors.border }]}>
-            {rows.map((invoice) => (
+          <View style={documentDensity === "compact" ? styles.compactDocuments : [styles.invoiceList, { borderColor: colors.border }]}>
+            {rows.map((invoice) => documentDensity === "compact" ? <CompactRoleInvoiceRow
+              key={invoice.id} invoice={invoice} role={role} onOpen={() => onInvoice(invoice.id)} /> : (
               <InvoiceRow
                 key={invoice.id}
                 invoice={invoice}
@@ -625,6 +628,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
   },
   invoiceList: { borderWidth: 1, borderRadius: Radius.md, overflow: "hidden" },
+  compactDocuments: { gap: Spacing.two },
   invoice: {
     minHeight: ControlSizes.touch,
     padding: Spacing.three,

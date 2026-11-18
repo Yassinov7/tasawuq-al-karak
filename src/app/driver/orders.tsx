@@ -21,13 +21,7 @@ import {
   View,
 } from "react-native";
 
-import {
-  DriverPickupPreview,
-  DriverTaskDestination,
-} from "@/components/driver/DriverTaskLocation";
 import { AppHeader } from "@/components/navigation/AppHeader";
-import { AppIcon } from "@/components/ui/AppIcon";
-import { FinancialAmount } from "@/components/ui/FinancialAmount";
 import {
   MaxContentWidth,
   Radius,
@@ -37,7 +31,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useOrderRealtime } from "@/hooks/useOrderRealtime";
-import { driverCollectionMessage } from "@/lib/driver-collection";
+import { DeliveryTaskCard } from "@/components/driver/DeliveryTaskCard";
 import {
   getDriverApplication,
   getDriverAssignedTasks,
@@ -46,15 +40,6 @@ import {
 
 type OrdersView = "active" | "completed";
 const pageSize = 10;
-
-const taskStatusLabels: Record<DriverAssignedTask["status"], string> = {
-  accepted: "بانتظار الاستلام",
-  picked_up: "قيد التوصيل",
-  delivered: "مكتمل",
-  pending_stores: "بانتظار المتاجر",
-  available: "متاح",
-  cancelled: "ملغى",
-};
 
 export default function DriverOrdersScreen() {
   const { user } = useAuth();
@@ -368,95 +353,8 @@ function DriverOrders() {
                     : "لا توجد توصيلات مكتملة."}
             </Text>
           ) : null}
-          {visibleTasks.map((task) => {
-            const active = task.status !== "delivered";
-            const picked = task.status === "picked_up";
-            const statusColor = !active
-              ? colors.successForeground
-              : picked
-                ? colors.infoForeground
-                : colors.warningForeground;
-            const statusSurface = !active
-              ? colors.successSurface
-              : picked
-                ? colors.infoSurface
-                : colors.warningSurface;
-            return (
-              <Pressable
-                key={task.id}
-                accessibilityRole="button"
-                accessibilityHint="يفتح تفاصيل المهمة"
-                onPress={() =>
-                  router.push({
-                    pathname: "/driver/task-details",
-                    params: { taskId: task.id },
-                  })
-                }
-                style={({ pressed }) => [
-                  styles.card,
-                  {
-                    backgroundColor: pressed
-                      ? colors.surfacePressed
-                      : colors.surface,
-                    borderColor: active ? statusColor : colors.borderSubtle,
-                  },
-                ]}
-              >
-                <View style={styles.row}>
-                  <Text
-                    style={[
-                      styles.reference,
-                      styles.flex,
-                      { color: colors.text },
-                    ]}
-                  >
-                    {task.reference ??
-                      `طلب رقم ${task.customer_orders.order_number}`}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.badge,
-                      { backgroundColor: statusSurface, color: statusColor },
-                    ]}
-                  >
-                    {taskStatusLabels[task.status]}
-                  </Text>
-                  <AppIcon
-                    name="chevron-back-outline"
-                    size={16}
-                    color={colors.textSecondary}
-                  />
-                </View>
-                {task.status === "accepted" && !readError ? (
-                  <DriverPickupPreview
-                    stores={task.customer_orders.store_orders}
-                  />
-                ) : null}
-                <DriverTaskDestination
-                  destination={task.customer_orders}
-                  active={active}
-                  stale={Boolean(readError)}
-                />
-                {active && !readError ? (
-                  task.collection.state === "ready" ? (
-                    <FinancialAmount
-                      label="المطلوب من العميل"
-                      amount={task.collection.amount}
-                    />
-                  ) : (
-                    <Text
-                      style={[
-                        styles.caption,
-                        { color: colors.warningForeground },
-                      ]}
-                    >
-                      {driverCollectionMessage(task.collection)}
-                    </Text>
-                  )
-                ) : null}
-              </Pressable>
-            );
-          })}
+          {visibleTasks.map(task => <DeliveryTaskCard key={task.id} task={task} stale={Boolean(readError)}
+            onOpen={() => router.push({ pathname: "/driver/task-details", params: { taskId: task.id } })} />)}
           {page > 0 || (scopeReady && tasks.length > pageSize) ? (
             <View style={styles.row}>
               <AppButton
@@ -503,12 +401,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     justifyContent: "center",
   },
-  card: {
-    borderRadius: Radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: Spacing.three,
-    gap: Spacing.two,
-  },
   row: {
     flexDirection: "row-reverse",
     flexWrap: "wrap",
@@ -522,17 +414,5 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   searchField: { flexGrow: 1, flexBasis: 180, minWidth: 0 },
-  flex: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
-  reference: {
-    ...Typography.bodyStrong,
-    textAlign: "right",
-    writingDirection: "auto",
-  },
   caption: { ...Typography.caption, textAlign: "right" },
-  badge: {
-    ...Typography.caption,
-    borderRadius: Radius.full,
-    paddingVertical: Spacing.half,
-    paddingHorizontal: Spacing.two,
-  },
 });

@@ -1,352 +1,62 @@
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
-
+import { memo } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { AppButton } from "@/components/ui/AppButton";
 import { FinancialAmount } from "@/components/ui/FinancialAmount";
-import { StorePickupPanel } from "@/components/driver/StorePickupPanel";
-import type { PickupWorkflow } from "@/lib/store-pickups";
-import { canProgressDriverCollection, driverCollectionMessage, type DriverCollection } from "@/lib/driver-collection";
-import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
+import { Radius, Spacing, Typography } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
-import type {
-  AvailableDeliveryTask,
-  DriverAssignedTask,
-} from "@/lib/driver-deliveries";
-import type { Tables } from "@/types/database";
+import { arabicRowDirection, arabicTextAlign } from "@/lib/arabic-layout";
+import type { DriverAssignedTask } from "@/lib/driver-deliveries";
+import { driverCollectionMessage } from "@/lib/driver-collection";
+import { driverNextStep, driverTaskLabels, driverTaskSummary } from "@/lib/driver-task-presentation";
 
-const storeStatusLabels: Record<
-  DriverAssignedTask["customer_orders"]["store_orders"][number]["status"],
-  string
-> = {
-  awaiting_review: "بانتظار المتجر",
-  preparing: "قيد التجهيز",
-  ready_for_pickup: "جاهز للاستلام",
-  handed_to_driver: "تم الاستلام",
-  delivered: "تم التسليم",
-  rejected: "غير مشمول بالتوصيل",
-  cancelled: "ملغى",
-};
-
-type DeliveryTaskCardProps = {
-  orderNumber: number;
-  reference?: string;
-  zoneName: string;
-  createdAt: string;
-  deliveryAddress?: string;
-  storeCount?: number;
-  assignedOrder?: DriverAssignedTask["customer_orders"];
-  collection?: DriverCollection;
-  pickups?: PickupWorkflow;
-  busyPickupId?: string | null;
-  onConfirmPickup?: (id: string) => void;
-  onRetryCollection?: () => void;
-  actionDisabled?: boolean;
-  taskStatus?: Tables<"delivery_tasks">["status"];
-  statusLabel?: string;
-  actionTitle?: string;
-  actionIcon?: React.ComponentProps<typeof AppIcon>["name"];
-  actionTone?: "primary" | "accent" | "success";
-  actionLoading?: boolean;
-  onAction?: () => void;
-};
-
-export function DeliveryTaskCard({
-  reference,
-  zoneName,
-  createdAt,
-  deliveryAddress,
-  storeCount,
-  assignedOrder,
-  collection,
-  pickups,
-  busyPickupId,
-  onConfirmPickup,
-  onRetryCollection,
-  actionDisabled = false,
-  taskStatus = "available",
-  statusLabel,
-  actionTitle,
-  actionIcon,
-  actionTone = "primary",
-  actionLoading = false,
-  onAction,
-}: DeliveryTaskCardProps) {
+/** Actual compact list card. Workflow writes stay in the existing details screen. */
+export const DeliveryTaskCard = memo(function DeliveryTaskCard({ task, stale, onOpen }: {
+  task: DriverAssignedTask; stale: boolean; onOpen: () => void;
+}) {
   const { colors } = useTheme();
-  const disabled = actionLoading || actionDisabled || Boolean(assignedOrder && !canProgressDriverCollection(collection))
-    || pickups?.state === "unavailable" || Boolean(pickups?.state === "c4" && !pickups.canCompleteDelivery);
-  const statusColor =
-    taskStatus === "picked_up"
-      ? colors.accent
-      : taskStatus === "delivered"
-        ? colors.success
-        : colors.primary;
-  const statusBackground =
-    taskStatus === "picked_up"
-      ? colors.accentLight
-      : taskStatus === "delivered"
-        ? colors.surfaceSecondary
-        : colors.primaryLight;
-  const actionColors =
-    actionTone === "accent"
-      ? { background: colors.accent, foreground: colors.accentText }
-      : actionTone === "success"
-        ? { background: colors.success, foreground: colors.successText }
-        : { background: colors.primary, foreground: colors.surface };
-
-  return (
-    <View
-      style={[
-        styles.card,
-        {
-          backgroundColor:
-            taskStatus === "accepted"
-              ? colors.primaryLight
-              : taskStatus === "picked_up"
-                ? colors.accentLight
-                : colors.surface,
-          borderColor: taskStatus === "available" ? colors.border : statusColor,
-        },
-      ]}
-    >
-      <View style={styles.heading}>
-        <View style={styles.headingText}>
-          <Text style={[styles.orderNumber, { color: colors.text }]}>
-            {reference ?? "مرجع المهمة غير متاح"}
-          </Text>
-          <Text style={[styles.createdAt, { color: colors.textSecondary }]}>
-            {new Date(createdAt).toLocaleString("ar-SY", {
-              day: "numeric",
-              month: "short",
-              hour: "numeric",
-              minute: "2-digit",
-            })}
-          </Text>
-        </View>
-        {statusLabel ? (
-          <View style={[styles.status, { backgroundColor: statusBackground }]}>
-            <Text style={[styles.statusText, { color: statusColor }]}>
-              {statusLabel}
-            </Text>
-          </View>
-        ) : null}
+  const active = task.status === "accepted" || task.status === "picked_up";
+  const tone = task.status === "delivered" ? "success" : task.status === "picked_up" ? "info" : "warning";
+  const foreground = colors[`${tone}Foreground`], surface = colors[`${tone}Surface`];
+  const next = driverNextStep(task, stale);
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${task.reference ?? "مهمة توصيل"}، ${driverTaskLabels[task.status]}`}
+    accessibilityHint={next} onPress={onOpen} style={({ pressed }) => [styles.card, {
+      backgroundColor: pressed ? colors.surfacePressed : colors.surface, borderColor: colors.borderStrong,
+    }]}>
+    <View style={styles.row}>
+      <View style={styles.identity}>
+        <Text style={[styles.caption, { color: colors.textSecondary }]}>مهمة توصيل</Text>
+        <Text style={[styles.reference, { color: colors.text }]}>{task.reference ?? "مرجع المهمة غير متاح"}</Text>
       </View>
-
-      <View style={styles.detailRow}>
-        <AppIcon name="location-outline" size={18} color={colors.primary} />
-        <Text style={[styles.detailText, { color: colors.text }]}>
-          منطقة التوصيل: {zoneName}
-        </Text>
-      </View>
-
-      {typeof storeCount === "number" ? (
-        <View style={styles.detailRow}>
-          <AppIcon name="storefront-outline" size={18} color={colors.primary} />
-          <Text style={[styles.detailText, { color: colors.textSecondary }]}>
-            {storeCount} {storeCount === 1 ? "متجر" : "متاجر"}
-          </Text>
-        </View>
-      ) : null}
-
-      {deliveryAddress ? (
-        <View style={styles.detailRow}>
-          <AppIcon name="navigate-outline" size={18} color={colors.primary} />
-          <Text style={[styles.detailText, { color: colors.text }]}>
-            عنوان التوصيل: {deliveryAddress}
-          </Text>
-        </View>
-      ) : null}
-
-      {assignedOrder ? (
-        <View
-          style={[
-            styles.customerDetails,
-            { backgroundColor: colors.surfaceSecondary },
-          ]}
-        >
-          <Text style={[styles.customerName, { color: colors.text }]}>
-            {assignedOrder.recipient_name}
-          </Text>
-          <Text style={[styles.detailText, { color: colors.textSecondary }]}>
-            {assignedOrder.contact_phone}
-          </Text>
-          <Text style={[styles.detailText, { color: colors.textSecondary }]}>
-            عنوان التوصيل: {assignedOrder.delivery_address}
-          </Text>
-          {assignedOrder.store_orders.length > 1 ? (
-            <Text style={[styles.detailText, { color: colors.textSecondary }]}>
-              يتضمن الطلب {assignedOrder.store_orders.filter((storeOrder) =>
-                ["ready_for_pickup", "handed_to_driver", "delivered"].includes(
-                  storeOrder.status,
-                ),
-              ).length} طلبات من متاجر مختلفة
-            </Text>
-          ) : null}
-          {pickups?.state !== "c4" ? assignedOrder.store_orders
-            .filter((storeOrder) =>
-              ["ready_for_pickup", "handed_to_driver", "delivered"].includes(
-                storeOrder.status,
-              ),
-            )
-            .map((storeOrder) => (
-              <View
-                key={storeOrder.id}
-                style={[
-                  styles.storeDetails,
-                  { borderTopColor: colors.border },
-                ]}
-              >
-                <Text style={[styles.customerName, { color: colors.text }]}>
-                  {storeOrder.stores?.name ?? "متجر"}
-                </Text>
-                {storeOrder.status === "ready_for_pickup" &&
-                storeOrder.stores?.address ? (
-                  <Text style={[styles.detailText, { color: colors.textSecondary }]}>
-                    {storeOrder.stores.address}
-                  </Text>
-                ) : null}
-                <Text style={[styles.detailText, { color: colors.textSecondary }]}>
-                  {storeStatusLabels[storeOrder.status]}
-                </Text>
-              </View>
-            )) : <StorePickupPanel stores={assignedOrder.store_orders} workflow={pickups} busy={busyPickupId}
-              disabled={actionLoading || actionDisabled || !canProgressDriverCollection(collection)} onConfirm={onConfirmPickup} />}
-        </View>
-      ) : null}
-
-      {assignedOrder ? <View style={{ gap: Spacing.two }}>
-        {collection?.state === "ready" ? <FinancialAmount label="مبلغ التحصيل" amount={collection.amount} /> : <>
-          <Text accessibilityRole="alert" style={[styles.detailText, { color: colors.errorForeground }]}>
-            {driverCollectionMessage(collection)}
-          </Text>
-          {onRetryCollection ? <AppButton design="refined" variant="outline" title="إعادة تحميل مبلغ التحصيل"
-            disabled={actionLoading || actionDisabled} onPress={onRetryCollection} /> : null}
-        </>}
-      </View> : null}
-      {pickups?.state === "unavailable" ? <Text accessibilityRole="alert" style={[styles.detailText, { color: colors.errorForeground }]}>تعذر تحميل حالات الاستلام؛ حدّث المهمة قبل أي إجراء.</Text> : null}
-
-      {actionTitle && onAction ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={actionTitle}
-          accessibilityState={{ disabled, busy: actionLoading }}
-          disabled={disabled}
-          onPress={onAction}
-          style={({ pressed }) => [
-            styles.actionButton,
-            {
-              backgroundColor: actionColors.background,
-              opacity: disabled ? 0.6 : pressed ? 0.78 : 1,
-            },
-          ]}
-        >
-          {actionLoading ? (
-            <ActivityIndicator color={actionColors.foreground} />
-          ) : actionIcon ? (
-            <AppIcon name={actionIcon} size={19} color={actionColors.foreground} />
-          ) : null}
-          <Text style={[styles.actionText, { color: actionColors.foreground }]}>
-            {actionTitle}
-          </Text>
-        </Pressable>
-      ) : null}
+      <Text style={[styles.badge, { color: foreground, backgroundColor: surface }]}>{driverTaskLabels[task.status]}</Text>
     </View>
-  );
-}
-
-export function toAvailableTaskCard(
-  task: AvailableDeliveryTask,
-): Pick<
-  DeliveryTaskCardProps,
-  "reference" | "orderNumber" | "zoneName" | "createdAt" | "deliveryAddress" | "storeCount"
-> {
-  return {
-    orderNumber: task.order_number,
-    reference: task.reference,
-    zoneName: task.delivery_zone_name_snapshot,
-    createdAt: task.created_at,
-    storeCount: task.store_count,
-  };
-}
+    <Text style={[styles.caption, { color: colors.textSecondary }]}>طلب العميل · <Text style={styles.code}>{task.orderReference ?? "المرجع غير متاح"}</Text></Text>
+    <Text style={[styles.caption, { color: colors.text }]}>{driverTaskSummary(task)}</Text>
+    <View style={styles.row}>
+      <AppIcon name="location-outline" size={16} color={colors.textSecondary} />
+      <Text numberOfLines={2} style={[styles.caption, styles.flex, { color: colors.textSecondary }]}>
+        {task.customer_orders.delivery_zone_name_snapshot?.trim() || "منطقة التسليم غير مسجلة"}
+      </Text>
+    </View>
+    {active && !stale ? task.collection.state === "ready"
+      ? <FinancialAmount label="للتحصيل من العميل" amount={task.collection.amount} />
+      : <Text style={[styles.caption, { color: colors.warningForeground }]}>{driverCollectionMessage(task.collection)}</Text> : null}
+    <View style={[styles.row, styles.footer, { borderColor: colors.borderSubtle }]}>
+      <Text style={[styles.action, styles.flex, { color: colors.primary }]}>{next}</Text>
+      <AppIcon name="chevron-back-outline" size={17} color={colors.primary} />
+    </View>
+  </Pressable>;
+});
 
 const styles = StyleSheet.create({
-  card: {
-    gap: Spacing.three,
-    padding: Spacing.four,
-    borderWidth: 1,
-    borderRadius: Radius.lg,
-  },
-  heading: {
-    flexDirection: "row-reverse",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: Spacing.two,
-  },
-  headingText: {
-    flex: 1,
-    gap: Spacing.one,
-  },
-  orderNumber: {
-    fontFamily: Fonts.bold,
-    fontSize: FontSizes.md,
-    textAlign: "right",
-  },
-  createdAt: {
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.xs,
-    textAlign: "right",
-  },
-  status: {
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one,
-    borderRadius: Radius.full,
-  },
-  statusText: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.xs,
-  },
-  actionButton: {
-    minHeight: 48,
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.four,
-    borderRadius: Radius.md,
-  },
-  actionText: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.sm,
-  },
-  detailRow: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: Spacing.two,
-  },
-  detailText: {
-    flex: 1,
-    fontFamily: Fonts.regular,
-    fontSize: FontSizes.sm,
-    textAlign: "right",
-  },
-  customerDetails: {
-    gap: Spacing.two,
-    padding: Spacing.three,
-    borderRadius: Radius.md,
-  },
-  storeDetails: {
-    gap: Spacing.one,
-    paddingTop: Spacing.two,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  customerName: {
-    fontFamily: Fonts.semiBold,
-    fontSize: FontSizes.md,
-    textAlign: "right",
-  },
+  card: { padding: Spacing.three, gap: Spacing.one, borderWidth: StyleSheet.hairlineWidth, borderRadius: Radius.md },
+  row: { flexDirection: arabicRowDirection, flexWrap: "wrap", alignItems: "center", gap: Spacing.two },
+  identity: { flexGrow: 1, flexShrink: 1, flexBasis: 140, minWidth: 0 },
+  flex: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
+  caption: { ...Typography.caption, textAlign: arabicTextAlign },
+  reference: { ...Typography.bodyStrong, textAlign: arabicTextAlign, writingDirection: "ltr" },
+  code: { writingDirection: "ltr" },
+  badge: { ...Typography.caption, textAlign: arabicTextAlign, flexShrink: 1, borderRadius: Radius.full,
+    paddingHorizontal: Spacing.two, paddingVertical: Spacing.half },
+  footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: Spacing.two, marginTop: Spacing.one, minHeight: 44 },
+  action: { ...Typography.bodyStrong, textAlign: arabicTextAlign },
 });

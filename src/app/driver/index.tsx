@@ -237,7 +237,7 @@ function DriverHome() {
                 <Text style={[styles.badge, {
                   color: currentTask.status === "picked_up" ? colors.infoForeground : colors.warningForeground,
                   backgroundColor: currentTask.status === "picked_up" ? colors.infoSurface : colors.warningSurface,
-                }]}>{currentTask.status === "picked_up" ? "في طريق التسليم" : "بانتظار الاستلام"}</Text>
+                }]}>{currentTask.status === "picked_up" ? "قيد التوصيل" : "بانتظار استلام المتاجر"}</Text>
                 <AppIcon name="chevron-back-outline" size={16} color={colors.textSecondary} />
               </View>
               {currentTask.status === "accepted" && !readError ? <DriverPickupPreview stores={currentTask.pickupStores} /> : null}

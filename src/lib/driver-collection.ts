@@ -17,7 +17,7 @@ export function canProgressDriverCollection(value: DriverCollection | undefined)
 
 export function driverCollectionMessage(value: DriverCollection | undefined): string {
   return value?.state === "blocked"
-    ? "المهمة متوقفة بسبب مراجعة التسعير. لا تحصّل مبلغًا ولا تؤكد التسليم حتى تُحسم المراجعة."
+    ? "بانتظار مراجعة المبلغ. لا تحصّل مبلغًا ولا تؤكد التسليم حتى تُحسم المراجعة."
     : "تعذر تحميل مبلغ التحصيل";
 }
 

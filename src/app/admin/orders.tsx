@@ -19,7 +19,7 @@ const filters: { id: AdminOrderListFilter; label: string }[] = [
   { id: "pricing_review", label: "مراجعة السعر" }, { id: "all", label: "الكل" }, { id: "new", label: "الجديدة" }, { id: "in_progress", label: "قيد التنفيذ" },
   { id: "awaiting_delivery", label: "بانتظار التوصيل" }, { id: "completed", label: "المكتملة" }, { id: "cancelled", label: "الملغاة" },
 ];
-const statusLabels: Record<string, string> = { submitted: "تم إرسال الطلب", in_progress: "قيد المعالجة", ready_for_delivery: "جاهز للتوصيل", out_for_delivery: "قيد التوصيل", delivered: "مكتمل", partially_cancelled: "أُلغي جزء من الطلب", cancelled: "ملغى" };
+const statusLabels: Record<string, string> = { submitted: "أُرسل الطلب للمتاجر", in_progress: "قيد التجهيز", ready_for_delivery: "جاهز لاستلام السائق", out_for_delivery: "قيد التوصيل", delivered: "تم التسليم", partially_cancelled: "إلغاء جزئي", cancelled: "أُلغي الطلب" };
 const formatDate = (value: string) => new Date(value).toLocaleDateString("ar-SY");
 const formatAmount = (value: number, currency: string) => formatSyp(Number(value), currency);
 

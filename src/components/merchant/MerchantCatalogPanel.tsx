@@ -19,7 +19,7 @@ import { invalidateLocalCache } from '@/lib/local-cache';
 import { invalidatePublicCatalog } from '@/lib/public-catalog';
 import { getStoreMediaUrl } from '@/lib/merchant-store';
 import { formatSyp } from '@/lib/money';
-import { formatCompactOfferDate, formatLocalOfferEnd } from '@/lib/offer-expiration';
+import { syriaOfferFields, formatSyriaOfferTime } from '@/lib/offer-syria-time';
 
 const productFilters = [['all', 'الكل'], ['available', 'المتاحة'], ['paused', 'الموقوفة']] as const;
 const offerFilters = [['all', 'الكل'], ['current', 'الجارية'], ['scheduled', 'المجدولة'], ['expired', 'المنتهية'], ['paused', 'الموقوفة']] as const;
@@ -254,7 +254,7 @@ function OfferCard({ offer, expanded, expand, busy, edit, remove, compact }: { c
       <Text style={[styles.body, { color: colors.text }]}>{offerPriceSummary(offer)}</Text>
     </View>
     <View style={styles.summaryLine}>
-      <OfferDate label="يبدأ" value={offer.starts_at} />
+      <OfferDate label="يبدأ في" value={offer.starts_at} />
       {offer.ends_at ? <OfferDate label="ينتهي" value={offer.ends_at} /> : <Text style={[styles.body, { color: colors.textSecondary }]}>بدون تاريخ انتهاء</Text>}
     </View>
     {!offer.items.length || unavailable ? <Text style={[styles.body, { color: colors.warningForeground }]}>
@@ -277,8 +277,8 @@ function OfferCard({ offer, expanded, expand, busy, edit, remove, compact }: { c
     <Text style={[styles.title, { color: colors.text }]}>{offer.title}</Text>
     <View style={styles.actions}><Status label={offerTypeLabels[offer.offer_type]} tone="neutral" /><Status label={offerPhaseLabels[phase]} tone={phase === 'current' ? 'success' : phase === 'scheduled' ? 'info' : phase === 'expired' ? 'warning' : 'neutral'} /></View>
     <Text style={[styles.strong, { color: colors.primary }]}>{offerPriceSummary(offer)}</Text>
-    {phase === 'scheduled' ? <Text style={[styles.body, { color: colors.textSecondary }]}>يبدأ: {formatLocalOfferEnd(offer.starts_at)}</Text> : null}
-    <Text style={[styles.body, { color: colors.textSecondary }]}>{offer.ends_at ? `ينتهي: ${formatLocalOfferEnd(offer.ends_at)}` : 'بدون تاريخ انتهاء'}</Text>
+    {phase === 'scheduled' ? <Text style={[styles.body, { color: colors.textSecondary }]}>يبدأ في {formatSyriaOfferTime(offer.starts_at)} · بتوقيت سوريا</Text> : null}
+    <Text style={[styles.body, { color: colors.textSecondary }]}>{offer.ends_at ? `ينتهي: ${formatSyriaOfferTime(offer.ends_at)}` : 'بدون تاريخ انتهاء'}</Text>
     {!offer.items.length || unavailable ? <Text style={[styles.body, { color: colors.warningForeground }]}>هذا العرض غير قابل للشراء حاليًا؛ بعض مكوناته غير متاحة.</Text> : null}
     <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={expand} style={[styles.expand, { borderColor: colors.borderStrong }]}><Text style={[styles.strong, { color: colors.primary }]}>{expanded ? 'إخفاء المكونات' : `عرض المكونات (${offer.items.length.toLocaleString('ar-SY')})`}</Text><AppIcon name={expanded ? 'chevron-up-outline' : 'chevron-down-outline'} size={20} color={colors.primary} /></Pressable>
     {(expanded ? offer.items : compact ? [] : offer.items.slice(0, 2)).map(item => <Text key={item.id} style={[styles.body, { color: colors.textSecondary }]}>{item.item_role === 'buy' ? 'شراء: ' : item.item_role === 'reward' ? 'مكافأة: ' : ''}{item.quantity.toLocaleString('ar-SY', { maximumFractionDigits: 3 })} × {item.product?.title ?? 'منتج غير متاح للقراءة'}{item.product ? ` · ${item.product.selling_unit}` : ''}</Text>)}
@@ -287,7 +287,8 @@ function OfferCard({ offer, expanded, expand, busy, edit, remove, compact }: { c
 }
 function OfferDate({ label, value }: { label: string; value: string }) {
   const { colors } = useTheme();
-  const formatted = formatCompactOfferDate(value);
+  let formatted: string | null = null;
+  try { const parts = syriaOfferFields(value); const [year, month, day] = parts.date.split("-"); formatted = `${day}/${month}/${year} · ${parts.time}`; } catch { /* Invalid saved dates retain the existing unavailable state. */ }
   if (!formatted) return null;
   return <Text style={[styles.body, { color: colors.textSecondary }]}>{label} {`\u2066${formatted}\u2069`}</Text>;
 }

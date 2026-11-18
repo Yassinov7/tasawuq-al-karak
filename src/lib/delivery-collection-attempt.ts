@@ -37,6 +37,13 @@ async function read(owner: string, task: string): Promise<Intent | undefined> {
   if (value && (value.owner!==owner || value.task!==task || !Number.isSafeInteger(value.version) || value.version<=0 || typeof value.key!=="string" || !value.key)) throw Error("المحاولة المحفوظة غير صالحة؛ لا تُنشئ قبضًا آخر.");
   return value;
 }
+/** Visibility only: reads the existing scoped intent, never creates a key or submits a delivery. */
+export async function pendingDeliveryAttempt(owner: string, task: string): Promise<boolean> {
+  await requireOwner(owner);
+  const intent = await read(owner, task);
+  await requireOwner(owner);
+  return Boolean(intent);
+}
 async function finish(intent: Intent, result: CollectionResult) {
   await requireOwner(intent.owner);
   if (result.state!=="unknown") await invalidateLocalCache(cacheKey(intent.owner,intent.task),{requirePersistence:true}).catch(()=>undefined);

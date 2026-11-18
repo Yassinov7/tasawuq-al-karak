@@ -12,9 +12,9 @@ import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 import { getAdminOrderDetail, getCachedAdminOrder, isCachedAdminOrderFresh, type AdminOrderDetail } from "@/lib/admin-orders";
 
-const orderStatusLabels: Record<string, string> = { submitted: "تم إرسال الطلب", in_progress: "قيد المعالجة", ready_for_delivery: "جاهز للتوصيل", out_for_delivery: "قيد التوصيل", delivered: "تم التسليم", partially_cancelled: "أُلغي جزء من الطلب", cancelled: "ملغى" };
-const storeStatusLabels: Record<string, string> = { awaiting_review: "بانتظار مراجعة المتجر", preparing: "قيد التحضير", ready_for_pickup: "جاهز للاستلام", handed_to_driver: "سُلّم للسائق", delivered: "تم التسليم", rejected: "مرفوض", cancelled: "ملغى" };
-const deliveryStatusLabels: Record<string, string> = { pending_stores: "بانتظار المتاجر", available: "متاح للاستلام", accepted: "مقبول من سائق", picked_up: "قيد التوصيل", delivered: "تم التسليم", cancelled: "ملغى" };
+const orderStatusLabels: Record<string, string> = { submitted: "أُرسل الطلب للمتاجر", in_progress: "قيد التجهيز", ready_for_delivery: "جاهز لاستلام السائق", out_for_delivery: "قيد التوصيل", delivered: "تم التسليم", partially_cancelled: "إلغاء جزئي", cancelled: "أُلغي الطلب" };
+const storeStatusLabels: Record<string, string> = { awaiting_review: "بانتظار مراجعة المتجر", preparing: "قيد التجهيز", ready_for_pickup: "جاهز لاستلام السائق", handed_to_driver: "استلمه السائق", delivered: "تم التسليم للعميل", rejected: "اعتذر المتجر عن التنفيذ", cancelled: "أُلغي طلب المتجر" };
+const deliveryStatusLabels: Record<string, string> = { pending_stores: "بانتظار تجهيز المتاجر", available: "بانتظار سائق", accepted: "بانتظار استلام المتاجر", picked_up: "قيد التوصيل", delivered: "تم التسليم", cancelled: "أُلغيت المهمة" };
 const formatDate = (value: string | null) => value ? new Date(value).toLocaleString("ar-SY") : "—";
 const formatAmount = (value: number, currency: string) => formatSyp(Number(value), currency);
 

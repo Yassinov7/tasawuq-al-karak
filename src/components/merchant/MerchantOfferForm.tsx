@@ -7,7 +7,7 @@ import {OfferExpirationPicker} from '@/components/merchant/OfferExpirationPicker
 import {useTheme} from '@/context/ThemeContext';
 import {Radius,Spacing,Typography} from '@/constants/theme';
 import {formatSyp} from '@/lib/money';
-import {displayOfferMoney,type OfferErrors,type OfferForm,type OfferPreview,type OfferProduct,type OfferRole,type OfferType} from '@/lib/merchant-offer-editor';
+import {displayOfferMoney,offerStartsAt,type OfferErrors,type OfferForm,type OfferPreview,type OfferProduct,type OfferRole,type OfferType} from '@/lib/merchant-offer-editor';
 export const offerTypeLabels:Record<OfferType,string>={discount:'تخفيض',bundle:'حزمة',buy_x_get_y:'اشترِ واحصل'};
 const roleLabels:Record<OfferRole,string>={discounted:'منتج مشمول بالتخفيض',bundle:'مكون الحزمة',buy:'منتج الشراء',reward:'المكافأة'};
 export type OfferSection = 'identity' | 'pricing' | 'products' | 'period';
@@ -18,6 +18,8 @@ type Props={onSectionLayout:(section:OfferSection,y:number)=>void;availabilityEr
  picker:OfferPickerState;pickerQuery:(value:string)=>void;pickerMore:()=>void;pickerRetry:()=>void;pickerClose:()=>void;choose:(product:OfferProduct)=>void};
 export function MerchantOfferForm(props:Props){
  const {colors}=useTheme();const{form,errors,locked}=props;
+ let startBoundary: string | undefined;
+ try { startBoundary = offerStartsAt(form, props.now); } catch { /* Start-field validation explains an incomplete start. */ }
  const productById = new Map(props.products.map(product => [product.id, product]));
  const issue=(key:string)=>errors[key]?<Text accessibilityLiveRegion="polite" style={[styles.body,{color:colors.errorForeground}]}>{errors[key]}</Text>:null;
  return<>
@@ -79,7 +81,7 @@ export function MerchantOfferForm(props:Props){
      if(selection.mode==='new'){props.change('startDate',selection.date);props.change('startTime',selection.time);props.change('selectedStartInstant',selection.instant);props.change('startMode','scheduled');}
      else props.change('startMode',selection.mode==='keep'?'keep':'now');
     }}/>
-   <OfferExpirationPicker mode={form.endMode} original={form.originalEndsAt} date={form.endDate} time={form.endTime} selectedInstant={form.selectedEndInstant} now={props.now} startsAt={form.startMode==='keep'?form.originalStartsAt??undefined:form.selectedStartInstant} disabled={locked} error={errors.end} allowNone={Boolean(form.originalEndsAt===null&&props.startsAt&&form.active===false)}
+   <OfferExpirationPicker mode={form.endMode} original={form.originalEndsAt} date={form.endDate} time={form.endTime} selectedInstant={form.selectedEndInstant} now={props.now} startsAt={startBoundary} disabled={locked} error={errors.end} allowNone={Boolean(form.originalEndsAt===null&&props.startsAt&&form.active===false)}
     onSelect={selection=>{
      if(selection.mode==='new'){props.change('endDate',selection.date);props.change('endTime',selection.time);props.change('selectedEndInstant',selection.instant);}
      props.change('endMode',selection.mode);

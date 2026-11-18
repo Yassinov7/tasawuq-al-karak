@@ -8,26 +8,27 @@ import { FontSizes, Fonts, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
 import { formatCurrency, type CustomerDeliveryTask, type CustomerOrderView } from "@/lib/customer-orders";
 import { groupOrderItems } from "@/lib/order-item-groups";
+import { customerDeliveryCompleted, storeStepCompleted } from "@/lib/order-progress";
 
 type StoreOrder = CustomerOrderView["stores"][number];
 
 const storeStatusLabels: Record<StoreOrder["storeOrder"]["status"], string> = {
   awaiting_review: "بانتظار مراجعة المتجر",
   preparing: "قيد التجهيز",
-  ready_for_pickup: "جاهز للاستلام",
-  handed_to_driver: "سُلّم إلى السائق",
-  delivered: "تم التسليم",
-  rejected: "مرفوض",
-  cancelled: "ملغى",
+  ready_for_pickup: "جاهز لاستلام السائق",
+  handed_to_driver: "استلمه السائق",
+  delivered: "تم التسليم للعميل",
+  rejected: "اعتذر المتجر عن التنفيذ",
+  cancelled: "أُلغي طلب المتجر",
 };
 
 const deliveryLabels: Record<CustomerDeliveryTask["status"], string> = {
-  pending_stores: "بانتظار جاهزية المتاجر",
-  available: "بانتظار قبول سائق",
-  accepted: "قبل السائق مهمة التوصيل",
-  picked_up: "استلم السائق الطلب",
-  delivered: "تم تسليم الطلب",
-  cancelled: "أُلغيت مهمة التوصيل",
+  pending_stores: "بانتظار تجهيز المتاجر",
+  available: "بانتظار سائق",
+  accepted: "بانتظار استلام المتاجر",
+  picked_up: "قيد التوصيل",
+  delivered: "تم التسليم",
+  cancelled: "أُلغيت المهمة",
 };
 
 const progressSteps = ["awaiting_review", "preparing", "ready_for_pickup", "handed_to_driver", "delivered"] as const;
@@ -132,13 +133,13 @@ function SuborderCard({ store, logo, expanded, collapsible, onPress }: {
         {visibleSteps.map((step, index) => {
           const event = eventsByStatus.get(step);
           const current = step === status;
-          const complete = Boolean(event) && !current;
+          const complete = storeStepCompleted(step, status, Boolean(event));
           const muted = !event && !current;
           return (
             <View key={step} style={styles.progressRow}>
               <View style={styles.progressMark}>
                 <View style={[styles.progressDot, { borderColor: current || complete ? colors.primary : colors.border, backgroundColor: complete ? colors.primary : colors.surface }]}>
-                  {complete ? <AppIcon name="checkmark" size={11} color={colors.surface} /> : null}
+                  {complete ? <AppIcon name="checkmark" size={11} color={colors.onPrimary} /> : null}
                 </View>
                 {index < visibleSteps.length - 1 ? <View style={[styles.progressLine, { backgroundColor: complete ? colors.primary : colors.border }]} /> : null}
               </View>
@@ -146,7 +147,7 @@ function SuborderCard({ store, logo, expanded, collapsible, onPress }: {
                 <Text style={[styles.progressLabel, { color: muted ? colors.textMuted : colors.text }, current && { color: colors.primary, fontFamily: Fonts.bold }]}>{storeStatusLabels[step]}</Text>
                 {event ? <Text style={[styles.eventDate, { color: colors.textMuted }]}>{new Date(event.created_at).toLocaleString("ar-SY")}</Text> : current && step === "awaiting_review" ? <Text style={[styles.eventDate, { color: colors.textMuted }]}>{new Date(store.storeOrder.created_at).toLocaleString("ar-SY")}</Text> : null}
               </View>
-              {current ? <Text style={[styles.stepCurrentLabel, { color: colors.primary }]}>الحالية</Text> : null}
+              {current ? <Text style={[styles.stepCurrentLabel, { color: colors.primary }]}>{step === "delivered" ? "مكتملة" : "الحالية"}</Text> : null}
             </View>
           );
         })}
@@ -215,41 +216,42 @@ export function DeliveryTracking({ task }: { task: CustomerDeliveryTask | null }
 
 const customerSteps = ["submitted", "in_progress", "ready_for_delivery", "out_for_delivery", "delivered"] as const;
 const customerLabels: Record<(typeof customerSteps)[number], string> = {
-  submitted: "تم استلام الطلب",
-  in_progress: "تجهيز الطلب",
-  ready_for_delivery: "جاهز للتوصيل",
-  out_for_delivery: "في الطريق إليك",
+  submitted: "أُرسل الطلب للمتاجر",
+  in_progress: "قيد التجهيز",
+  ready_for_delivery: "جاهز لاستلام السائق",
+  out_for_delivery: "قيد التوصيل",
   delivered: "تم التسليم",
 };
 
 export function CustomerOrderTimeline({ order }: { order: CustomerOrderView }) {
   const { colors } = useTheme();
-  const currentIndex = customerSteps.indexOf(order.status as (typeof customerSteps)[number]);
+  const delivered = customerDeliveryCompleted(order);
+  const currentIndex = delivered ? customerSteps.length - 1 : order.status === "delivered" ? -1 : customerSteps.indexOf(order.status as (typeof customerSteps)[number]);
   if (currentIndex < 0) return null;
   const storeEvents = new Set(order.stores.flatMap((store) => store.statusHistory.map((event) => event.to_status)));
   const hasEvidence = (step: (typeof customerSteps)[number]) => {
     if (step === "submitted") return true;
     if (step === "in_progress") return storeEvents.has("preparing");
     if (step === "ready_for_delivery") return storeEvents.has("ready_for_pickup");
-    if (step === "out_for_delivery") return Boolean(order.deliveryTask && ["accepted", "picked_up", "delivered"].includes(order.deliveryTask.status));
-    return order.status === "delivered";
+    if (step === "out_for_delivery") return Boolean(order.deliveryTask && ["picked_up", "delivered"].includes(order.deliveryTask.status));
+    return delivered;
   };
   return (
     <View style={[styles.timeline, { borderColor: colors.border }]}>
       <Text style={[styles.title, { color: colors.text }]}>مسار الطلب</Text>
       {customerSteps.map((step, index) => {
         const current = index === currentIndex;
-        const complete = index < currentIndex && hasEvidence(step);
+        const complete = (index < currentIndex || step === "delivered" && delivered) && hasEvidence(step);
         const future = index > currentIndex || (index < currentIndex && !complete);
         return <View key={step} style={styles.timelineRow}>
           <View style={styles.timelineMark}>
             <View style={[styles.timelineDot, { borderColor: current || complete ? colors.primary : colors.border, backgroundColor: complete ? colors.primary : colors.surface }]}>
-              {complete ? <AppIcon name="checkmark" size={11} color={colors.surface} /> : null}
+              {complete ? <AppIcon name="checkmark" size={11} color={colors.onPrimary} /> : null}
             </View>
             {index < customerSteps.length - 1 ? <View style={[styles.timelineLine, { backgroundColor: complete ? colors.primary : colors.border }]} /> : null}
           </View>
           <Text style={[styles.timelineLabel, { color: future ? colors.textMuted : colors.text }, current && { fontFamily: Fonts.bold, color: colors.primary }]}>{customerLabels[step]}</Text>
-          {current ? <Text style={[styles.currentLabel, { color: colors.primary }]}>الحالة الحالية</Text> : null}
+          {current ? <Text style={[styles.currentLabel, { color: colors.primary }]}>{step === "delivered" && delivered ? "مكتملة" : "الحالة الحالية"}</Text> : null}
         </View>;
       })}
     </View>

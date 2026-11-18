@@ -91,13 +91,13 @@ const statusIcons: Record<
 };
 
 const statusLabels: Record<OrderStatus, string> = {
-  submitted: "تم استلام الطلب",
+  submitted: "أُرسل الطلب للمتاجر",
   in_progress: "قيد التجهيز",
-  ready_for_delivery: "جاهز للتوصيل",
-  out_for_delivery: "في الطريق",
+  ready_for_delivery: "جاهز لاستلام السائق",
+  out_for_delivery: "قيد التوصيل",
   delivered: "تم التسليم",
-  partially_cancelled: "ملغى جزئيًا",
-  cancelled: "ملغى",
+  partially_cancelled: "إلغاء جزئي",
+  cancelled: "أُلغي الطلب",
 };
 
 export default function OrdersScreen() {

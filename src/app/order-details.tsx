@@ -15,17 +15,18 @@ import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { cancelCustomerOrder, formatCurrency, getCustomerOrder, type CustomerOrderView } from "@/lib/customer-orders";
+import { customerDeliveryCompleted } from "@/lib/order-progress";
 import { useOrderRealtime } from "@/hooks/useOrderRealtime";
 import { useCustomerStoreLogos } from "@/hooks/useCustomerStoreLogos";
 
 const customerStatusLabels: Record<CustomerOrderView["status"], string> = {
-  submitted: "تم استلام الطلب",
+  submitted: "أُرسل الطلب للمتاجر",
   in_progress: "قيد التجهيز",
-  ready_for_delivery: "جاهز للتوصيل",
-  out_for_delivery: "في الطريق",
+  ready_for_delivery: "جاهز لاستلام السائق",
+  out_for_delivery: "قيد التوصيل",
   delivered: "تم التسليم",
-  partially_cancelled: "ملغى جزئيًا",
-  cancelled: "ملغى",
+  partially_cancelled: "إلغاء جزئي",
+  cancelled: "أُلغي الطلب",
 };
 
 const customerStatusIcons: Record<CustomerOrderView["status"], React.ComponentProps<typeof AppIcon>["name"]> = {
@@ -289,6 +290,7 @@ function OrderDetailsContent() {
             {order.delivery_address ? <Text style={[styles.addressSecondary, { color: colors.textSecondary }]}>{order.delivery_address}</Text> : null}
             {(order.recipient_name || order.contact_phone) ? <Text style={[styles.addressSecondary, { color: colors.textMuted }]}>{[order.recipient_name, order.contact_phone].filter(Boolean).join(" · ")}</Text> : null}
             {shouldShowDeliveryStatus ? <DeliveryTracking task={order.deliveryTask} /> : null}
+            {order.status === "partially_cancelled" && customerDeliveryCompleted(order) ? <Text style={[styles.addressSecondary, {color:colors.textSecondary}]}>تم تسليم المنتجات المتبقية بعد إلغاء بعض طلبات المتاجر.</Text> : null}
           </View>
         ) : null}
 

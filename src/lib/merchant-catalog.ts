@@ -18,7 +18,7 @@ export function offerPhase(offer: Pick<CatalogOffer, 'is_active' | 'starts_at' |
   if (offer.ends_at && Date.parse(offer.ends_at) <= now) return 'expired';
   return Date.parse(offer.starts_at) > now ? 'scheduled' : 'current';
 }
-export const offerPhaseLabels = { current: 'جارٍ', scheduled: 'مجدول', expired: 'منتهٍ', paused: 'متوقف' };
+export const offerPhaseLabels = { current: 'سارٍ الآن', scheduled: 'مجدول', expired: 'انتهى العرض', paused: 'موقوف' };
 export function catalogOfferBoundaryDelay(rows: CatalogRow[], nextBoundary: number | null, now: number) {
   const boundary = Math.min(...[nextBoundary ?? NaN, ...rows.flatMap(row => row.kind === 'offers' && row.is_active
     ? [Date.parse(row.starts_at), row.ends_at ? Date.parse(row.ends_at) : NaN] : [])].filter(value => value > now));

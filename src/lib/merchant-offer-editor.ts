@@ -1,7 +1,7 @@
 import type { Tables, Database } from "@/types/database";
 import { parseProductNumber } from "@/lib/merchant-product-create";
 import { formatSyp } from "@/lib/money";
-import { localOfferEndInstant } from "@/lib/offer-expiration";
+import { syriaOfferInstant } from "@/lib/offer-syria-time";
 export type OfferType=Tables<"store_offers">["offer_type"];
 export type OfferRole=Tables<"store_offer_products">["item_role"];
 export type OfferProduct=Pick<Tables<"products">,"id"|"title"|"price"|"selling_unit"|"minimum_quantity"|"quantity_step"|"is_available">;
@@ -29,8 +29,8 @@ export function offerEndsAt(form:OfferForm,startsAt?:string,now=Date.now()):stri
  let result=form.originalEndsAt;
  if(form.endMode==='new'){
   const day=normaliseOfferDigits(form.endDate),clock=normaliseOfferDigits(form.endTime);
-  result=localOfferEndInstant(day,clock);
-  if(form.selectedEndInstant&&Date.parse(form.selectedEndInstant)!==Date.parse(result))throw new Error('تغير توقيت الجهاز بعد اختيار الموعد. أعد اختيار التاريخ والوقت قبل الحفظ.');
+  result=syriaOfferInstant(day,clock);
+  if(form.selectedEndInstant&&Date.parse(form.selectedEndInstant)!==Date.parse(result))throw new Error('تغير الموعد المختار. أعد اختيار التاريخ والوقت قبل الحفظ.');
  }
  if(!result||!Number.isFinite(Date.parse(result))||Date.parse(result)<=now)throw new Error('انتهت النهاية السابقة أو لم تعد صالحة. اختر نهاية مستقبلية أو أزل النهاية صراحةً.');
  if(startsAt&&Date.parse(result)<=Date.parse(startsAt))throw new Error('يجب أن تكون النهاية بعد بداية العرض المثبتة.');
@@ -40,7 +40,8 @@ export function offerStartsAt(form:OfferForm,now=Date.now()):string{
  if(form.startMode==='now')return new Date(now).toISOString();
  if(form.startMode==='keep'&&form.originalStartsAt&&Number.isFinite(Date.parse(form.originalStartsAt)))return form.originalStartsAt;
  if(form.startMode==='scheduled'){
-  const result=form.selectedStartInstant??localOfferEndInstant(normaliseOfferDigits(form.startDate),normaliseOfferDigits(form.startTime));
+  const result=syriaOfferInstant(normaliseOfferDigits(form.startDate),normaliseOfferDigits(form.startTime));
+  if(form.selectedStartInstant&&Date.parse(form.selectedStartInstant)!==Date.parse(result))throw new Error('تغير الموعد المختار. أعد اختيار بداية العرض.');
   if(!Number.isFinite(Date.parse(result))||Date.parse(result)<=now)throw new Error('اختر موعد بداية مستقبليًا، أو اختر «يبدأ الآن».');
   return result;
  }

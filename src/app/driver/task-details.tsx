@@ -1,6 +1,7 @@
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { DriverTaskDestination } from "@/components/driver/DriverTaskLocation";
 import { StorePickupPanel } from "@/components/driver/StorePickupPanel";
+import { DriverStoreContents } from "@/components/driver/DriverStoreContents";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppModal } from "@/components/ui/AppModal";
 import { FinancialAmount } from "@/components/ui/FinancialAmount";
@@ -10,11 +11,13 @@ import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useDriverTaskRefresh } from "@/hooks/useDriverTaskRefresh";
 import { useOrderRealtime } from "@/hooks/useOrderRealtime";
-import { deliveryCollection } from "@/lib/delivery-collection-attempt";
+import { deliveryCollection, pendingDeliveryAttempt } from "@/lib/delivery-collection-attempt";
 import { canProgressDriverCollection, driverCollectionMessage, DriverCollectionError } from "@/lib/driver-collection";
 import { getDriverApplication, getDriverAssignedTasks, type DriverAssignedTask } from "@/lib/driver-deliveries";
 import type { DriverReadReason } from "@/lib/driver-read-queue";
 import { confirmStorePickup } from "@/lib/store-pickups";
+import { arabicRowDirection, arabicTextAlign } from "@/lib/arabic-layout";
+import { driverTaskLabels } from "@/lib/driver-task-presentation";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { AppState, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
@@ -43,6 +46,8 @@ function DriverTaskDetails({ taskId }: { taskId?: string }) {
   const [error, setError] = useState("");
   const [readError, setReadError] = useState("");
   const [notice, setNotice] = useState("");
+  const [attemptState, setAttemptState] = useState<"none" | "pending" | "unavailable">("unavailable");
+  const [checkedUnknown, setCheckedUnknown] = useState(false);
   const owner = useRef(userId);
   const readEpoch = useRef(0);
   const actionLock = useRef(false);
@@ -80,6 +85,14 @@ function DriverTaskDetails({ taskId }: { taskId?: string }) {
       }
       const [row] = await getDriverAssignedTasks(userId, undefined, taskId, signal);
       if (!current()) return;
+      let pending: "none" | "pending" | "unavailable" = "none";
+      if (row?.id === taskId) {
+        try { pending = await pendingDeliveryAttempt(userId, taskId) ? "pending" : "none"; }
+        catch { pending = "unavailable"; }
+      }
+      if (!current()) return;
+      setAttemptState(pending);
+      setCheckedUnknown(false);
       setTask(row?.id === taskId ? row : null);
       setVerified(row?.id === taskId);
       if (!row) setConfirmation(null);
@@ -142,13 +155,14 @@ function DriverTaskDetails({ taskId }: { taskId?: string }) {
       await refreshTasks("change");
       if (owner.current === expectedUser) {
         if (result.state === "completed") setNotice(result.kind === "zero_cash_delivery" ? "تأكد التسليم دون قبض نقدي؛ لا يوجد مبلغ للتحصيل." : "تأكد التسليم وتسجيل قبض المبلغ كاملًا.");
-        else setError(result.state === "unknown" ? "النتيجة غير محسومة؛ استخدم التحقق من المحاولة السابقة." : result.code === "zero_cash_economic_conflict" ? "توقف التسليم لوجود تعارض مالي مع المبلغ الصفري. راجع الإدارة." : "رُفضت المحاولة؛ حدّث المهمة وراجع الاستلام والتسعير قبل محاولة جديدة.");
+        else setError(result.state === "unknown" ? "لم تتأكد نتيجة التسليم. تحقّق من نتيجة المحاولة السابقة قبل المحاولة مجددًا." : result.code === "zero_cash_economic_conflict" ? "توقف التسليم لوجود تعارض مالي مع المبلغ الصفري. راجع الإدارة." : "لم يتم التسليم بهذه المحاولة؛ حدّث المهمة وراجع الاستلام والمبلغ قبل المحاولة مجددًا.");
       }
     } catch (cause) {
       if (owner.current === expectedUser) {
         const collection = cause instanceof DriverCollectionError ? cause.collection : { state: "unavailable" as const };
         setTask(previous => previous?.id === task.id ? { ...previous, collection } : previous);
-        setError(cause instanceof DriverCollectionError ? driverCollectionMessage(collection) : "تعذر تأكيد التسليم. حدّث المهمة للتحقق من النتيجة.");
+        setError(cause instanceof DriverCollectionError ? driverCollectionMessage(collection) : "تعذر التأكد من نتيجة التسليم. حدّث المهمة ثم تحقّق من المحاولة السابقة.");
+        setAttemptState("unavailable");
       }
     } finally {
       actionLock.current = false;
@@ -172,17 +186,18 @@ function DriverTaskDetails({ taskId }: { taskId?: string }) {
 
   const recoverCash = async (task: DriverAssignedTask) => {
     const expectedUser=user?.id;
-    if (!expectedUser || owner.current !== expectedUser || !verified || task.pickups?.state!=="c4" || actionLock.current) return;
+    if (!expectedUser || owner.current !== expectedUser || !verified || attemptState !== "pending" || actionLock.current) return;
     actionLock.current=true;setBusyTaskId(task.id);setNotice("");
     try {
-      const result=await deliveryCollection(expectedUser,task.id,task.pickups.pricingVersion,true);
+      const result=await deliveryCollection(expectedUser,task.id,task.pickups?.state === "c4" ? task.pickups.pricingVersion : 0,true);
       if (owner.current!==expectedUser) return;
       await refreshTasks("change");
       if (owner.current===expectedUser) {
+        setCheckedUnknown(result.state === "unknown");
         if (result.state==="completed") setNotice(result.kind === "zero_cash_delivery" ? "تأكد التسليم دون قبض نقدي؛ لا يوجد مبلغ للتحصيل." : "تأكد التسليم وتسجيل قبض المبلغ كاملًا.");
-        else setError(result.state==="rejected" ? result.code === "zero_cash_economic_conflict" ? "توقف التسليم لوجود تعارض مالي مع المبلغ الصفري. راجع الإدارة." : "رُفضت المحاولة المحفوظة؛ راجع المهمة قبل تأكيد جديد." : "النتيجة غير محسومة؛ لم نُعد إرسال عملية التحصيل.");
+        else setError(result.state==="rejected" ? result.code === "zero_cash_economic_conflict" ? "توقف التسليم لوجود تعارض مالي مع المبلغ الصفري. راجع الإدارة." : "لم يتم التسليم بهذه المحاولة. راجع المهمة قبل المحاولة مجددًا." : "ما زالت نتيجة التسليم غير معروفة. يمكنك التحقق لاحقًا؛ إعادة المحاولة تستخدم المحاولة المحفوظة نفسها.");
       }
-    } catch { if(owner.current===expectedUser)setError("تعذر التحقق من المحاولة المحفوظة."); }
+    } catch { if(owner.current===expectedUser)setError("تعذر التحقق من نتيجة التسليم. أعد التحقق عند تحسن الاتصال."); }
     finally {actionLock.current=false;setBusyTaskId(null);}
   };
 
@@ -192,7 +207,8 @@ function DriverTaskDetails({ taskId }: { taskId?: string }) {
   const workflow = task?.pickups?.state === "c4" ? task.pickups : null;
   const amount = verified && active && task.collection.state === "ready" ? task.collection.amount : undefined;
   const busy = busyTaskId !== null || refreshing;
-  const canDeliver = task?.status === "picked_up" && verified && workflow?.canCompleteDelivery && amount !== undefined;
+  const canDeliver = task?.status === "picked_up" && verified && workflow?.canCompleteDelivery && amount !== undefined
+    && (attemptState === "none" || attemptState === "pending" && checkedUnknown);
   const confirmDelivery = () => {
     if (!confirmation || !task || actionLock.current) return;
     setConfirmation(null);
@@ -216,12 +232,12 @@ function DriverTaskDetails({ taskId }: { taskId?: string }) {
         {task ? <>
           <View style={styles.section}>
             <Text style={[styles.text, { color: !verified ? colors.textSecondary : active ? colors.infoForeground : colors.successForeground }]}>
-              {!verified ? "حالة المهمة غير مؤكدة" : task.status === "accepted" ? "بانتظار الاستلام من المتاجر" : task.status === "picked_up" ? "قيد التوصيل إلى المستلم" : "تم التسليم"}
+              {!verified ? "حالة المهمة غير مؤكدة" : driverTaskLabels[task.status]}
             </Text>
             <View style={twoColumns ? styles.gridRow : styles.section}>
               <View style={twoColumns ? styles.gridCell : styles.section}>
                 <Text style={[styles.text, { color: colors.textSecondary }]}>مرجع المهمة</Text>
-                <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>{task.reference ?? `طلب رقم ${task.customer_orders.order_number}`}</Text>
+                <Text selectable accessibilityRole="header" style={[styles.title, styles.reference, { color: colors.text }]}>{task.reference ?? "مرجع المهمة غير متاح"}</Text>
               </View>
               {verified && milestone ? <View style={twoColumns ? styles.gridCell : styles.section}>
                 <Text style={[styles.text, { color: colors.textSecondary }]}>آخر مرحلة</Text>
@@ -240,17 +256,20 @@ function DriverTaskDetails({ taskId }: { taskId?: string }) {
             </View> : null}
           </View>
           {verified ? <View style={[styles.section, styles.divider, { borderColor: colors.borderSubtle }]}>
-            <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>نقاط الاستلام</Text>
+            <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>الطلبات والمنتجات</Text>
+            <Text selectable style={[styles.text, { color: colors.textSecondary }]}>طلب العميل · <Text style={styles.reference}>{task.orderReference ?? "المرجع غير متاح"}</Text></Text>
             {!stores.length ? <Text style={[styles.text, { color: colors.textSecondary }]}>لا توجد نقاط استلام متاحة للعرض.</Text> : null}
             {active && !workflow ? <Text style={[styles.text, { color: colors.warningForeground }]}>تعذر تأكيد حالة الاستلام. حدّث المهمة قبل المتابعة.</Text> : null}
             {active && workflow ? <StorePickupPanel compact stores={task.customer_orders.store_orders} workflow={workflow}
               busy={busyPickupId} disabled={busy || confirmation !== null || amount === undefined}
+              renderContents={store => <DriverStoreContents store={store} />}
               onConfirm={id => void pickupStore(task, id)} /> :
               stores.map(store =>
                 <View key={store.id} style={styles.section}>
                   <Text style={[styles.text, { color: colors.text }]}>{store.stores?.name ?? "متجر"}</Text>
                   <Text style={[styles.text, { color: colors.textSecondary }]}>{store.stores?.address || "عنوان نقطة الاستلام غير متاح"}</Text>
-                  <Text style={[styles.text, { color: colors.textSecondary }]}>{store.status === "handed_to_driver" || store.status === "delivered" ? "تم الاستلام" : "بانتظار تأكيد الاستلام"}</Text>
+                  <Text style={[styles.text, { color: colors.textSecondary }]}>{store.status === "delivered" ? "تم التسليم للعميل" : store.status === "handed_to_driver" ? "استلمه السائق" : "لم يُؤكد الاستلام من المتجر"}</Text>
+                  <DriverStoreContents store={store} />
                 </View>)}
           </View> : null}
           <View style={[styles.section, styles.divider, { borderColor: colors.borderSubtle }]}>
@@ -261,12 +280,16 @@ function DriverTaskDetails({ taskId }: { taskId?: string }) {
           {active && (amount === undefined || canDeliver) ? <View style={[styles.section, styles.divider, { borderColor: colors.borderSubtle }]}>
             {amount !== undefined ? null :
               <Text style={[styles.text, { color: colors.warningForeground }]}>{verified ? driverCollectionMessage(task.collection) : "تعذر تأكيد مبلغ التحصيل."}</Text>}
-            {canDeliver ? <AppButton design="refined" compact fullWidth={false} title="تأكيد التسليم" icon="checkmark-done-outline"
+            {canDeliver ? <AppButton design="refined" compact fullWidth={false} title={attemptState === "pending" ? "إعادة المحاولة نفسها" : "تأكيد التسليم"} icon="checkmark-done-outline"
               disabled={busy} loading={busyTaskId === task.id && !busyPickupId}
               onPress={() => { if (!actionLock.current && workflow) setConfirmation({ amount, version: workflow.pricingVersion }); }} /> : null}
           </View> : null}
-          {verified && workflow ? <AppButton compact fullWidth={false} variant="outline" title="التحقق من محاولة التسليم السابقة"
-            disabled={busy || confirmation !== null} onPress={() => void recoverCash(task)} /> : null}
+          {verified && attemptState === "unavailable" ? <Text accessibilityRole="alert" style={[styles.text, {color:colors.warningForeground}]}>تعذر قراءة حالة محاولة التسليم المحفوظة. حدّث المهمة قبل تأكيد التسليم.</Text> : null}
+          {verified && attemptState === "pending" ? <View style={styles.section}>
+            <Text style={[styles.text, {color:colors.warningForeground}]}>تعذر التأكد من نجاح محاولة التسليم السابقة. تحقّق من نتيجتها قبل المحاولة مجددًا.</Text>
+            <AppButton compact fullWidth={false} variant="outline" title="التحقق من نتيجة التسليم"
+              disabled={busy || confirmation !== null} loading={busyTaskId === task.id && !busyPickupId} onPress={() => void recoverCash(task)} />
+          </View> : null}
         </> : null}
       </View>
     </ScrollView>
@@ -283,9 +306,10 @@ const styles = StyleSheet.create({
   content: { padding: Spacing.four, paddingBottom: Spacing.six },
   container: { width: "100%", maxWidth: MaxContentWidth, alignSelf: "center", gap: Spacing.three },
   section: { gap: Spacing.two },
-  gridRow: { flexDirection: "row-reverse", alignItems: "flex-start", gap: Spacing.three },
+  gridRow: { flexDirection: arabicRowDirection, alignItems: "flex-start", gap: Spacing.three },
   gridCell: { flex: 1, minWidth: 0, gap: Spacing.one },
   divider: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: Spacing.three },
-  title: { ...Typography.cardTitle, textAlign: "right", writingDirection: "auto" },
-  text: { ...Typography.caption, textAlign: "right" },
+  title: { ...Typography.cardTitle, textAlign: arabicTextAlign },
+  text: { ...Typography.caption, textAlign: arabicTextAlign },
+  reference: { writingDirection: "ltr" },
 });

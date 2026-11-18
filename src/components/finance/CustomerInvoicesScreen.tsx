@@ -149,9 +149,9 @@ function CustomerInvoiceCard({ invoice, onPress }: { invoice: MoneyInvoice; onPr
 type CustomerCardTone = "success" | "warning" | "info" | "error" | "muted";
 function customerInvoiceCardState(invoice: MoneyInvoice): { label: string; tone: CustomerCardTone; icon: ComponentProps<typeof AppIcon>["name"] } {
   const presentation = invoicePresentation(invoice);
-  if (invoice.kind === "INV" && presentation.payment === "مسددة بالكامل") return { label: presentation.payment, tone: "success", icon: "checkmark-circle-outline" };
+  if (invoice.kind === "INV" && presentation.payment === "مسدد بالكامل") return { label: presentation.payment, tone: "success", icon: "checkmark-circle-outline" };
   if (invoice.kind === "INV" && presentation.payment === "بانتظار السداد") return { label: presentation.payment, tone: "warning", icon: "time-outline" };
-  if (invoice.kind === "INV" && presentation.payment === "مسددة جزئيًا") return { label: presentation.payment, tone: "info", icon: "contrast-outline" };
+  if (invoice.kind === "INV" && presentation.payment === "مسدد جزئيًا") return { label: presentation.payment, tone: "info", icon: "contrast-outline" };
   if (invoice.voided_by || invoice.status === "cancelled") return { label: presentation.document, tone: "error", icon: "close-circle-outline" };
   if (invoice.status === "pending") return { label: presentation.document, tone: "warning", icon: "time-outline" };
   if (invoice.status === "confirmed") return { label: presentation.document, tone: "info", icon: "checkmark-done-outline" };

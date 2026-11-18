@@ -57,6 +57,12 @@ async function main(){
    '@/lib/invoice-finance':{readMoney:async()=>assignment.count?{owner,admin:false,account_reference:'ACC-1',collection_due:'80.00',payable:'30.00'}:null},
    '@/lib/driver-deliveries':{getDriverApplication:async()=>({status:'accepted',is_available:true,full_name:'سائق'}),getAvailableDeliveryTasks:async()=>{loads++;return offers;},getDriverHomeAssignment:async()=>{if(failHome)throw Error('offline');return assignment;},getDriverAssignedTasks:async(_owner,_order,id,_signal,page)=>{assignedPage=page;loads++;if(failDetails)throw Error('offline');if(file.endsWith('task-details.tsx'))assert.equal(id,detailId);return assignedRows??['accepted','delivered'].map((status,index)=>({id:'task-'+index,status,customer_order_id:'parent-'+index,collection:{state:'unavailable'},pickups:{state:'unavailable'},customer_orders:{order_number:index+1,store_orders:[]}}));}},
    '@/lib/delivery-collection-attempt':{deliveryCollection:async()=>{writes++;await new Promise(resolve=>finishWrite=resolve);return {state:'completed',kind:'cash_delivery'};}},'@/lib/driver-collection':{canProgressDriverCollection:collection=>collection?.state==='ready',driverCollectionMessage:()=>'تعذر تأكيد المبلغ'},'@/lib/store-pickups':{confirmStorePickup:async()=>{pickups++;await new Promise(resolve=>finishPickup=resolve);return 'confirmed';}}};
+  mocks['@/lib/arabic-layout']={arabicRowDirection:'row-reverse',arabicTextAlign:'right'};
+  mocks['@/lib/driver-task-presentation']=load('src/lib/driver-task-presentation.ts');
+  mocks['@/components/driver/DriverStoreContents']=load('src/components/driver/DriverStoreContents.tsx',mocks);
+  mocks['@/components/driver/DeliveryTaskCard']=load('src/components/driver/DeliveryTaskCard.tsx',{
+   ...mocks,react:{...h.react,memo:fn=>fn},
+  });
   mocks['@/components/driver/DriverTaskLocation']=load('src/components/driver/DriverTaskLocation.tsx',{
    ...mocks,'react-native':{...native,Linking:{openURL:async url=>{if(failDial)throw Error('no dialer');dialed.push(url);}}},'@/lib/signup-data':load('src/lib/signup-data.ts'),
   });
@@ -113,13 +119,13 @@ async function main(){
    const task={id:'active',reference:'TSK-3',status:'picked_up',customer_order_id:'parent-3',
     customer_orders:{...destination,store_orders:[]},collection:{state:'ready',amount:100}};
    assignedRows=[task];await read();
-   assert(render().some(n=>n.props.children==='المستلم'));
+   assert(!render().some(n=>n.props.children==='المستلم'),'compact cards reserve recipient details for the assigned details screen');
    assert(!render().some(n=>n.props.title==='اتصال بالمستلم'||n.type==='Modal'));
    assert.equal(JSON.stringify(subscriptionSnapshot),initialBindings);
    render().find(n=>n.props.accessibilityRole==='button'&&n.type==='Pressable').props.onPress();
    assert.equal(routes.at(-1).pathname,'/driver/task-details');assert.equal(routes.at(-1).params.taskId,'active');
    assignedRows=Array.from({length:11},(_,i)=>({...task,id:String(i)}));await read();
-   assert.equal(render().filter(n=>n.props.accessibilityHint==='يفتح تفاصيل المهمة').length,10);
+   assert.equal(render().filter(n=>n.props.accessibilityHint==='مراجعة التسليم والتحصيل').length,10);
    render().find(n=>n.props.title==='التالي').props.onPress();render();await read();assert.equal(assignedPage.offset,10);
    render().find(n=>n.type==='Field').props.onChangeText(' TSK-٣ ');
    render().find(n=>n.props.title==='بحث').props.onPress();render();await read();

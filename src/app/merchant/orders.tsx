@@ -112,7 +112,7 @@ function MerchantOrders({ ownerId,targetId,initialFilter }: { ownerId: string;ta
           <AppButton title="إعادة المحاولة" variant="outline" onPress={()=>{controller.retryMore();void controller.more();}}/>
         </>:state.hasMore?<AppButton title="تحميل المزيد" variant="secondary" disabled={state.loading} onPress={()=>{void controller.more();}}/>:state.rows.length>0&&!state.error?<Text style={[styles.caption,{color:colors.textSecondary,textAlign:"center"}]}>نهاية القائمة</Text>:null}
       </View>}
-      renderItem={({ item }) => <MerchantOrderCard order={item} expanded={expanded===item.id}
+      renderItem={({ item }) => <MerchantOrderCard density="compact" order={item} expanded={expanded===item.id}
         toggle={() => setExpanded(id=>id===item.id?null:item.id)}
         busy={state.busyIds.includes(item.id)}
         onStart={() => { void confirmAction(item, "preparing"); }} onReady={() => { void confirmAction(item, "ready_for_pickup"); }}

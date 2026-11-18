@@ -7,19 +7,42 @@ import { useTheme } from "@/context/ThemeContext";
 import { orderTotal, type MerchantOrder, type OrderStatus } from "@/lib/merchant-orders";
 import { groupOrderItems } from "@/lib/order-item-groups";
 import { formatSyp } from "@/lib/money";
+import { arabicRowDirection, arabicTextAlign } from "@/lib/arabic-layout";
+import { merchantLineSummary } from "@/lib/role-card-presentation";
 
-const labels:Record<OrderStatus,string>={awaiting_review:"جديدة",preparing:"قيد التجهيز",ready_for_pickup:"جاهزة",handed_to_driver:"لدى السائق",delivered:"تم التسليم",rejected:"معتذر عنه",cancelled:"ملغى"};
+const labels:Record<OrderStatus,string>={awaiting_review:"طلب جديد",preparing:"قيد التجهيز",ready_for_pickup:"جاهز لاستلام السائق",handed_to_driver:"استلمه السائق",delivered:"تم التسليم للعميل",rejected:"اعتذرت عن التنفيذ",cancelled:"أُلغي طلب المتجر"};
 const date=(value:string)=>new Date(value).toLocaleString("ar-SY",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false});
-export function MerchantOrderCard({order,expanded,toggle,busy,onStart,onReady,onReject}:{
+export function MerchantOrderCard({order,expanded,toggle,busy,onStart,onReady,onReject,density="standard"}:{
  order:MerchantOrder;expanded:boolean;toggle:()=>void;busy:boolean;onStart:()=>void;onReady:()=>void;onReject:()=>void;
+ density?:"standard"|"compact";
 }){
  const {colors}=useTheme();
  const total=orderTotal(order.store_order_totals),parent=order.customer_orders;
  const stateColor=order.status==="awaiting_review"?colors.pendingForeground:order.status==="rejected"?colors.errorForeground:order.status==="delivered"?colors.successForeground:order.status==="cancelled"?colors.textSecondary:colors.infoForeground;
  const groups=expanded?groupOrderItems(order.store_order_items):[];
+ const compact = density === "compact";
+ const next = expanded ? "إخفاء التفاصيل" : order.status === "awaiting_review" ? "مراجعة الطلب" : order.status === "preparing" ? "متابعة التجهيز" : "التفاصيل";
+ const compactLabels:Record<OrderStatus,string>={awaiting_review:"طلب جديد",preparing:"قيد التجهيز",ready_for_pickup:"جاهز لاستلام السائق",handed_to_driver:"استلمه السائق",delivered:"تم التسليم للعميل",rejected:"اعتذرت عن التنفيذ",cancelled:"أُلغي طلب المتجر"};
  return <View style={[styles.card,{backgroundColor:colors.surface,borderColor:expanded?colors.borderStrong:colors.border}]}>
   <Pressable accessibilityRole="button" accessibilityState={{expanded}} accessibilityLabel={`${expanded?"إخفاء":"عرض"} تفاصيل طلب متجرك ${order.reference??parent.order_number}`}
-   onPress={toggle} style={({pressed})=>[styles.summary,{backgroundColor:pressed?colors.surfacePressed:colors.surface}]}>
+   onPress={toggle} style={({pressed})=>[compact ? styles.compactSummary : styles.summary,{backgroundColor:pressed?colors.surfacePressed:colors.surface}]}>
+   {compact ? <>
+    <View style={styles.compactRow}>
+     <View style={styles.compactIdentity}>
+      {order.reference ? <DocumentReference value={order.reference} /> : <Text style={[styles.compactMeta,{color:colors.textSecondary}]}>مرجع طلب المتجر غير متاح</Text>}
+      {order.parentReference ? <Text style={[styles.compactMeta,{color:colors.textSecondary}]}>طلب العميل · <Text style={{writingDirection:"ltr"}}>{order.parentReference}</Text></Text> : null}
+     </View>
+     <View style={styles.compactState}>
+      <Text style={[styles.compactBadge,{color:stateColor,backgroundColor:order.status==="awaiting_review"?colors.pendingSurface:colors.surfaceSecondary}]}>{compactLabels[order.status]}</Text>
+      <Text style={[styles.compactMeta,{color:colors.textSecondary}]}>{date(order.created_at)}</Text>
+     </View>
+    </View>
+    <Text style={[styles.compactMeta,{color:colors.textSecondary}]}>{merchantLineSummary(order.store_order_items)}</Text>
+    <View style={styles.compactRow}>
+     <Text style={[styles.compactMeta,styles.compactIdentity,{color:colors.textSecondary}]}>قيمة المنتجات · <Text style={[styles.compactAmount,{color:total?colors.text:colors.errorForeground}]}>{total??"غير متاح"}</Text></Text>
+     <View style={styles.compactLink}><Text style={[styles.compactMeta,{color:colors.primary}]}>{next}</Text><AppIcon name={expanded?"chevron-up-outline":"chevron-down-outline"} size={16} color={colors.primary}/></View>
+    </View>
+   </> : <>
    <View style={styles.row}>
     <View style={styles.reference}>{order.reference?<DocumentReference value={order.reference}/>:<Text style={[styles.meta,{color:colors.textSecondary}]}>الرمز غير متاح</Text>}</View>
     <View style={[styles.status,{backgroundColor:colors.surfaceSecondary}]}><Text style={[styles.statusText,{color:stateColor}]}>{labels[order.status]}</Text></View>
@@ -38,6 +61,7 @@ export function MerchantOrderCard({order,expanded,toggle,busy,onStart,onReady,on
     <View style={styles.link}><Text style={[styles.meta,{color:colors.primary}]}>{expanded?"إخفاء التفاصيل":"التفاصيل"}</Text><AppIcon name={expanded?"chevron-up-outline":"chevron-down-outline"} size={16} color={colors.primary}/></View>
     {order.customer_note?<View style={styles.link}><AppIcon name="chatbubble-outline" size={13} color={colors.textSecondary}/><Text style={[styles.meta,{color:colors.textSecondary}]}>ملاحظة</Text></View>:null}
    </View>
+   </>}
   </Pressable>
   {expanded?<View style={[styles.details,{borderTopColor:colors.border}]}>
    <Text style={[styles.section,{color:colors.text}]}>المنتجات</Text>
@@ -58,17 +82,25 @@ export function MerchantOrderCard({order,expanded,toggle,busy,onStart,onReady,on
     <View style={styles.row}><Text style={[styles.body,{color:colors.text}]}>{parent.recipient_name}</Text><Text selectable style={[styles.body,{color:colors.textSecondary,writingDirection:"ltr"}]}>{parent.contact_phone}</Text></View>
     <Text style={[styles.body,{color:colors.textSecondary}]}>{parent.delivery_address}</Text>
    </View>
-   <View style={styles.row}><Text style={[styles.meta,{color:colors.textSecondary}]}>طلب العميل {parent.order_number.toLocaleString("ar-SY",{useGrouping:false})}</Text>{order.parentReference?<DocumentReference value={order.parentReference}/>:null}</View>
+   {!compact?<View style={styles.row}><Text style={[styles.meta,{color:colors.textSecondary}]}>طلب العميل {parent.order_number.toLocaleString("ar-SY",{useGrouping:false})}</Text>{order.parentReference?<DocumentReference value={order.parentReference}/>:null}</View>:null}
    {order.customer_note?<View style={[styles.note,{backgroundColor:colors.surfaceSecondary}]}><Text style={[styles.strong,{color:colors.text}]}>ملاحظة العميل</Text><Text style={[styles.body,{color:colors.text}]}>{order.customer_note}</Text></View>:null}
    {order.rejection_reason?<View style={styles.note}><Text style={[styles.strong,{color:colors.errorForeground}]}>سبب الاعتذار</Text><Text style={[styles.body,{color:colors.text}]}>{order.rejection_reason}</Text></View>:null}
    {order.status==="awaiting_review"?<View style={styles.actions}>
     <AppButton title="قبول وبدء التجهيز" onPress={onStart} loading={busy}/>
     <AppButton title="الاعتذار عن طلب المتجر" variant="outline" onPress={onReject} disabled={busy}/>
-   </View>:order.status==="preparing"?<AppButton title="الطلب جاهز للاستلام" onPress={onReady} loading={busy}/>:null}
+   </View>:order.status==="preparing"?<AppButton title="جاهز لاستلام السائق" onPress={onReady} loading={busy}/>:null}
   </View>:null}
  </View>;
 }
 const styles=StyleSheet.create({
+ compactSummary:{padding:Spacing.three,gap:Spacing.one,minHeight:44},
+ compactRow:{flexDirection:arabicRowDirection,flexWrap:"wrap",alignItems:"center",justifyContent:"space-between",gap:Spacing.two},
+ compactIdentity:{flexGrow:1,flexShrink:1,minWidth:0},
+ compactState:{flexShrink:1,minWidth:0,gap:Spacing.half,alignItems:"center"},
+ compactMeta:{...Typography.caption,textAlign:arabicTextAlign,flexShrink:1},
+ compactBadge:{...Typography.caption,textAlign:arabicTextAlign,paddingHorizontal:Spacing.two,paddingVertical:Spacing.half,borderRadius:Radius.full,flexShrink:1},
+ compactAmount:{...Typography.bodyStrong,textAlign:arabicTextAlign},
+ compactLink:{flexDirection:arabicRowDirection,alignItems:"center",gap:Spacing.one},
  card:{borderWidth:1,borderRadius:Radius.md,overflow:"hidden"},
  summary:{padding:Spacing.three,gap:Spacing.two,minHeight:44},
  row:{flexDirection:"row-reverse",flexWrap:"wrap",alignItems:"center",justifyContent:"space-between",gap:Spacing.two},

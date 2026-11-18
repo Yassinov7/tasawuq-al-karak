@@ -90,7 +90,7 @@ function DriverFinance({ owner }: { owner: string }) {
   };
   const error = failure === scope ? "تعذر تحميل البيانات المالية. تحقق من الاتصال ثم أعد المحاولة." : "";
 
-  return <FinanceAccountView role="driver" filters={filters}
+  return <FinanceAccountView role="driver" filters={filters} documentDensity="compact"
     account={account ?? null} data={data?.overview ?? null}
     search={search} query={query} kind={kind} page={page} hasNext={Boolean(data?.hasMore)}
     live={live} refreshing={reading} busy={false} error={error} partialError="" message="" pendingReview={null}

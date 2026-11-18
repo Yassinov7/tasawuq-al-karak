@@ -1,34 +1,95 @@
-// Offline date/clock tests. TZ cases run in isolated Node processes; no app server or database.
-const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),{spawnSync}=require('node:child_process');
-function load(file){const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,Date,Number,Intl,require(name){if(name==='@/constants/selling-units')return load('src/constants/selling-units.ts');if(name.startsWith('@/lib/'))return load('src/lib/'+name.slice(6)+'.ts');throw Error(name);}});return exports;}
-const e=load('src/lib/offer-expiration.ts'),m=load('src/lib/merchant-offer-editor.ts');
-if(process.argv[2]==='--zone'){
- const zone=process.argv[3],expected={'UTC':'2030-07-10T14:20:00.000Z','Asia/Damascus':'2030-07-10T11:20:00.000Z','America/New_York':'2030-07-10T18:20:00.000Z','America/Los_Angeles':'2030-07-10T21:20:00.000Z','Pacific/Kiritimati':'2030-07-10T00:20:00.000Z','Australia/Lord_Howe':'2030-07-10T03:50:00.000Z'};
- assert.equal(e.localOfferEndInstant('2030-07-10','14:20'),expected[zone],zone);
- const roundtrip=e.localOfferFields(expected[zone]);assert.equal(roundtrip.date,'2030-07-10');assert.equal(roundtrip.time,'14:20');
- assert.equal(e.formatCompactOfferDate(expected[zone].replace(':00.000Z',':45.000Z')),'10/07/2030 · 14:20');
- if(zone==='Pacific/Kiritimati'){const iso=e.localOfferEndInstant('2030-01-02','00:15');assert.equal(iso,'2030-01-01T10:15:00.000Z');assert.equal(e.localOfferFields(iso).date,'2030-01-02');}
- if(zone==='America/Los_Angeles'){const iso=e.localOfferEndInstant('2030-01-01','23:45');assert.equal(iso,'2030-01-02T07:45:00.000Z');assert.equal(e.localOfferFields(iso).date,'2030-01-01');}
- if(zone==='America/New_York'){
-  assert.throws(()=>e.localOfferEndInstant('2027-03-14','02:30'),/غير موجود/);assert.throws(()=>e.localOfferEndInstant('2027-11-07','01:30'),/يتكرر/);
-  assert.equal(e.localOfferFields(e.localOfferEndInstant('2027-11-07','02:30')).time,'02:30');
- }
- if(zone==='Australia/Lord_Howe'){assert.throws(()=>e.localOfferEndInstant('2027-10-03','02:15'),/غير موجود/);assert.throws(()=>e.localOfferEndInstant('2027-04-04','01:45'),/يتكرر/);}
- const past=new Date(2030,6,10,15,0).getTime();assert.throws(()=>e.validateLocalOfferEnd('2030-07-10','14:20',past),/المستقبل/);
- const now=new Date(2030,6,10,13,0).getTime();assert.equal(e.validateLocalOfferEnd('2030-07-10','14:20',now),expected[zone]);
- console.log('PASS timezone '+zone);process.exit(0);
+// Focused date/clock tests. Child processes verify independence from the device timezone.
+const assert = require("node:assert/strict"), fs = require("node:fs"), vm = require("node:vm");
+const ts = require("typescript"), { spawnSync } = require("node:child_process");
+function load(file) {
+  const exports = {};
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText, { exports, Date, Number, Intl, require(name) {
+    if (name.startsWith("@/")) return load("src/" + name.slice(2) + ".ts");
+    throw Error(name);
+  } });
+  return exports;
 }
-let passed=0;function test(name,run){run();passed++;console.log('PASS '+name);}
-test('future date and explicit hour/minute produce an ISO instant, not end-of-day',()=>{const now=new Date(2030,6,10,10,0).getTime(),iso=e.validateLocalOfferEnd('2030-07-10','11:25',now),parts=e.localOfferFields(iso);assert.equal(parts.date,'2030-07-10');assert.equal(parts.time,'11:25');assert.notEqual(parts.time,'23:59');});
-test('time already past today and exactly now are rejected',()=>{const now=new Date(2030,6,10,14,20).getTime();assert.throws(()=>e.validateLocalOfferEnd('2030-07-10','14:19',now));assert.throws(()=>e.validateLocalOfferEnd('2030-07-10','14:20',now));});
-test('missing date, missing time and invalid clock fields have clear failures',()=>{assert.throws(()=>e.localOfferEndInstant('','14:20'),/التقويم/);assert.throws(()=>e.localOfferEndInstant('2030-07-10',''),/الساعة والدقيقة/);for(const time of ['24:00','12:60','25:99'])assert.throws(()=>e.localOfferEndInstant('2030-07-10',time));});
-test('calendar leap days, month lengths and year changes use Gregorian rules',()=>{assert.equal(e.offerMonthDays(2028,2),29);assert.equal(e.offerMonthDays(2100,2),28);assert.equal(e.offerMonthDays(2000,2),29);assert.throws(()=>e.parseOfferDay('2030-02-29'));assert.equal(e.parseOfferDay('2028-02-29').day,29);assert.equal(e.moveOfferMonth(2030,12,1).year,2031);assert.equal(e.moveOfferMonth(2030,1,-1).month,12);assert.equal(e.offerCalendarCells(2030,2).filter(value=>value!==null).length,28);});
-test('saved timestamp retains offset and seconds when editing without change',()=>{const original='2038-07-10T14:20:45+03:00',data={offer:{title:'عرض',description:'',offer_type:'discount',discount_method:'percentage',discount_value:10,bundle_price:null,is_active:true,ends_at:original},items:[]};const form=m.formFromOffer(data);assert.equal(form.endMode,'keep');assert.equal(m.offerEndsAt(form,undefined,Date.parse('2030-01-01')),original);const fields=e.localOfferFields(original);assert.equal(e.keepsSavedOfferEnd(original,fields.date,fields.time),true);assert.equal(m.offerEndsAt(form,undefined,Date.parse('2030-01-01')),original);});
-test('null is sent only for explicit none or an original no-end offer',()=>{const form={...m.emptyOfferForm,endMode:'keep',originalEndsAt:'2038-07-10T14:20:00+03:00'};assert.notEqual(m.offerEndsAt(form,undefined,0),null);assert.equal(m.offerEndsAt({...form,endMode:'none'},undefined,0),null);assert.equal(m.offerEndsAt({...m.emptyOfferForm},undefined,0),null);assert.throws(()=>m.offerEndsAt({...form,endMode:'new',endDate:'',endTime:''},undefined,0));});
-test('expired existing end requires a new future appointment or explicit removal',()=>{const expired={...m.emptyOfferForm,endMode:'keep',originalEndsAt:'2020-01-01T00:00:00Z'},now=Date.parse('2030-01-01');assert.throws(()=>m.offerEndsAt(expired,undefined,now));assert.equal(m.offerEndsAt({...expired,endMode:'none'},undefined,now),null);assert.ok(m.offerEndsAt({...expired,endMode:'new',endDate:'2038-07-10',endTime:'14:20'},undefined,now));});
-test('device timezone drift after selection is rejected instead of silently shifting the instant',()=>{const iso=e.localOfferEndInstant('2038-07-10','14:20'),form={...m.emptyOfferForm,endMode:'new',endDate:'2038-07-10',endTime:'14:20',selectedEndInstant:iso};assert.equal(m.offerEndsAt(form,undefined,0),iso);assert.throws(()=>m.offerEndsAt({...form,selectedEndInstant:new Date(Date.parse(iso)+3600000).toISOString()},undefined,0),/توقيت الجهاز/);});
-test('start date is immutable and end must be later than it',()=>{const iso=e.localOfferEndInstant('2038-07-10','14:20');assert.throws(()=>e.validateLocalOfferEnd('2038-07-10','14:20',0,new Date(Date.parse(iso)+60000).toISOString()),/بداية العرض/);});
-test('shared picker has no manual date/time input and commits only on explicit confirmation',()=>{const ui=fs.readFileSync('src/components/merchant/OfferExpirationPicker.tsx','utf8'),shared=fs.readFileSync('src/components/merchant/MerchantOfferForm.tsx','utf8');assert.ok(shared.includes('<OfferExpirationPicker'));assert.ok(!shared.includes('label="تاريخ النهاية'));assert.ok(!shared.includes('label="الوقت'));assert.ok(!ui.includes('TextInput'));assert.ok(!ui.includes('AppTextField'));assert.ok(ui.includes('offerCalendarCells'));assert.ok(ui.includes("panel:'hours'"));assert.ok(ui.includes("panel:'minutes'"));assert.ok(ui.includes("props.commit({mode:'new'"));assert.ok(ui.includes('useState(()=>seed(props))'));assert.ok(!ui.includes('useEffect'));assert.ok(ui.includes('onCancel={props.close}'));assert.ok(ui.includes('draft.hour===null||draft.minute===null'));});
-test('expiration selection leaves all three offer types, quantities and prices untouched',()=>{const product={id:'p',title:'منتج',price:100,selling_unit:'قطعة',minimum_quantity:1,quantity_step:1,is_available:true};for(const type of ['discount','bundle','buy_x_get_y']){const roles=type==='discount'?['discounted']:type==='bundle'?['bundle']:['buy','reward'];const form={...m.emptyOfferForm,title:'عرض صالح',type,discountValue:'10',bundlePrice:'90',items:roles.map(role=>({key:role,productId:'p',role,quantity:'1'}))};const before=m.validateOffer(form,[product],null,undefined,0);assert.ok(before.args);const iso=e.localOfferEndInstant('2038-07-10','14:20'),after=m.validateOffer({...form,endMode:'new',endDate:'2038-07-10',endTime:'14:20',selectedEndInstant:iso},[product],null,undefined,0);assert.ok(after.args);assert.equal(after.args.input_type,before.args.input_type);assert.equal(after.args.input_discount_value,before.args.input_discount_value);assert.equal(after.args.input_bundle_price,before.args.input_bundle_price);assert.deepEqual(JSON.parse(JSON.stringify(after.args.input_items)),JSON.parse(JSON.stringify(before.args.input_items)));assert.equal(after.args.input_ends_at,iso);assert.ok(!Object.hasOwn(after.args,'input_starts_at'));}});
-for(const zone of ['UTC','Asia/Damascus','America/New_York','America/Los_Angeles','Pacific/Kiritimati','Australia/Lord_Howe'])test('isolated timezone and DST validation: '+zone,()=>{const child=spawnSync(process.execPath,[__filename,'--zone',zone],{env:{...process.env,TZ:zone},encoding:'utf8'});assert.equal(child.status,0,(child.stdout??'')+(child.stderr??''));});
-console.log(passed+' offer expiration tests passed (offline)');
+const clock = load("src/lib/offer-syria-time.ts");
+const calendar = load("src/lib/offer-expiration.ts");
+const model = load("src/lib/merchant-offer-editor.ts");
+const now = Date.parse("2030-07-10T07:00:00Z");
+if (process.argv[2] === "--zone") {
+  assert.equal(clock.syriaOfferInstant("2030-07-10", "14:20"), "2030-07-10T11:20:00.000Z");
+  assert.equal(clock.syriaOfferFields("2030-07-10T21:15:00Z").date, "2030-07-11");
+  assert.equal(clock.syriaOfferFields("2030-07-10T11:20:00Z").time, "14:20");
+  const future = "2038-07-10T14:20:45.123456+03:00";
+  const fields = clock.syriaOfferFields(future);
+  assert.equal(clock.keepsSavedSyriaOfferTime(future, fields.date, fields.time), true);
+  assert.equal(model.offerEndsAt({ ...model.emptyOfferForm, endMode: "keep", originalEndsAt: future }, undefined, now), future);
+  const args = model.validateOffer({
+    ...model.emptyOfferForm, title: "عرض صالح", discountValue: "10",
+    startMode: "scheduled", startDate: "2038-07-10", startTime: "12:00",
+    endMode: "new", endDate: "2038-07-11", endTime: "14:20",
+    items: [{ key: "p", productId: "p", role: "discounted", quantity: "1" }],
+  }, [{ id: "p", title: "منتج", price: 100, selling_unit: "قطعة", minimum_quantity: 1, quantity_step: 1, is_available: true }], null, undefined, now).args;
+  assert.equal(args.input_starts_at, "2038-07-10T09:00:00.000Z");
+  assert.equal(args.input_ends_at, "2038-07-11T11:20:00.000Z");
+  console.log("PASS device zone " + process.env.TZ);
+  process.exit(0);
+}
+let passed = 0;
+function test(name, run) { run(); passed++; console.log("PASS " + name); }
+test("Syrian time is explicit, including midnight across UTC days", () => {
+  assert.equal(clock.syriaOfferInstant("2030-01-02", "00:15"), "2030-01-01T21:15:00.000Z");
+  assert.equal(clock.syriaOfferFields("2030-01-01T21:15:00Z").date, "2030-01-02");
+  assert(clock.formatSyriaOfferTime("2030-01-01T21:15:00Z").length > 10);
+});
+test("missing clock, invalid days and invalid 24-hour values are rejected", () => {
+  for (const time of ["", "24:00", "12:60", "-1:00"]) assert.throws(() => clock.syriaOfferInstant("2030-07-10", time));
+  for (const date of ["", "2030-02-29", "2030-13-01", "2030-04-31"]) assert.throws(() => clock.syriaOfferInstant(date, "14:20"));
+  assert(clock.syriaOfferInstant("2028-02-29", "14:20"));
+});
+test("calendar starts Saturday and keeps each weekday correct", () => {
+  for (const [year, month] of [[2026,11],[2028,2],[2030,1],[2100,2]]) {
+    const cells = calendar.offerCalendarCells(year, month);
+    assert.equal(cells.filter(day => day !== null).length, calendar.offerMonthDays(year, month));
+    for (let index = 0; index < cells.length; index++) if (cells[index] !== null) {
+      const day = new Date(Date.UTC(year, month - 1, cells[index]));
+      assert.equal(index % 7, (day.getUTCDay() + 1) % 7);
+    }
+  }
+  assert.equal(calendar.moveOfferMonth(2030,12,1).year,2031);
+  assert.equal(calendar.moveOfferMonth(2030,1,-1).year,2029);
+});
+test("past days, exhausted last minute and end-before-start are disabled", () => {
+  assert.equal(clock.canSelectSyriaOfferDay("2030-07-09", now), false);
+  assert.equal(clock.canSelectSyriaOfferDay("2030-07-10", now), true);
+  assert.equal(clock.canSelectSyriaOfferDay("2030-07-10", Date.parse("2030-07-10T20:59:00Z")), false);
+  const start = "2030-07-12T21:00:00Z";
+  assert.equal(clock.canSelectSyriaOfferDay("2030-07-12", now, start), false);
+  assert.equal(clock.canSelectSyriaOfferDay("2030-07-13", now, start), true);
+  assert.throws(() => clock.validateSyriaOfferTime("2030-07-10", "10:00", now));
+  assert.throws(() => clock.validateSyriaOfferTime("2030-07-10", "11:00", now, "2030-07-10T08:00:00Z"));
+});
+test("historical Syrian missing and repeated times are rejected explicitly", () => {
+  assert.throws(() => clock.syriaOfferInstant("2021-03-26","00:30"), /غير موجود/);
+  assert.throws(() => clock.syriaOfferInstant("2021-10-28","23:30"), /يتكرر/);
+});
+test("saved starts and ends preserve exact original offset and fractional seconds", () => {
+  const start = "2026-01-02T14:20:45.123456+03:00", end = "2038-07-10T14:20:45.123456+03:00";
+  const form = { ...model.emptyOfferForm, startMode: "keep", originalStartsAt: start, endMode: "keep", originalEndsAt: end };
+  assert.equal(model.offerStartsAt(form, now), start);
+  assert.equal(model.offerEndsAt(form, start, now), end);
+  assert.equal(model.offerStartsAt({ ...form, startMode: "now" }, now), new Date(now).toISOString());
+  assert.throws(() => model.offerEndsAt({ ...form, originalEndsAt: "2020-01-01T00:00:00Z" }, start, now));
+});
+test("scheduled selection and wall-clock mismatch cannot silently change the instant", () => {
+  const form = { ...model.emptyOfferForm, startMode: "scheduled", startDate: "2038-07-10", startTime: "14:20", selectedStartInstant: "2038-07-10T11:20:00.000Z" };
+  assert.equal(model.offerStartsAt(form, now), form.selectedStartInstant);
+  assert.throws(() => model.offerStartsAt({ ...form, selectedStartInstant: "2038-07-10T12:20:00Z" }, now));
+  assert.throws(() => model.offerEndsAt({ ...form, endMode: "new", endDate: "2038-07-11", endTime: "14:20", selectedEndInstant: "2038-07-11T12:20:00Z" }, undefined, now));
+});
+for (const zone of ["UTC","Asia/Damascus","America/New_York","America/Los_Angeles","Pacific/Kiritimati","Australia/Lord_Howe"]) {
+  test("same Syrian UTC value and save contract under device zone " + zone, () => {
+    const child = spawnSync(process.execPath, [require("node:path").resolve("scripts/test-offer-expiration.cjs"),"--zone"], { env: { ...process.env, TZ: zone }, encoding: "utf8" });
+    assert.equal(child.status, 0, child.stdout + child.stderr);
+  });
+}
+console.log(passed + " focused Syrian-time/calendar checks passed; no remote calls");
